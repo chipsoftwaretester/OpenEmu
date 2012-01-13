@@ -29,7 +29,8 @@
 #include "gfx.h"
 #include "display.h"
 #include "ppu.h"
-#include "soundux.h"
+//#include "soundux.h"
+//#include "conffile.h"
 #include "apu.h"
 #include "controls.h"
 #include "snes9x.h"
@@ -220,7 +221,8 @@ bool8 S9xOpenSnapshotFile (const char *base, bool8 read_only, STREAM *file)
 
 void S9xCloseSnapshotFile (STREAM file)
 {
-    fclose(file);
+    //fclose(file);
+    CLOSE_STREAM(file);
 }
 
 bool S9xPollButton(uint32 id, bool *pressed)
