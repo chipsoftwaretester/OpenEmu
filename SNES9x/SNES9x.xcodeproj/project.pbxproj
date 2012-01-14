@@ -94,7 +94,6 @@
 		94790DAA14C0C46900B30798 /* reader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D4A14C0C46900B30798 /* reader.cpp */; };
 		94790DAB14C0C46900B30798 /* sa1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D4C14C0C46900B30798 /* sa1.cpp */; };
 		94790DAC14C0C46900B30798 /* sa1cpu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D4E14C0C46900B30798 /* sa1cpu.cpp */; };
-		94790DAD14C0C46900B30798 /* screenshot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D5014C0C46900B30798 /* screenshot.cpp */; };
 		94790DAE14C0C46900B30798 /* sdd1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D5214C0C46900B30798 /* sdd1.cpp */; };
 		94790DAF14C0C46900B30798 /* sdd1emu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D5414C0C46900B30798 /* sdd1emu.cpp */; };
 		94790DB014C0C46900B30798 /* server.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D5614C0C46900B30798 /* server.cpp */; };
@@ -105,15 +104,9 @@
 		94790DB514C0C46900B30798 /* snapshot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D5C14C0C46900B30798 /* snapshot.cpp */; };
 		94790DB614C0C46900B30798 /* snes9x.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D5E14C0C46900B30798 /* snes9x.cpp */; };
 		94790DB714C0C46900B30798 /* spc7110.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6014C0C46900B30798 /* spc7110.cpp */; };
-		94790DB814C0C46900B30798 /* spc7110dec.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6214C0C46900B30798 /* spc7110dec.cpp */; };
-		94790DB914C0C46900B30798 /* spc7110emu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6414C0C46900B30798 /* spc7110emu.cpp */; };
 		94790DBA14C0C46900B30798 /* srtc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6614C0C46900B30798 /* srtc.cpp */; };
-		94790DBB14C0C46900B30798 /* srtcemu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6814C0C46900B30798 /* srtcemu.cpp */; };
 		94790DBC14C0C46900B30798 /* tile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6A14C0C46900B30798 /* tile.cpp */; };
 		94790DBD14C0C46900B30798 /* ioapi.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D6E14C0C46900B30798 /* ioapi.c */; };
-		94790DBE14C0C46900B30798 /* iowin32.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D7014C0C46900B30798 /* iowin32.c */; };
-		94790DBF14C0C46900B30798 /* miniunz.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D7214C0C46900B30798 /* miniunz.c */; };
-		94790DC014C0C46900B30798 /* minizip.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D7314C0C46900B30798 /* minizip.c */; };
 		94790DC114C0C46900B30798 /* mztools.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D7414C0C46900B30798 /* mztools.c */; };
 		94790DC214C0C46900B30798 /* unzip.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D7614C0C46900B30798 /* unzip.c */; };
 		94790DC314C0C46900B30798 /* zip.c in Sources */ = {isa = PBXBuildFile; fileRef = 94790D7814C0C46900B30798 /* zip.c */; };
@@ -271,6 +264,8 @@
 		089C167FFE841241C02AAC07 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
 		1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
 		32DBCF630370AF2F00C91783 /* SNES9x_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SNES9x_Prefix.pch; sourceTree = "<group>"; };
+		8233FF2814C1E1B100FC4547 /* AudioUnit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioUnit.framework; path = System/Library/Frameworks/AudioUnit.framework; sourceTree = SDKROOT; };
+		8233FF2A14C1E1C100FC4547 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		82444DAA0F51335E007C171B /* OpenEmu.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = OpenEmu.xcodeproj; path = ../OpenEmu/OpenEmu.xcodeproj; sourceTree = SOURCE_ROOT; };
 		826C1AAF0F41F65600FB9014 /* libz_u.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libz_u.a; sourceTree = "<group>"; };
 		826C1AB00F41F65600FB9014 /* libz.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libz.a; sourceTree = "<group>"; };
@@ -463,6 +458,8 @@
 		089C166AFE841209C02AAC07 /* SNES9x */ = {
 			isa = PBXGroup;
 			children = (
+				8233FF2A14C1E1C100FC4547 /* AudioToolbox.framework */,
+				8233FF2814C1E1B100FC4547 /* AudioUnit.framework */,
 				82444DAA0F51335E007C171B /* OpenEmu.xcodeproj */,
 				08FB77AFFE84173DC02AAC07 /* Classes */,
 				32C88E010371C26100C91783 /* Other Sources */,
@@ -1015,7 +1012,6 @@
 				94790DAA14C0C46900B30798 /* reader.cpp in Sources */,
 				94790DAB14C0C46900B30798 /* sa1.cpp in Sources */,
 				94790DAC14C0C46900B30798 /* sa1cpu.cpp in Sources */,
-				94790DAD14C0C46900B30798 /* screenshot.cpp in Sources */,
 				94790DAE14C0C46900B30798 /* sdd1.cpp in Sources */,
 				94790DAF14C0C46900B30798 /* sdd1emu.cpp in Sources */,
 				94790DB014C0C46900B30798 /* server.cpp in Sources */,
@@ -1026,15 +1022,9 @@
 				94790DB514C0C46900B30798 /* snapshot.cpp in Sources */,
 				94790DB614C0C46900B30798 /* snes9x.cpp in Sources */,
 				94790DB714C0C46900B30798 /* spc7110.cpp in Sources */,
-				94790DB814C0C46900B30798 /* spc7110dec.cpp in Sources */,
-				94790DB914C0C46900B30798 /* spc7110emu.cpp in Sources */,
 				94790DBA14C0C46900B30798 /* srtc.cpp in Sources */,
-				94790DBB14C0C46900B30798 /* srtcemu.cpp in Sources */,
 				94790DBC14C0C46900B30798 /* tile.cpp in Sources */,
 				94790DBD14C0C46900B30798 /* ioapi.c in Sources */,
-				94790DBE14C0C46900B30798 /* iowin32.c in Sources */,
-				94790DBF14C0C46900B30798 /* miniunz.c in Sources */,
-				94790DC014C0C46900B30798 /* minizip.c in Sources */,
 				94790DC114C0C46900B30798 /* mztools.c in Sources */,
 				94790DC214C0C46900B30798 /* unzip.c in Sources */,
 				94790DC314C0C46900B30798 /* zip.c in Sources */,
@@ -1092,6 +1082,7 @@
 					"-D__MACOSX__",
 					"-DJMA_SUPPORT",
 					"-Wno-write-strings",
+					"-Dunix",
 				);
 				PRODUCT_NAME = SNES9x;
 				VALID_ARCHS = x86_64;
@@ -1119,6 +1110,7 @@
 					"-D__MACOSX__",
 					"-DJMA_SUPPORT",
 					"-Wno-write-strings",
+					"-Dunix",
 				);
 				PRODUCT_NAME = SNES9x;
 				VALID_ARCHS = x86_64;

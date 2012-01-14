@@ -53,9 +53,9 @@
 #define SIZESOUNDBUFFER SAMPLEFRAME * 4
 
 static AUGraph agraph;
-static void SetAudioUnitSoundFormat (void);
-static void SetAudioUnitVolume (void);
-static void ChangeBufferFrameSize (void);
+//static void SetAudioUnitSoundFormat (void);
+//static void SetAudioUnitVolume (void);
+//static void ChangeBufferFrameSize (void);
 
 @implementation SNESGameEmu
 
@@ -207,16 +207,6 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
 //}
 bool8 S9xOpenSoundDevice (void)
 {
-	OSStatus	err;
-    
-	err = AUGraphUninitialize(agraph);
-    
-	SetAudioUnitSoundFormat();
-	SetAudioUnitVolume();
-	ChangeBufferFrameSize();
-    
-	err = AUGraphInitialize(agraph);
-    
 	return (true);
 }
 

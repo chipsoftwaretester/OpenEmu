@@ -30,7 +30,7 @@
 #include "display.h"
 #include "ppu.h"
 //#include "soundux.h"
-//#include "conffile.h"
+#include "conffile.h"
 #include "apu.h"
 #include "controls.h"
 #include "snes9x.h"
@@ -253,3 +253,17 @@ const char *S9xChooseMovieFilename(bool8 read_only)
     return NULL;
 }
 
+void S9xExtraUsage()
+{
+    NSLog(@"Extra usage");
+}
+
+void S9xParseArg(char**, int&, int)
+{
+    
+}
+
+void S9xParsePortConfig(ConfigFile&, int)
+{
+    
+}
