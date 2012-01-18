@@ -131,11 +131,6 @@
     
     // Preload Composition plugins so HUDControls Bar and Gameplay Preferneces load faster
     [OECompositionPlugin allPluginNames];
-    
-    // TODO: remove after testing OEHUDAlert
-    [[OECoreUpdater sharedUpdater] installCoreWithIdentifier:@"com.openemu.snes9x" coreName:@"Nestopia" systemName:@"Nintendo (NES)" withCompletionHandler:^{
-     NSLog(@"core was installed!");
-     }];
 }
 #pragma mark -
 #pragma mark Loading The Database

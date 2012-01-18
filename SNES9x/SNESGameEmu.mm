@@ -106,6 +106,7 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
 - (BOOL)loadFileAtPath: (NSString*) path
 {
     memset(&Settings, 0, sizeof(Settings));
+    //ZeroMemory(&Settings, sizeof(Settings));
     Settings.ForcePAL            = false;
     Settings.ForceNTSC           = false;
     Settings.ForceHeader         = false;
@@ -136,8 +137,12 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
     Settings.Transparency = true;
     Settings.SupportHiRes = true;
     //Settings.SDD1Pack = true;
-    GFX.InfoString = nil;
+    //GFX.InfoString = nil;
+    GFX.InfoString = NULL;
     GFX.InfoStringTimeout = 0;
+    Settings.OpenGLEnable = false;
+    Settings.SoundInputRate = 32000;
+    //Settings.DumpStreamsMaxFrames = -1;
     
     if(videoBuffer) 
         free(videoBuffer);
@@ -160,6 +165,9 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
         NSLog(@"Couldn't init");
     NSLog(@"loading %@", path);
     
+    if(!S9xInitSound(SIZESOUNDBUFFER, 0))
+        NSLog(@"Couldn't init sound");
+    
     Settings.NoPatch = true;
     if(Memory.LoadROM([path UTF8String]))
     {
@@ -177,13 +185,14 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
         
             Memory.LoadSRAM([filePath UTF8String]);
         }
+        //NSAutoreleasePool();
         
         //S9xInitSound(1, Settings.Stereo, SIZESOUNDBUFFER);
         
         /* buffer_ms : buffer size given in millisecond
          lag_ms    : allowable time-lag given in millisecond
          S9xInitSound(macSoundBuffer_ms, macSoundLagEnable ? macSoundBuffer_ms / 2 : 0); */
-        S9xInitSound(SIZESOUNDBUFFER, 0);
+        //S9xInitSound(SIZESOUNDBUFFER, 0);
     }
     return YES;
 }
