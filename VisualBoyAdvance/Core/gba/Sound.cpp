@@ -355,10 +355,10 @@ void flush_samples(Multi_Buffer * buffer)
 	int soundBufferLen = ( soundSampleRate / 60 ) * 4;
 
 	// soundBufferLen should have a whole number of sample pairs
-	assert( soundBufferLen % (2 * sizeof (*soundFinalWave)) == 0 );
+	assert( soundBufferLen % (2 * sizeof *soundFinalWave) == 0 );
 
 	// number of samples in output buffer
-	int const out_buf_size = soundBufferLen / sizeof (*soundFinalWave);
+	int const out_buf_size = soundBufferLen / sizeof *soundFinalWave;
 
 	// Keep filling and writing soundFinalWave until it can't be fully filled
 	while ( buffer->samples_avail() >= out_buf_size )

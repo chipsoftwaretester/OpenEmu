@@ -20,6 +20,8 @@
 #include "../common/Port.h"
 #include "../System.h"
 #include "agbprint.h"
+#include "GBALink.h"
+
 #ifdef PROFILING
 #include "prof/prof.h"
 #endif
@@ -28,17 +30,8 @@
 #define _stricmp strcasecmp
 #endif
 
-
 extern int emulating;
-#ifdef LINK_EMULATION
-extern int linktime;
-extern void StartLink(u16);
-extern void StartJOYLink(u16);
-extern void StartGPLink(u16);
-extern void LinkSSend(u16);
-extern void LinkUpdate(int);
-extern int linktime2;
-#endif
+
 int SWITicks = 0;
 int IRQTicks = 0;
 
@@ -120,7 +113,6 @@ bool fxOn = false;
 bool windowOn = false;
 int frameCount = 0;
 char buffer[1024];
-FILE *out = NULL;
 u32 lastTime = 0;
 int count = 0;
 
@@ -990,6 +982,62 @@ bool CPUReadGSASnapshot(const char *fileName)
   return true;
 }
 
+bool CPUReadGSASPSnapshot(const char *fileName)
+{
+  const char gsvfooter[] = "xV4\x12";
+  const size_t namepos=0x0c, namesz=12;
+  const size_t footerpos=0x42c, footersz=4;
+
+  char footer[footersz+1], romname[namesz+1], savename[namesz+1];;
+  FILE *file = fopen(fileName, "rb");
+
+  if(!file) {
+    systemMessage(MSG_CANNOT_OPEN_FILE, N_("Cannot open file %s"), fileName);
+    return false;
+  }
+
+  // read save name
+  fseek(file, namepos, SEEK_SET);
+  fread(savename, 1, namesz, file);
+  savename[namesz] = 0;
+
+  memcpy(romname, &rom[0xa0], namesz);
+  romname[namesz] = 0;
+
+  if(memcmp(romname, savename, namesz)) {
+    systemMessage(MSG_CANNOT_IMPORT_SNAPSHOT_FOR,
+                  N_("Cannot import snapshot for %s. Current game is %s"),
+                  savename,
+                  romname);
+    fclose(file);
+    return false;
+  }
+
+  // read footer tag
+  fseek(file, footerpos, SEEK_SET);
+  fread(footer, 1, footersz, file);
+  footer[footersz] = 0;
+
+  if(memcmp(footer, gsvfooter, footersz)) {
+    systemMessage(0,
+                  N_("Unsupported snapshot file %s. Footer '%s' at %u should be '%s'"),
+                  fileName,
+				  footer,
+                  footerpos,
+				  gsvfooter);
+    fclose(file);
+    return false;
+  }
+
+  // Read up to 128k save
+  fread(flashSaveMemory, 1, FLASH_128K_SZ, file);
+
+  fclose(file);
+  CPUReset();
+  return true;
+}
+
+
 bool CPUWriteGSASnapshot(const char *fileName,
                          const char *title,
                          const char *desc,
@@ -1026,7 +1074,7 @@ bool CPUWriteGSASnapshot(const char *fileName,
   utilPutDword(buffer, totalSize); // length of remainder of save - CRC
   fwrite(buffer, 1, 4, file);
 
-  char temp[0x2001c];
+  char *temp = new char[0x2001c];
   memset(temp, 0, 28);
   memcpy(temp, &rom[0xa0], 16); // copy internal name
   temp[0x10] = rom[0xbe]; // reserved area (old checksum)
@@ -1046,6 +1094,7 @@ bool CPUWriteGSASnapshot(const char *fileName,
   fwrite(buffer, 1, 4, file); // CRC?
 
   fclose(file);
+  delete [] temp;
   return true;
 }
 
@@ -1085,8 +1134,10 @@ bool CPUImportEepromFile(const char *fileName)
       i++;
       i += 4;
     }
-  } else
+  } else {
+    fclose(file);
     return false;
+  }
   fclose(file);
   return true;
 }
@@ -1202,6 +1253,9 @@ bool CPUIsGBABios(const char * file)
 
 bool CPUIsELF(const char *file)
 {
+  if(file == NULL)
+	  return false;
+
   if(strlen(file) > 4) {
     const char * p = strrchr(file,'.');
 
@@ -1322,15 +1376,18 @@ int CPULoadRom(const char *szFile)
     }
   } else
 #endif //NO_DEBUGGER
-  if(!utilLoad(szFile,
-                      utilIsGBAImage,
-                      whereToLoad,
-                      romSize)) {
-    free(rom);
-    rom = NULL;
-    free(workRAM);
-    workRAM = NULL;
-    return 0;
+  if(szFile!=NULL)
+  {
+	  if(!utilLoad(szFile,
+						  utilIsGBAImage,
+						  whereToLoad,
+						  romSize)) {
+		free(rom);
+		rom = NULL;
+		free(workRAM);
+		workRAM = NULL;
+		return 0;
+	  }
   }
 
   u16 *temp = (u16 *)(rom+((romSize+1)&~1));
@@ -2764,61 +2821,63 @@ void CPUUpdateRegister(u32 address, u16 value)
     timerOnOffDelay|=8;
     cpuNextEvent = cpuTotalTicks;
     break;
-  case 0x128:
-#ifdef LINK_EMULATION
-    if (linkenable)
-    {
-      StartLink(value);
-    }
-    else
-#endif
-    {
-      if(value & 0x80) {
-        value &= 0xff7f;
-        if(value & 1 && (value & 0x4000)) {
-          UPDATE_REG(0x12a, 0xFF);
-          IF |= 0x80;
-          UPDATE_REG(0x202, IF);
-          value &= 0x7f7f;
-        }
-      }
-      UPDATE_REG(0x128, value);
-    }
-    break;
-  case 0x12a:
-#ifdef LINK_EMULATION
-    if(linkenable && lspeed)
-      LinkSSend(value);
-#endif
-    {
-      UPDATE_REG(0x134, value);
-    }
-    break;
+
+
+  case COMM_SIOCNT:
+	  StartLink(value);
+	  break;
+
+  case COMM_SIODATA8:
+	  if (gba_link_enabled)
+		  LinkSSend(value);
+	  UPDATE_REG(COMM_SIODATA8, value);
+	  break;
+
   case 0x130:
-    P1 |= (value & 0x3FF);
-    UPDATE_REG(0x130, P1);
-    break;
+	  P1 |= (value & 0x3FF);
+	  UPDATE_REG(0x130, P1);
+	  break;
+
   case 0x132:
-    UPDATE_REG(0x132, value & 0xC3FF);
-    break;
-  case 0x134:
-#ifdef LINK_EMULATION
-    if (linkenable)
-      StartGPLink(value);
-    else
-#endif
-      UPDATE_REG(0x134, value);
+	  UPDATE_REG(0x132, value & 0xC3FF);
+	  break;
 
-    break;
-  case 0x140:
-#ifdef LINK_EMULATION
-    if (linkenable)
-      StartJOYLink(value);
-    else
-#endif
-      UPDATE_REG(0x140, value);
+  case COMM_RCNT:
+	  StartGPLink(value);
+	  break;
 
-    break;
+  case COMM_JOYCNT:
+	  {
+		  u16 cur = READ16LE(&ioMem[COMM_JOYCNT]);
+
+		  if (value & JOYCNT_RESET)			cur &= ~JOYCNT_RESET;
+		  if (value & JOYCNT_RECV_COMPLETE)	cur &= ~JOYCNT_RECV_COMPLETE;
+		  if (value & JOYCNT_SEND_COMPLETE)	cur &= ~JOYCNT_SEND_COMPLETE;
+		  if (value & JOYCNT_INT_ENABLE)	cur |= JOYCNT_INT_ENABLE;
+
+		  UPDATE_REG(COMM_JOYCNT, cur);
+	  }
+	  break;
+
+  case COMM_JOY_RECV_L:
+	  UPDATE_REG(COMM_JOY_RECV_L, value);
+	  break;
+  case COMM_JOY_RECV_H:
+	  UPDATE_REG(COMM_JOY_RECV_H, value);	  
+	  break;
+
+  case COMM_JOY_TRANS_L:
+	  UPDATE_REG(COMM_JOY_TRANS_L, value);
+	  UPDATE_REG(COMM_JOYSTAT, READ16LE(&ioMem[COMM_JOYSTAT]) | JOYSTAT_SEND);
+	  break;
+  case COMM_JOY_TRANS_H:
+	  UPDATE_REG(COMM_JOY_TRANS_H, value);
+	  break;
+
+  case COMM_JOYSTAT:
+	  UPDATE_REG(COMM_JOYSTAT, (READ16LE(&ioMem[COMM_JOYSTAT]) & 0xf) | (value & 0xf0));
+	  break;
+
   case 0x200:
     IE = value & 0x3FFF;
     UPDATE_REG(0x200, IE);
@@ -3377,37 +3436,17 @@ void CPUInterrupt()
   biosProtected[3] = 0xe5;
 }
 
-#ifdef SDL
-void log(const char *defaultMsg, ...)
-{
-  char buffer[2048];
-  va_list valist;
-
-  va_start(valist, defaultMsg);
-  vsprintf(buffer, defaultMsg, valist);
-
-  if(out == NULL) {
-    out = fopen("trace.log","w");
-  }
-
-  fputs(buffer, out);
-
-  va_end(valist);
-}
-#else
-extern void winlog(const char *, ...);
-#endif
-
 void CPULoop(int ticks)
 {
   int clockTicks;
   int timerOverflow = 0;
   // variable used by the CPU core
   cpuTotalTicks = 0;
-#ifdef LINK_EMULATION
-  if(linkenable)
+
+  // shuffle2: what's the purpose?
+  if(gba_link_enabled)
     cpuNextEvent = 1;
-#endif
+
   cpuBreakLoop = false;
   cpuNextEvent = CPUUpdateTicks();
   if(cpuNextEvent > ticks)
@@ -3422,30 +3461,20 @@ void CPULoop(int ticks)
 #ifdef BKPT_SUPPORT
 		if (debugger_last)
 		{
-		sprintf(buffer, "R00=%08x R01=%08x R02=%08x R03=%08x R04=%08x R05=%08x R06=%08x R07=%08x R08=%08x R09=%08x R10=%08x R11=%08x R12=%08x R13=%08x R14=%08x R15=%08x R16=%08x R17=%08x\n",
+		winlog("R00=%08x R01=%08x R02=%08x R03=%08x R04=%08x R05=%08x R06=%08x R07=%08x R08=%08x R09=%08x R10=%08x R11=%08x R12=%08x R13=%08x R14=%08x R15=%08x R16=%08x R17=%08x\n",
                  oldreg[0], oldreg[1], oldreg[2], oldreg[3], oldreg[4], oldreg[5],
                  oldreg[6], oldreg[7], oldreg[8], oldreg[9], oldreg[10], oldreg[11],
                  oldreg[12], oldreg[13], oldreg[14], oldreg[15], oldreg[16],
                  oldreg[17]);
 		}
 #endif
-        sprintf(buffer, "R00=%08x R01=%08x R02=%08x R03=%08x R04=%08x R05=%08x R06=%08x R07=%08x R08=%08x R09=%08x R10=%08x R11=%08x R12=%08x R13=%08x R14=%08x R15=%08x R16=%08x R17=%08x\n",
+        winlog("R00=%08x R01=%08x R02=%08x R03=%08x R04=%08x R05=%08x R06=%08x R07=%08x R08=%08x R09=%08x R10=%08x R11=%08x R12=%08x R13=%08x R14=%08x R15=%08x R16=%08x R17=%08x\n",
                  reg[0].I, reg[1].I, reg[2].I, reg[3].I, reg[4].I, reg[5].I,
                  reg[6].I, reg[7].I, reg[8].I, reg[9].I, reg[10].I, reg[11].I,
                  reg[12].I, reg[13].I, reg[14].I, reg[15].I, reg[16].I,
                  reg[17].I);
-#ifdef SDL
-        log(buffer);
-#else
-        winlog(buffer);
-#endif
       } else if(!holdState) {
-        sprintf(buffer, "PC=%08x\n", armNextPC);
-#ifdef SDL
-        log(buffer);
-#else
-        winlog(buffer);
-#endif
+        winlog("PC=%08x\n", armNextPC);
       }
     }
 #endif /* FINAL_VERSION */
@@ -3862,10 +3891,13 @@ void CPULoop(int ticks)
 #endif
 
       ticks -= clockTicks;
-#ifdef LINK_EMULATION
-	  if (linkenable)
+
+	  if (gba_joybus_enabled)
+		  JoyBusUpdate(clockTicks);
+
+	  if (gba_link_enabled)
 		  LinkUpdate(clockTicks);
-#endif
+
       cpuNextEvent = CPUUpdateTicks();
 
       if(cpuDmaTicksToUpdate > 0) {
@@ -3879,10 +3911,11 @@ void CPULoop(int ticks)
         cpuDmaHack = true;
         goto updateLoop;
       }
-#ifdef LINK_EMULATION
-	  if(linkenable)
+
+	  // shuffle2: what's the purpose?
+	  if(gba_link_enabled)
   	       cpuNextEvent = 1;
-#endif
+
       if(IF && (IME & 1) && armIrqEnable) {
         int res = IF & IE;
         if(stopState)

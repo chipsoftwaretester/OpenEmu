@@ -7,7 +7,7 @@
 
 
 #ifdef __GNUC__
-#if defined(__APPLE__) || defined (BSD)
+#if defined(__APPLE__) || defined (BSD) || defined (__NetBSD__)
 typedef off_t __off64_t; /* off_t is 64 bits on BSD. */
 #define	fseeko64 fseeko
 #define	ftello64 ftello
@@ -232,16 +232,25 @@ static bool patchApplyUPS(const char *patchname, u8 **rom, int *size)
   s64 dstSize = readVarPtr(f);
 
   if (crc == srcCRC) {
-    dataSize = srcSize;
-  } else if (crc == dstCRC) {
+    if (srcSize != *size) {
+      fclose(f);
+      return false;
+    }
     dataSize = dstSize;
+  } else if (crc == dstCRC) {
+    if (dstSize != *size) {
+      fclose(f);
+      return false;
+    }
+    dataSize = srcSize;
   } else {
     fclose(f);
     return false;
   }
-  if (dataSize != *size) {
-    fclose(f);
-    return false;
+  if (dataSize > *size) {
+    *rom = (u8*)realloc(*rom, dataSize);
+    memset(*rom + *size, 0, dataSize - *size);
+    *size = dataSize;
   }
 
   s64 relative = 0;

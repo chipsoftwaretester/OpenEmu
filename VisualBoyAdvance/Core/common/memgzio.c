@@ -9,7 +9,7 @@
  * Adapted from original gzio.c from zlib library by Forgotten
  */
 
-/* @(#) $Id: memgzio.c,v 1.5 2006/06/06 21:04:20 spacy51 Exp $ */
+/* @(#) $Id: memgzio.c 1052 2011-12-27 15:34:39Z bgk $ */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -696,4 +696,22 @@ long ZEXPORT memtell(file)
     if (s == NULL) return Z_STREAM_ERROR;
 
     return memTell(s->file);
+}
+
+z_off_t ZEXPORT memgzseek(gzFile file, z_off_t off, int whence)
+{
+    if(whence != SEEK_CUR) {
+	fputs("FIXME: memgzio does not support seeking\n", stderr);
+	exit(1);
+    }
+    // this is inefficient, but the best I can do without actually reading
+    // the above code
+    char buf[80];
+    while(off > 0) {
+	int r = memgzread(file, buf, off > 80 ? 80 : off);
+	if(r <= 0)
+	    return -1;
+	off -= r;
+    }
+    return memtell(file);
 }

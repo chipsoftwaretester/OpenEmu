@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <memory.h>
 #include "../System.h"
+//#include "gbPrinter.h"
 
 u8 gbPrinterStatus = 0;
 int gbPrinterState = 0;
@@ -38,6 +39,7 @@ void gbPrinterReset()
 void gbPrinterShowData()
 {
   systemGbPrint(gbPrinterData,
+		gbPrinterDataCount,
                 gbPrinterPacket[6],
                 gbPrinterPacket[7],
                 gbPrinterPacket[8],
@@ -87,6 +89,7 @@ void gbPrinterShowData()
 
 void gbPrinterReceiveData()
 {
+    int i = gbPrinterDataCount;
   if(gbPrinterPacket[3]) { // compressed
     u8 *data = &gbPrinterPacket[6];
     u8 *dest = &gbPrinterData[gbPrinterDataCount];
@@ -97,16 +100,17 @@ void gbPrinterReceiveData()
         control &= 0x7f;
         control += 2;
         memset(dest, *data++, control);
-        len += control;
+        len += 2;
         dest += control;
       } else { // raw data
         control++;
         memcpy(dest, data, control);
         dest += control;
         data += control;
-        len += control;
+        len += control + 1;
       }
     }
+    gbPrinterDataCount = (int)(dest - gbPrinterData);
   } else {
     memcpy(&gbPrinterData[gbPrinterDataCount],
            &gbPrinterPacket[6],

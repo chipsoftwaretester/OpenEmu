@@ -73,11 +73,12 @@ extern u8 freezeVRAM[0x18000];
 extern u8 freezeOAM[0x400];
 extern u8 freezePRAM[0x400];
 extern bool debugger_last;
-extern int  oldreg[17];
+extern int  oldreg[18];
 extern char oldbuffer[10];
 #endif
 
 extern bool CPUReadGSASnapshot(const char *);
+extern bool CPUReadGSASPSnapshot(const char *);
 extern bool CPUWriteGSASnapshot(const char *, const char *, const char *, const char *);
 extern bool CPUWriteBatteryFile(const char *);
 extern bool CPUReadBatteryFile(const char *);

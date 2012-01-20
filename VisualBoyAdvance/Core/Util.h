@@ -23,6 +23,7 @@ bool utilIsGBImage(const char *);
 bool utilIsGzipFile(const char *);
 void utilStripDoubleExtension(const char *, char *);
 IMAGE_TYPE utilFindType(const char *);
+IMAGE_TYPE utilFindType(const char *, char (&)[2048]);
 u8 *utilLoad(const char *, bool (*)(const char*), u8 *, int &);
 
 void utilPutDword(u8 *, u32);
@@ -40,6 +41,7 @@ int utilGzClose(gzFile file);
 z_off_t utilGzSeek(gzFile file, z_off_t offset, int whence);
 long utilGzMemTell(gzFile file);
 void utilGBAFindSave(const u8 *, const int);
-void utilUpdateSystemColorMaps();
+void utilUpdateSystemColorMaps(bool lcd = false);
+bool utilFileExists( const char *filename );
 
 #endif // UTIL_H

@@ -18,11 +18,14 @@ extern "C" {
 #include "gba/RTC.h"
 #include "common/Port.h"
 
-#include "common/fex.h"
+#include "fex/fex.h"
 
 extern "C" {
 #include "common/memgzio.h"
 }
+
+#include "gba/gbafilter.h"
+#include "gb/gbGlobals.h"
 
 #ifndef _MSC_VER
 #define _stricmp strcasecmp
@@ -70,7 +73,7 @@ bool utilWritePNGFile(const char *fileName, int w, int h, u8 *pix)
     return false;
   }
 
-  if(setjmp(png_ptr->jmpbuf)) {
+  if(setjmp(png_jmpbuf(png_ptr))) {
     png_destroy_write_struct(&png_ptr,NULL);
     fclose(fp);
     return false;
@@ -384,13 +387,13 @@ void utilStripDoubleExtension(const char *file, char *buffer)
   }
 }
 
-// Opens and scans archive using accept(). Returns File_Extractor if found.
+// Opens and scans archive using accept(). Returns fex_t if found.
 // If error or not found, displays message and returns NULL.
-static File_Extractor* scan_arc(const char *file, bool (*accept)(const char *),
+static fex_t* scan_arc(const char *file, bool (*accept)(const char *),
 		char (&buffer) [2048] )
 {
-	fex_err_t err;
-	File_Extractor* fe = fex_open( file, &err );
+	fex_t* fe;
+	fex_err_t err = fex_open( &fe, file );
 	if(!fe)
 	{
 		systemMessage(MSG_CANNOT_OPEN_FILE, N_("Cannot open file %s: %s"), file, err);
@@ -432,18 +435,48 @@ static bool utilIsImage(const char *file)
 	return utilIsGBAImage(file) || utilIsGBImage(file);
 }
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 IMAGE_TYPE utilFindType(const char *file)
 {
 	char buffer [2048];
-	if ( !utilIsImage( file ) ) // TODO: utilIsArchive() instead?
+	utilFindType(file, buffer);
+}
+
+IMAGE_TYPE utilFindType(const char *file, char (&buffer)[2048])
+{
+#ifdef WIN32
+	DWORD dwNum = MultiByteToWideChar (CP_ACP, 0, file, -1, NULL, 0);
+	wchar_t *pwText;
+	pwText = new wchar_t[dwNum];
+	if(!pwText)
 	{
-		File_Extractor* fe = scan_arc(file,utilIsImage,buffer);
+		delete []pwText;
+	}
+	MultiByteToWideChar (CP_ACP, 0, file, -1, pwText, dwNum );
+	char* file_conv = fex_wide_to_path( pwText);
+	delete []pwText;
+//	if ( !utilIsImage( file_conv ) ) // TODO: utilIsArchive() instead?
+//	{
+		fex_t* fe = scan_arc(file_conv,utilIsImage,buffer);
 		if(!fe)
 			return IMAGE_UNKNOWN;
 		fex_close(fe);
 		file = buffer;
-	}
-
+//	}
+	free(file_conv);
+#else
+//	if ( !utilIsImage( file ) ) // TODO: utilIsArchive() instead?
+//	{
+		fex_t* fe = scan_arc(file,utilIsImage,buffer);
+		if(!fe)
+			return IMAGE_UNKNOWN;
+		fex_close(fe);
+		file = buffer;
+//	}
+#endif
 	return utilIsGBAImage(file) ? IMAGE_GBA : IMAGE_GB;
 }
 
@@ -462,11 +495,28 @@ u8 *utilLoad(const char *file,
 {
 	// find image file
 	char buffer [2048];
-	File_Extractor *fe = scan_arc(file,accept,buffer);
+#ifdef WIN32
+	DWORD dwNum = MultiByteToWideChar (CP_ACP, 0, file, -1, NULL, 0);
+	wchar_t *pwText;
+	pwText = new wchar_t[dwNum];
+	if(!pwText)
+	{
+		delete []pwText;
+	}
+	MultiByteToWideChar (CP_ACP, 0, file, -1, pwText, dwNum );
+	char* file_conv = fex_wide_to_path( pwText);
+	delete []pwText;
+	fex_t *fe = scan_arc(file_conv,accept,buffer);
 	if(!fe)
 		return NULL;
-
+	free(file_conv);
+#else
+	fex_t *fe = scan_arc(file,accept,buffer);
+	if(!fe)
+		return NULL;
+#endif
 	// Allocate space for image
+	fex_err_t err = fex_stat(fe);
 	int fileSize = fex_size(fe);
 	if(size == 0)
 		size = fileSize;
@@ -487,7 +537,7 @@ u8 *utilLoad(const char *file,
 
 	// Read image
 	int read = fileSize <= size ? fileSize : size; // do not read beyond file
-	fex_err_t err = fex_read_once(fe, image, read);
+	err = fex_read(fe, image, read);
 	fex_close(fe);
 	if(err) {
 		systemMessage(MSG_ERROR_READING_IMAGE,
@@ -553,6 +603,7 @@ gzFile utilMemGzOpen(char *memory, int available, const char *mode)
   utilGzWriteFunc = memgzwrite;
   utilGzReadFunc = memgzread;
   utilGzCloseFunc = memgzclose;
+  utilGzSeekFunc = memgzseek;
 
   return memgzopen(memory, available, mode);
 }
@@ -630,7 +681,7 @@ void utilGBAFindSave(const u8 *data, const int size)
   flashSetSize(flashSize);
 }
 
-void utilUpdateSystemColorMaps()
+void utilUpdateSystemColorMaps(bool lcd)
 {
   switch(systemColorDepth) {
   case 16:
@@ -640,6 +691,7 @@ void utilUpdateSystemColorMaps()
           (((i & 0x3e0) >> 5) << systemGreenShift) |
           (((i & 0x7c00) >> 10) << systemBlueShift);
       }
+      if (lcd) gbafilter_pal(systemColorMap16, 0x10000);
     }
     break;
   case 24:
@@ -650,7 +702,20 @@ void utilUpdateSystemColorMaps()
           (((i & 0x3e0) >> 5) << systemGreenShift) |
           (((i & 0x7c00) >> 10) << systemBlueShift);
       }
+      if (lcd) gbafilter_pal32(systemColorMap32, 0x10000);
     }
     break;
   }
+}
+
+// Check for existence of file.
+bool utilFileExists( const char *filename )
+{
+	FILE *f = fopen( filename, "r" );
+	if( f == NULL ) {
+		return false;
+	} else {
+		fclose( f );
+		return true;
+	}
 }
