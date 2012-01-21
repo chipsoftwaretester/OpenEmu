@@ -50,6 +50,8 @@
 		82B9198810150FA9007BD6DB /* bsnes.icns in Resources */ = {isa = PBXBuildFile; fileRef = 82B9198710150FA9007BD6DB /* bsnes.icns */; };
 		8D5B49B0048680CD000E48DA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
 		8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */; };
+		949063A214CAB244006C5630 /* libco.h in Headers */ = {isa = PBXBuildFile; fileRef = 9490639814CAB244006C5630 /* libco.h */; };
+		949063A614CAB244006C5630 /* x86.c in Sources */ = {isa = PBXBuildFile; fileRef = 9490639C14CAB244006C5630 /* x86.c */; };
 		94D9257314CA9879008F697D /* SNESGameEmu.mm in Sources */ = {isa = PBXBuildFile; fileRef = 826FE0F41014D8930023A8E9 /* SNESGameEmu.mm */; };
 		94D9257414CA9879008F697D /* SNESGameController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 826FE0F61014D8930023A8E9 /* SNESGameController.mm */; };
 /* End PBXBuildFile section */
@@ -224,6 +226,17 @@
 		82BFB26E1015430A00AC34CF /* liblibco.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibco.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D5B49B6048680CD000E48DA /* BSNES.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BSNES.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D5B49B7048680CD000E48DA /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9490639414CAB244006C5630 /* amd64.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = amd64.c; sourceTree = "<group>"; };
+		9490639514CAB244006C5630 /* amd64_msvc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = amd64_msvc.c; sourceTree = "<group>"; };
+		9490639614CAB244006C5630 /* fiber.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fiber.c; sourceTree = "<group>"; };
+		9490639714CAB244006C5630 /* libco.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = libco.c; sourceTree = "<group>"; };
+		9490639814CAB244006C5630 /* libco.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = libco.h; sourceTree = "<group>"; };
+		9490639914CAB244006C5630 /* ppc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = ppc.c; sourceTree = "<group>"; };
+		9490639A14CAB244006C5630 /* sjlj.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sjlj.c; sourceTree = "<group>"; };
+		9490639B14CAB244006C5630 /* ucontext.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = ucontext.c; sourceTree = "<group>"; };
+		9490639C14CAB244006C5630 /* x86.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = x86.c; sourceTree = "<group>"; };
+		9490639D14CAB244006C5630 /* x86_msvc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = x86_msvc.c; sourceTree = "<group>"; };
+		949063A814CAB269006C5630 /* libsnes.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = libsnes.hpp; path = libsnescore/libsnes.hpp; sourceTree = "<group>"; };
 		C6480FFB1364B2E10094FA33 /* OESNESSystemResponderClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OESNESSystemResponderClient.h; path = ../OpenEmu/SuperNES/OESNESSystemResponderClient.h; sourceTree = "<group>"; };
 		D2F7E65807B2D6F200F64583 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = /System/Library/Frameworks/CoreData.framework; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
@@ -292,6 +305,8 @@
 				826FE0F41014D8930023A8E9 /* SNESGameEmu.mm */,
 				826FE0F51014D8930023A8E9 /* SNESGameController.h */,
 				826FE0F61014D8930023A8E9 /* SNESGameController.mm */,
+				949063A814CAB269006C5630 /* libsnes.hpp */,
+				9490639314CAB244006C5630 /* libco */,
 				826FDD6610142B230023A8E9 /* data */,
 			);
 			name = Classes;
@@ -370,6 +385,24 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		9490639314CAB244006C5630 /* libco */ = {
+			isa = PBXGroup;
+			children = (
+				9490639414CAB244006C5630 /* amd64.c */,
+				9490639514CAB244006C5630 /* amd64_msvc.c */,
+				9490639614CAB244006C5630 /* fiber.c */,
+				9490639714CAB244006C5630 /* libco.c */,
+				9490639814CAB244006C5630 /* libco.h */,
+				9490639914CAB244006C5630 /* ppc.c */,
+				9490639A14CAB244006C5630 /* sjlj.c */,
+				9490639B14CAB244006C5630 /* ucontext.c */,
+				9490639C14CAB244006C5630 /* x86.c */,
+				9490639D14CAB244006C5630 /* x86_msvc.c */,
+			);
+			name = libco;
+			path = libsnescore/libco;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -377,6 +410,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				949063A214CAB244006C5630 /* libco.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -610,6 +644,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				949063A614CAB244006C5630 /* x86.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
