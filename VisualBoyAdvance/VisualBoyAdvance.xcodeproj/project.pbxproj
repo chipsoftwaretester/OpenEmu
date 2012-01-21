@@ -968,7 +968,7 @@
 				OTHER_CFLAGS = (
 					"-DNO_PNG",
 					"-DFINAL_VERSION",
-					"-DBKPT_SUPPORT",
+					"-DC_CORE",
 					"-DNO_FFMPEG",
 					"-DNO_LINK",
 					"-DWITH_LIRC=0",
@@ -1007,7 +1007,7 @@
 				OTHER_CFLAGS = (
 					"-DNO_PNG",
 					"-DFINAL_VERSION",
-					"-DBKPT_SUPPORT",
+					"-DC_CORE",
 					"-DNO_FFMPEG",
 					"-DNO_LINK",
 					"-DWITH_LIRC=0",

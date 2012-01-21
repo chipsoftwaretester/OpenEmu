@@ -30,9 +30,7 @@
 #import "OESNESSystemResponderClient.h"
 #import <OpenGL/gl.h>
 
-//#include <libreader/libreader.hpp>
-//#include <libreader/filereader.hpp>
-//#include "utility/utility.hpp"
+#include "libsnes.hpp"
 
 #define SAMPLERATE 32040
 #define SAMPLEFRAME 800
@@ -41,32 +39,61 @@
 @interface BSNESGameEmu () <OESNESSystemResponderClient>
 @end
 
+NSUInteger BSNESEmulatorValues[] = { SNES_DEVICE_ID_JOYPAD_R, SNES_DEVICE_ID_JOYPAD_L, SNES_DEVICE_ID_JOYPAD_X, SNES_DEVICE_ID_JOYPAD_A, SNES_DEVICE_ID_JOYPAD_RIGHT, SNES_DEVICE_ID_JOYPAD_LEFT, SNES_DEVICE_ID_JOYPAD_DOWN, SNES_DEVICE_ID_JOYPAD_UP, SNES_DEVICE_ID_JOYPAD_START, SNES_DEVICE_ID_JOYPAD_SELECT, SNES_DEVICE_ID_JOYPAD_Y, SNES_DEVICE_ID_JOYPAD_B };
+NSString *BSNESEmulatorNames[] = { @"Joypad@ R", @"Joypad@ L", @"Joypad@ X", @"Joypad@ A", @"Joypad@ Right", @"Joypad@ Left", @"Joypad@ Down", @"Joypad@ Up", @"Joypad@ Start", @"Joypad@ Select", @"Joypad@ Y", @"Joypad@ B" };
+
+BSNESGameEmu *current;
 @implementation BSNESGameEmu
 
-static NSUInteger BSNESEmulatorValues[] =
+//BSNES callbacks
+static void audio_callback(uint16_t left, uint16_t right)
 {
-    SNES::Input::JoypadA,
-    SNES::Input::JoypadB,
-    SNES::Input::JoypadX,
-    SNES::Input::JoypadY,
-    SNES::Input::JoypadUp,
-    SNES::Input::JoypadDown,
-    SNES::Input::JoypadLeft,
-    SNES::Input::JoypadRight,
-    SNES::Input::JoypadStart,
-    SNES::Input::JoypadSelect,
-    SNES::Input::JoypadL,
-    SNES::Input::JoypadR,
-};
+	NSLog(@"audio callback");
+    //[ringBuffer write:&left maxLength:2];
+	[[current ringBufferAtIndex:0] write:&left maxLength:2];
+    [[current ringBufferAtIndex:0] write:&right maxLength:2];
+}
+
+static void video_callback(const uint16_t *data, unsigned width, unsigned height)
+{
+	NSLog(@"video callback");
+	memcpy(current->videoBuffer, data, width * height * 2);
+}
+
+static void input_poll_callback(void)
+{
+	NSLog(@"poll callback");
+}
+
+static int16_t input_state_callback(bool port, unsigned device, unsigned index, unsigned id)
+{
+	NSLog(@"state callback");
+	return 0;
+}
 
 - (void)didPushSNESButton:(OESNESButton)button forPlayer:(NSUInteger)player;
 {
-    interface->pad[player-1][BSNESEmulatorValues[button]] = 0xFFFF;
+    pad[player-1][BSNESEmulatorValues[button]] = 0xFFFF;
 }
 
 - (void)didReleaseSNESButton:(OESNESButton)button forPlayer:(NSUInteger)player;
 {
-    interface->pad[player-1][BSNESEmulatorValues[button]] = 0;
+    pad[player-1][BSNESEmulatorValues[button]] = 0;
+}
+
+- (id)init
+{
+	self = [super init];
+    if(self != nil)
+    {
+		soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
+		memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
+		videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
+	}
+	
+	current = self;
+    
+	return self;
 }
 
 #pragma mark Exectuion
@@ -78,7 +105,9 @@ static NSUInteger BSNESEmulatorValues[] =
 
 - (void)executeFrameSkippingFrame: (BOOL) skip
 {
-    SNES::system.run();
+    NSLog(@"snes run called");
+    snes_run();
+    //SNES::system.run();
     //[self reportControlPad:0 withFlags:controlPad[0]];
     
     //    IPPU.RenderThisFrame = !skip;
@@ -87,7 +116,7 @@ static NSUInteger BSNESEmulatorValues[] =
     //S9xMixSamples((unsigned char*)soundBuffer, SAMPLEFRAME * [self channelCount]);
     //[[self ringBufferAtIndex:0] write:soundBuffer maxLength:sizeof(UInt16) * [self channelCount] * SAMPLEFRAME];
 }
-
+/*
 bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     if(file::exists(filename) == false) return false;
     //Reader::Type filetype = Reader::detect(filename, true);
@@ -136,12 +165,71 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     }
     return YES;
 }
+*/
+- (BOOL)loadFileAtPath: (NSString*) path
+{
+	//NSData* theData;
+	//theData = [NSData dataWithContentsOfFile:path];
+	//memset(pad, 0, sizeof(int16_t) * 24);
+    //video = (uint16_t*)malloc(512*478*sizeof(uint16_t));
+    
+    uint8_t *data;
+    unsigned size;
+    const char *filename;
+    filename = [path UTF8String];
+    
+    NSData* dataObj = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:filename] stringByStandardizingPath]];
+    if(dataObj == nil) return false;
+    size = [dataObj length];
+    data = (uint8_t*)[dataObj bytes];
 
+    /*
+    FILE* file = fopen([path UTF8String], "rb");
+    long file_size;
+    
+    fseek (file , 0 , SEEK_END);
+    file_size = ftell (file);
+    rewind (file);
+    
+    uint8_t* file_buffer = (uint8_t *) malloc (sizeof(uint8_t)*file_size);
+    long read_bytes =fread(file_buffer, sizeof(uint8_t), file_size, file);
+    if( read_bytes != file_size )
+    {
+        NSLog(@"Couldn't read file");
+        return NO;
+    }*/
+    
+    //soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
+    //memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
+    //videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
+    
+	snes_init();
+	
+    snes_set_audio_sample(audio_callback);
+    snes_set_video_refresh(video_callback);
+	snes_set_input_poll(input_poll_callback);
+	snes_set_input_state(input_state_callback);
+	
+	snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
+	snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_JOYPAD);
+	
+	//if (snes_load_cartridge_normal(NULL, [theData bytes], [theData length]))
+	if (snes_load_cartridge_normal(NULL, data, size))
+    {
+        
+	}
+    //snes_get_memory_*
+    snes_get_region();
+
+    return YES;
+}
 
 #pragma mark Video
 - (const void *)videoBuffer
 {
-    return interface->video;
+    //return interface->video;
+    //return video;
+    return videoBuffer;
 }
 
 /*
@@ -153,7 +241,8 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 - (OEIntRect)screenRect
 {
     // hope this handles hires :/
-    return OERectMake(0, 0, interface->width, interface->height);
+    //return OERectMake(0, 0, interface->width, interface->height);
+    return OERectMake(0, 0, 256, 224);
 }
 
 - (OEIntSize)bufferSize
@@ -163,13 +252,13 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 
 - (void)setupEmulation
 {
-    soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
-    memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
+    //soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
+    //memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
 }
 
 - (void)resetEmulation
 {
-    //S9xSoftReset();
+    snes_reset();
 }
 
 - (void)stopEmulation
@@ -188,6 +277,8 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
      
      Memory.SaveSRAM([filePath UTF8String]);
      */
+    NSLog(@"snes term");
+    snes_term();
     [super stopEmulation];
 }
 
@@ -223,11 +314,8 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 
 - (NSTimeInterval)frameInterval
 {
-    /*if( Settings.PAL )
-     return 50;
-     else
-     return 60;*/
-    return 60;
+    //return 60;
+    return (snes_get_region() == SNES_REGION_PAL) ? 50 : 60;
 }
 
 - (NSUInteger)channelCount
@@ -237,50 +325,50 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 
 - (BOOL)saveStateToFileAtPath:(NSString *)fileName
 {
-    SNES::system.runtosave();
-    serializer state = SNES::system.serialize();
-    FILE *state_file = fopen([fileName UTF8String], "w+b");
-    long bytes_written = fwrite(state.data(), sizeof(uint8_t), state.size(), state_file);
-    if( bytes_written != state.size() )
-    {
-        NSLog(@"Couldn't write state");
-        return NO;
-    }
-    fclose( state_file );
+//    SNES::system.runtosave();
+//    serializer state = SNES::system.serialize();
+//    FILE *state_file = fopen([fileName UTF8String], "w+b");
+//    long bytes_written = fwrite(state.data(), sizeof(uint8_t), state.size(), state_file);
+//    if( bytes_written != state.size() )
+//    {
+//        NSLog(@"Couldn't write state");
+//        return NO;
+//    }
+//    fclose( state_file );
     return YES;
 }
 
 - (BOOL)loadStateFromFileAtPath:(NSString *)fileName
 {
-    FILE* state_file = fopen([fileName UTF8String], "rb");
-    if( !state_file )
-    {
-        NSLog(@"Could not open state file");
-        return NO;
-    }
-    long file_size;
-    
-    fseek (state_file , 0 , SEEK_END);
-    file_size = ftell (state_file);
-    rewind (state_file);
-    
-    uint8_t* state_buffer = (uint8_t *) malloc (sizeof(uint8_t)*file_size);
-    long read_bytes =fread(state_buffer, sizeof(uint8_t), file_size, state_file);
-    if( read_bytes != file_size )
-    {
-        NSLog(@"Couldn't read file");
-        return NO;
-    }
-    
-    serializer state(state_buffer,sizeof(uint8_t)*file_size);
-    bool loaded = SNES::system.unserialize(state);
-    if(!loaded)
-    {
-        NSLog(@"Couldn't unpack state");
-        return NO;
-    }
-    fclose(state_file);
-    free(state_buffer);
+//    FILE* state_file = fopen([fileName UTF8String], "rb");
+//    if( !state_file )
+//    {
+//        NSLog(@"Could not open state file");
+//        return NO;
+//    }
+//    long file_size;
+//    
+//    fseek (state_file , 0 , SEEK_END);
+//    file_size = ftell (state_file);
+//    rewind (state_file);
+//    
+//    uint8_t* state_buffer = (uint8_t *) malloc (sizeof(uint8_t)*file_size);
+//    long read_bytes =fread(state_buffer, sizeof(uint8_t), file_size, state_file);
+//    if( read_bytes != file_size )
+//    {
+//        NSLog(@"Couldn't read file");
+//        return NO;
+//    }
+//    
+//    serializer state(state_buffer,sizeof(uint8_t)*file_size);
+//    bool loaded = SNES::system.unserialize(state);
+//    if(!loaded)
+//    {
+//        NSLog(@"Couldn't unpack state");
+//        return NO;
+//    }
+//    fclose(state_file);
+//    free(state_buffer);
     return YES;
 }
 
