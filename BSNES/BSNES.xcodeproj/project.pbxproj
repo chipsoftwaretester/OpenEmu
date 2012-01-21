@@ -52,7 +52,7 @@
 		8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */; };
 		949063A214CAB244006C5630 /* libco.h in Headers */ = {isa = PBXBuildFile; fileRef = 9490639814CAB244006C5630 /* libco.h */; };
 		949063AC14CAB30C006C5630 /* libsnes.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 949063AB14CAB30C006C5630 /* libsnes.dylib */; };
-		949063AE14CAB46A006C5630 /* libco.c in Sources */ = {isa = PBXBuildFile; fileRef = 9490639714CAB244006C5630 /* libco.c */; };
+		949063B014CAB5C0006C5630 /* amd64.c in Sources */ = {isa = PBXBuildFile; fileRef = 9490639414CAB244006C5630 /* amd64.c */; };
 		94D9257314CA9879008F697D /* SNESGameEmu.mm in Sources */ = {isa = PBXBuildFile; fileRef = 826FE0F41014D8930023A8E9 /* SNESGameEmu.mm */; };
 		94D9257414CA9879008F697D /* SNESGameController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 826FE0F61014D8930023A8E9 /* SNESGameController.mm */; };
 /* End PBXBuildFile section */
@@ -648,7 +648,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				949063AE14CAB46A006C5630 /* libco.c in Sources */,
+				949063B014CAB5C0006C5630 /* amd64.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
