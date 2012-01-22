@@ -48,26 +48,22 @@ BSNESGameEmu *current;
 //BSNES callbacks
 static void audio_callback(uint16_t left, uint16_t right)
 {
-	NSLog(@"audio callback");
-    //[ringBuffer write:&left maxLength:2];
 	[[current ringBufferAtIndex:0] write:&left maxLength:2];
     [[current ringBufferAtIndex:0] write:&right maxLength:2];
 }
 
 static void video_callback(const uint16_t *data, unsigned width, unsigned height)
 {
-	NSLog(@"video callback");
 	memcpy(current->videoBuffer, data, width * height * 2);
 }
 
 static void input_poll_callback(void)
 {
-	NSLog(@"poll callback");
+	//NSLog(@"poll callback");
 }
 
 static int16_t input_state_callback(bool port, unsigned device, unsigned index, unsigned id)
 {
-	NSLog(@"state callback");
 	return 0;
 }
 
@@ -86,8 +82,8 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
 	self = [super init];
     if(self != nil)
     {
-		soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
-		memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
+        if(videoBuffer) 
+            free(videoBuffer);
 		videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
 	}
 	
@@ -105,16 +101,7 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
 
 - (void)executeFrameSkippingFrame: (BOOL) skip
 {
-    NSLog(@"snes run called");
     snes_run();
-    //SNES::system.run();
-    //[self reportControlPad:0 withFlags:controlPad[0]];
-    
-    //    IPPU.RenderThisFrame = !skip;
-    //    S9xMainLoop();
-    //
-    //S9xMixSamples((unsigned char*)soundBuffer, SAMPLEFRAME * [self channelCount]);
-    //[[self ringBufferAtIndex:0] write:soundBuffer maxLength:sizeof(UInt16) * [self channelCount] * SAMPLEFRAME];
 }
 /*
 bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
@@ -166,12 +153,14 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     return YES;
 }
 */
+
 - (BOOL)loadFileAtPath: (NSString*) path
 {
-	//NSData* theData;
-	//theData = [NSData dataWithContentsOfFile:path];
-	//memset(pad, 0, sizeof(int16_t) * 24);
-    //video = (uint16_t*)malloc(512*478*sizeof(uint16_t));
+	memset(pad, 0, sizeof(int16_t) * 24);
+    
+    if(videoBuffer) 
+        free(videoBuffer);
+    videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
     
     uint8_t *data;
     unsigned size;
@@ -182,26 +171,11 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     if(dataObj == nil) return false;
     size = [dataObj length];
     data = (uint8_t*)[dataObj bytes];
-
-    /*
-    FILE* file = fopen([path UTF8String], "rb");
-    long file_size;
     
-    fseek (file , 0 , SEEK_END);
-    file_size = ftell (file);
-    rewind (file);
+    //remove copier header, if it exists
+    if((size & 0x7fff) == 512) memmove(data, data + 512, size -= 512);
     
-    uint8_t* file_buffer = (uint8_t *) malloc (sizeof(uint8_t)*file_size);
-    long read_bytes =fread(file_buffer, sizeof(uint8_t), file_size, file);
-    if( read_bytes != file_size )
-    {
-        NSLog(@"Couldn't read file");
-        return NO;
-    }*/
-    
-    //soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
-    //memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
-    //videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
+    //memory.copy(data, size);
     
 	snes_init();
 	
@@ -210,16 +184,31 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 	snes_set_input_poll(input_poll_callback);
 	snes_set_input_state(input_state_callback);
 	
-	snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
-	snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_JOYPAD);
-	
-	//if (snes_load_cartridge_normal(NULL, [theData bytes], [theData length]))
-	if (snes_load_cartridge_normal(NULL, data, size))
+    if(snes_load_cartridge_normal(NULL, data, size))
     {
+        snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
+        snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_JOYPAD);
+        /*
+        NSString *path = [NSString stringWithUTF8String:Memory.ROMFilename];
+        NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
         
-	}
-    //snes_get_memory_*
-    snes_get_region();
+        NSString *batterySavesDirectory = [self batterySavesDirectoryPath];
+        
+        //  if((batterySavesDirectory != nil) && ![batterySavesDirectory isEqualToString:@""])
+        if([batterySavesDirectory length] != 0)
+        {
+            [[NSFileManager defaultManager] createDirectoryAtPath:batterySavesDirectory withIntermediateDirectories:YES attributes:nil error:NULL];
+            
+            NSString *filePath = [batterySavesDirectory stringByAppendingPathComponent:[extensionlessFilename stringByAppendingPathExtension:@"sav"]];
+            
+            
+            Memory.LoadSRAM([filePath UTF8String]);
+            //snes_get_memory_data(unsigned id);
+         */
+            snes_get_region();
+            
+            snes_run();
+        }
 
     return YES;
 }
@@ -227,8 +216,6 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 #pragma mark Video
 - (const void *)videoBuffer
 {
-    //return interface->video;
-    //return video;
     return videoBuffer;
 }
 
@@ -236,7 +223,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
  return 512 / 2;
 
  return (SNES::system.region() == SNES::System::NTSC ? 448 : 478) / 2;
-*/ 
+*/
 
 - (OEIntRect)screenRect
 {
@@ -252,8 +239,10 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 
 - (void)setupEmulation
 {
-    //soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
-    //memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
+    if(soundBuffer)
+        free(soundBuffer);
+    soundBuffer = (UInt16*)malloc(SIZESOUNDBUFFER* sizeof(UInt16));
+    memset(soundBuffer, 0, SIZESOUNDBUFFER*sizeof(UInt16));
 }
 
 - (void)resetEmulation
@@ -280,6 +269,13 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     NSLog(@"snes term");
     snes_term();
     [super stopEmulation];
+}
+
+- (void)dealloc
+{
+    free(videoBuffer);
+    free(soundBuffer);
+    [super dealloc];
 }
 
 - (GLenum)pixelFormat
@@ -314,8 +310,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 
 - (NSTimeInterval)frameInterval
 {
-    //return 60;
-    return (snes_get_region() == SNES_REGION_PAL) ? 50 : 60;
+    return (snes_get_region() == SNES_REGION_NTSC) ? 60 : 50;
 }
 
 - (NSUInteger)channelCount
