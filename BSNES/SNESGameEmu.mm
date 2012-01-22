@@ -158,10 +158,6 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 {
 	memset(pad, 0, sizeof(int16_t) * 24);
     
-    if(videoBuffer) 
-        free(videoBuffer);
-    videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
-    
     uint8_t *data;
     unsigned size;
     const char *filename;
