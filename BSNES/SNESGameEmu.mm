@@ -45,6 +45,20 @@ NSString *BSNESEmulatorNames[] = { @"Joypad@ R", @"Joypad@ L", @"Joypad@ X", @"J
 BSNESGameEmu *current;
 @implementation BSNESGameEmu
 
+static uint16_t conv555Rto565(uint16_t p)
+{
+    unsigned r, g, b;
+    
+    r = (p >> 10);
+    g = (p >> 5) & 0x1f;
+    b = p & 0x1f;
+    
+    // 5 to 6 bit
+    g = (g << 1) + (g >> 4);
+    
+    return r | (g << 5) | (b << 11);
+}
+
 //BSNES callbacks
 static void audio_callback(uint16_t left, uint16_t right)
 {
@@ -84,8 +98,8 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
     {
         if(videoBuffer) 
             free(videoBuffer);
-		videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
-	}
+        videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
+    }
 	
 	current = self;
     
@@ -157,7 +171,8 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 - (BOOL)loadFileAtPath: (NSString*) path
 {
 	memset(pad, 0, sizeof(int16_t) * 24);
-    
+    //interface = new BSNESInterface();
+    //interface->video = (uint16_t*)malloc(512*478*sizeof(uint16_t));
     uint8_t *data;
     unsigned size;
     const char *filename;
@@ -212,6 +227,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 #pragma mark Video
 - (const void *)videoBuffer
 {
+    //return interface->video;
     return videoBuffer;
 }
 
