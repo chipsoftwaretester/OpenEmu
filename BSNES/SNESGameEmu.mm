@@ -192,8 +192,8 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 	
     snes_set_audio_sample(audio_callback);
     snes_set_video_refresh(video_callback);
-	snes_set_input_poll(input_poll_callback);
-	snes_set_input_state(input_state_callback);
+    snes_set_input_poll(input_poll_callback);
+    snes_set_input_state(input_state_callback);
 	
     if(snes_load_cartridge_normal(NULL, data, size))
     {
