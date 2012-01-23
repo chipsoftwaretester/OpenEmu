@@ -980,10 +980,7 @@
 					"-DMMX",
 					"-Wno-unused",
 					"-ffast-math",
-					"-malign-natural",
 					"-fstrict-aliasing",
-					"-fsched-interblock",
-					"-force_cpusubtype_ALL",
 					"-Wall",
 					"-lSDLmain",
 				);
@@ -1019,10 +1016,7 @@
 					"-DMMX",
 					"-Wno-unused",
 					"-ffast-math",
-					"-malign-natural",
 					"-fstrict-aliasing",
-					"-fsched-interblock",
-					"-force_cpusubtype_ALL",
 					"-Wall",
 					"-lSDLmain",
 				);

@@ -707,8 +707,8 @@
 				GCC_WARN_UNUSED_VARIABLE = NO;
 				HEADER_SEARCH_PATHS = (
 					"\"$(SRCROOT)/../OpenEmu\"",
-					"\"$(PROJECT_DIR)/libsnes/\"",
-					"\"$(PROJECT_DIR)/libsnes/snes/\"",
+					"\"$(PROJECT_DIR)/core/lib/\"",
+					"\"$(PROJECT_DIR)/core/\"",
 				);
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
@@ -716,13 +716,12 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)\"",
-					"\"$(SRCROOT)/libsnes\"",
 					"\"$(SRCROOT)/libsnescore\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				OTHER_CFLAGS = "-DPROFILE_PERFORMANCE";
 				PRODUCT_NAME = BSNES;
-				USER_HEADER_SEARCH_PATHS = "\"$(PROJECT_DIR)/libsnes/\" \"$(PROJECT_DIR)/libsnes/snes\"";
+				USER_HEADER_SEARCH_PATHS = "\"$(PROJECT_DIR)/core/\"";
 				WRAPPER_EXTENSION = oecoreplugin;
 			};
 			name = Debug;
@@ -736,8 +735,8 @@
 				GCC_WARN_UNUSED_VARIABLE = NO;
 				HEADER_SEARCH_PATHS = (
 					"\"$(SRCROOT)/../OpenEmu\"",
-					"\"$(PROJECT_DIR)/libsnes/\"",
-					"\"$(PROJECT_DIR)/libsnes/snes/\"",
+					"\"$(PROJECT_DIR)/core/lib/\"",
+					"\"$(PROJECT_DIR)/core/\"",
 				);
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
@@ -745,13 +744,12 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"$(SRCROOT)\"",
-					"\"$(SRCROOT)/libsnes\"",
 					"\"$(SRCROOT)/libsnescore\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				OTHER_CFLAGS = "-DPROFILE_PERFORMANCE";
 				PRODUCT_NAME = BSNES;
-				USER_HEADER_SEARCH_PATHS = "\"$(PROJECT_DIR)/libsnes/\" \"$(PROJECT_DIR)/libsnes/snes\"";
+				USER_HEADER_SEARCH_PATHS = "\"$(PROJECT_DIR)/core/\"";
 				WRAPPER_EXTENSION = oecoreplugin;
 			};
 			name = Release;
