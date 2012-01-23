@@ -294,18 +294,16 @@ static void count(u32 opcode, int cond_res)
 
 #ifdef __GNUC__
  #define ALU_HEADER           asm("mov %%ecx, %%edi; "
- #define ALU_TRAILER          : "=D" (opcode) : "c" (opcode) : "eax", "ebx", "edx", "esi")
+ #define ALU_TRAILER          : "=D" (opcode) : "c" (opcode), "r"(reg), [C_FLAG] "m" (C_FLAG), [N_FLAG] "m" (N_FLAG), [Z_FLAG] "m" (Z_FLAG), [V_FLAG] "m" (V_FLAG) : "eax", "ebx", "edx", "esi")
  #define EMIT0(op)            #op"; "
  #define EMIT1(op,arg)        #op" "arg"; "
  #define EMIT2(op,src,dest)   #op" "src", "dest"; "
  #define CONST(val)           "$"#val
- #define ASMVAR(cvar)         ASMVAR2 (__USER_LABEL_PREFIX__, cvar)
- #define ASMVAR2(prefix,cvar) STRING (prefix) cvar
  #define STRING(x)            #x
- #define VAR(var)             ASMVAR(#var)
- #define VARL(var)            ASMVAR(#var)
- #define REGREF1(index)       ASMVAR("reg("index")")
- #define REGREF2(index,scale) ASMVAR("reg(,"index","#scale")")
+ #define VAR(var)             "%[" #var "]"
+ #define VARL(var)            "%[" #var "]"
+ #define REGREF1(index)       "(%2,%%r"#index")"
+ #define REGREF2(index,scale) "(%2,%%r"#index","#scale")"
  #define LABEL(n)             #n": "
  #define LABELREF(n,dir)      #n#dir
  #define al "%%al"
@@ -351,15 +349,15 @@ static void count(u32 opcode, int cond_res)
 // Helper macros for loading value / shift count
 #define VALUE_LOAD_IMM \
         EMIT2(and, CONST(0x0F), eax)            \
-        EMIT2(mov, REGREF2(eax,4), eax)         \
+        EMIT2(mov, REGREF2(ax,4), eax)         \
         EMIT2(shr, CONST(7), ecx)               \
         EMIT2(and, CONST(0x1F), ecx)
 #define VALUE_LOAD_REG \
         EMIT2(and, CONST(0x0F), eax)            \
-        EMIT2(mov, REGREF2(eax,4), eax)         \
+        EMIT2(mov, REGREF2(ax,4), eax)         \
         EMIT2(movzx, ch, ecx)                   \
         EMIT2(and, CONST(0x0F), ecx)            \
-        EMIT2(mov, REGREF2(ecx,4), ecx)
+        EMIT2(mov, REGREF2(cx,4), ecx)
 
 // Helper macros for setting flags
 #define SETCOND_LOGICAL \
@@ -387,7 +385,7 @@ static void count(u32 opcode, int cond_res)
     EMIT2(mov, ecx, esi)                \
     EMIT2(shr, CONST(10), esi)          \
     EMIT2(and, CONST(0x3C), edx)        \
-    EMIT2(mov, REGREF1(edx), edx)       \
+    EMIT2(mov, REGREF1(dx), edx)       \
     EMIT2(and, CONST(0x3C), esi)
 
 #define LOAD_C_FLAG_YES EMIT2(mov, VAR(C_FLAG), bl)
@@ -595,40 +593,40 @@ static void count(u32 opcode, int cond_res)
 
 #define OP_AND \
     EMIT2(and, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_ANDS   CHECK_PC(OP_AND, SETCOND_LOGICAL)
 #define OP_EOR \
     EMIT2(xor, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_EORS   CHECK_PC(OP_EOR, SETCOND_LOGICAL)
 #define OP_SUB \
     EMIT2(sub, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_SUBS   CHECK_PC(OP_SUB, SETCOND_SUB)
 #define OP_RSB \
     EMIT2(sub, edx, eax)                \
-    EMIT2(mov, eax, REGREF1(esi))
+    EMIT2(mov, eax, REGREF1(si))
 #define OP_RSBS   CHECK_PC(OP_RSB, SETCOND_SUB)
 #define OP_ADD \
     EMIT2(add, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_ADDS   CHECK_PC(OP_ADD, SETCOND_ADD)
 #define OP_ADC \
     EMIT2(bt, CONST(0), VARL(C_FLAG))   \
     EMIT2(adc, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_ADCS   CHECK_PC(OP_ADC, SETCOND_ADD)
 #define OP_SBC \
     EMIT2(bt, CONST(0), VARL(C_FLAG))   \
     EMIT0(cmc)                          \
     EMIT2(sbb, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_SBCS   CHECK_PC(OP_SBC, SETCOND_SUB)
 #define OP_RSC \
     EMIT2(bt, CONST(0), VARL(C_FLAG))   \
     EMIT0(cmc)                          \
     EMIT2(sbb, edx, eax)                \
-    EMIT2(mov, eax, REGREF1(esi))
+    EMIT2(mov, eax, REGREF1(si))
 #define OP_RSCS   CHECK_PC(OP_RSC, SETCOND_SUB)
 #define OP_TST \
     EMIT2(and, eax, edx)                \
@@ -644,19 +642,19 @@ static void count(u32 opcode, int cond_res)
     SETCOND_ADD
 #define OP_ORR \
     EMIT2(or, eax, edx)                 \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_ORRS   CHECK_PC(OP_ORR, SETCOND_LOGICAL)
 #define OP_MOV \
-    EMIT2(mov, eax, REGREF1(esi))
-#define OP_MOVS   CHECK_PC(EMIT2(test,eax,eax) EMIT2(mov,eax,REGREF1(esi)), SETCOND_LOGICAL)
+    EMIT2(mov, eax, REGREF1(si))
+#define OP_MOVS   CHECK_PC(EMIT2(test,eax,eax) EMIT2(mov,eax,REGREF1(si)), SETCOND_LOGICAL)
 #define OP_BIC \
     EMIT1(not, eax)                     \
     EMIT2(and, eax, edx)                \
-    EMIT2(mov, edx, REGREF1(esi))
+    EMIT2(mov, edx, REGREF1(si))
 #define OP_BICS   CHECK_PC(OP_BIC, SETCOND_LOGICAL)
 #define OP_MVN \
     EMIT1(not, eax)                     \
-    EMIT2(mov, eax, REGREF1(esi))
+    EMIT2(mov, eax, REGREF1(si))
 #define OP_MVNS   CHECK_PC(OP_MVN EMIT2(test,eax,eax), SETCOND_LOGICAL)
 
 // ALU cleanup macro
@@ -681,7 +679,7 @@ static void count(u32 opcode, int cond_res)
     asm(EMIT2(btl,CONST(0),VAR(C_FLAG)) \
         "rcr $1, %0"                    \
         : "=r" (offset)                 \
-        : "0" (offset));
+        : "0" (offset), [C_FLAG] "m" (C_FLAG));
 
 #else  // !__GNUC__, i.e. Visual C++
 

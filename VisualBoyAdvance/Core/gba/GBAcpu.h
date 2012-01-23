@@ -8,7 +8,7 @@ extern int thumbExecute();
 #ifndef __APPLE__
 # define INSN_REGPARM __attribute__((regparm(1)))
 #else
-# define INSN_REGPARM /*nothing*/
+# define INSN_REGPARM __attribute__((fastcall))
 #endif
 # define LIKELY(x) __builtin_expect(!!(x),1)
 # define UNLIKELY(x) __builtin_expect(!!(x),0)

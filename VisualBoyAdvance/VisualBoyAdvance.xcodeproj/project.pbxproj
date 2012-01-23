@@ -966,9 +966,10 @@
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				LD_RUNPATH_SEARCH_PATHS = "\"/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" \"~/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" ~/Library/Frameworks /Library/Frameworks @loader_path/../Frameworks";
 				OTHER_CFLAGS = (
+					"-fomit-frame-pointer",
 					"-DNO_PNG",
+					"-DNO_DEBUGGER",
 					"-DFINAL_VERSION",
-					"-DC_CORE",
 					"-DNO_FFMPEG",
 					"-DNO_LINK",
 					"-DWITH_LIRC=0",
@@ -978,11 +979,6 @@
 					"-DHAVE_ZLIB_H",
 					"-DUSE_OPENGL",
 					"-DMMX",
-					"-Wno-unused",
-					"-ffast-math",
-					"-fstrict-aliasing",
-					"-Wall",
-					"-lSDLmain",
 				);
 				PRODUCT_NAME = VisualBoyAdvance;
 				VALID_ARCHS = x86_64;
@@ -1002,9 +998,10 @@
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				LD_RUNPATH_SEARCH_PATHS = "\"/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" \"~/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" ~/Library/Frameworks /Library/Frameworks @loader_path/../Frameworks";
 				OTHER_CFLAGS = (
+					"-fomit-frame-pointer",
 					"-DNO_PNG",
+					"-DNO_DEBUGGER",
 					"-DFINAL_VERSION",
-					"-DC_CORE",
 					"-DNO_FFMPEG",
 					"-DNO_LINK",
 					"-DWITH_LIRC=0",
@@ -1014,11 +1011,6 @@
 					"-DHAVE_ZLIB_H",
 					"-DUSE_OPENGL",
 					"-DMMX",
-					"-Wno-unused",
-					"-ffast-math",
-					"-fstrict-aliasing",
-					"-Wall",
-					"-lSDLmain",
 				);
 				PRODUCT_NAME = VisualBoyAdvance;
 				VALID_ARCHS = x86_64;
@@ -1033,6 +1025,7 @@
 				CLANG_ENABLE_OBJC_EXPERIMENTAL = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_C_LANGUAGE_STANDARD = c99;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_INCREASE_PRECOMPILED_HEADER_SHARING = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
@@ -1054,6 +1047,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_C_LANGUAGE_STANDARD = c99;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_INCREASE_PRECOMPILED_HEADER_SHARING = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;

@@ -27,6 +27,10 @@
 #define snprintf _snprintf
 #endif
 
+// ASM thumb compiles but doesn't run properly
+// FIXME fix it?
+#define C_CORE
+
 ///////////////////////////////////////////////////////////////////////////
 
 static int clockTicks;
@@ -302,12 +306,13 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
   #define EMIT1(op,arg)        #op" "arg"; "
   #define EMIT2(op,src,dest)   #op" "src", "dest"; "
   #define CONST(val)           "$"#val
-  #define ASMVAR(cvar)         ASMVAR2 (__USER_LABEL_PREFIX__, cvar)
-  #define ASMVAR2(prefix,cvar) STRING (prefix) cvar
   #define STRING(x)            #x
-  #define VAR(var)             ASMVAR(#var)
-  #define REGREF1(index)       ASMVAR("reg("index")")
-  #define REGREF2(index,scale) ASMVAR("reg(,"index","#scale")")
+  #define VAR(var)             "%[" #var "]"
+  #define REGREF0(off)         #off"(%[reg])"
+  #define REGREF1(index)       "(%[reg],%%r"#index")"
+  #define REGREF2(index,scale) "(%[reg],%%r"#index","#scale")"
+  #define FLAG_CONSTRAINTS [C_FLAG] "m" (C_FLAG), [N_FLAG] "m" (N_FLAG), [Z_FLAG] "m" (Z_FLAG), [V_FLAG] "m" (V_FLAG)
+  #define REG_CONSTRAINT [reg] "r" (reg)
   #define eax "%%eax"
   #define ecx "%%ecx"
   #define edx "%%edx"
@@ -318,7 +323,7 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setzb, VAR(Z_FLAG)) \
           EMIT1(setcb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
-          : "=m" (reg[(d)].I));
+          : "=m" (reg[(d)].I) : "a"(opcode), FLAG_CONSTRAINTS : "memory");
   #define CMN_RD_RS \
      asm ("add %0, %1;"\
           EMIT1(setsb, VAR(N_FLAG)) \
@@ -326,7 +331,7 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setcb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
           : \
-          : "r" (value), "r" (reg[dest].I):"1");
+          : "r" (value), "r" (reg[dest].I), FLAG_CONSTRAINTS:"1","memory");
   #define ADC_RD_RS \
      asm (EMIT2(bt,CONST(0),VAR(C_FLAG)) \
           "adc %1, %%ebx;"\
@@ -335,7 +340,7 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setcb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
           : "=b" (reg[dest].I)\
-          : "r" (value), "b" (reg[dest].I));
+          : "r" (value), "b" (reg[dest].I), FLAG_CONSTRAINTS : "memory");
   #define SUB_RN_O8(d) \
      asm ("andl $0xFF, %%eax;"\
           "subl %%eax, %0;"\
@@ -343,13 +348,13 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setzb, VAR(Z_FLAG)) \
           EMIT1(setncb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
-          : "=m" (reg[(d)].I));
+          : "=m" (reg[(d)].I) : "a"(opcode), FLAG_CONSTRAINTS : "memory");
   #define MOV_RN_O8(d) \
      asm ("andl $0xFF, %%eax;"\
           EMIT2(movb,CONST(0),VAR(N_FLAG)) \
           "movl %%eax, %0;"\
           EMIT1(setzb, VAR(Z_FLAG)) \
-          : "=m" (reg[(d)].I));
+          : "=m" (reg[(d)].I) : "a"(opcode), FLAG_CONSTRAINTS : "memory");
   #define CMP_RN_O8(d) \
      asm ("andl $0xFF, %%eax;"\
           "cmpl %%eax, %0;"\
@@ -358,7 +363,7 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setncb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
           : \
-          : "m" (reg[(d)].I));
+          : "a"(opcode), "m" (reg[(d)].I), FLAG_CONSTRAINTS : "memory");
   #define SBC_RD_RS \
      asm volatile (EMIT2(bt,CONST(0),VAR(C_FLAG)) \
                    "cmc;"\
@@ -368,27 +373,27 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
                    EMIT1(setncb, VAR(C_FLAG)) \
                    EMIT1(setob, VAR(V_FLAG)) \
                    : "=b" (reg[dest].I)\
-                   : "r" (value), "b" (reg[dest].I) : "cc", "memory");
+                   : "r" (value), "b" (reg[dest].I), FLAG_CONSTRAINTS : "cc", "memory");
   #define LSL_RD_RS \
          asm ("shl %%cl, %%eax;"\
               EMIT1(setcb, VAR(C_FLAG)) \
               : "=a" (value)\
-              : "a" (reg[dest].I), "c" (value));
+              : "a" (reg[dest].I), "c" (value), FLAG_CONSTRAINTS : "memory");
   #define LSR_RD_RS \
          asm ("shr %%cl, %%eax;"\
               EMIT1(setcb, VAR(C_FLAG)) \
               : "=a" (value)\
-              : "a" (reg[dest].I), "c" (value));
+              : "a" (reg[dest].I), "c" (value), FLAG_CONSTRAINTS : "memory");
   #define ASR_RD_RS \
          asm ("sar %%cl, %%eax;"\
               EMIT1(setcb, VAR(C_FLAG)) \
               : "=a" (value)\
-              : "a" (reg[dest].I), "c" (value));
+              : "a" (reg[dest].I), "c" (value), FLAG_CONSTRAINTS : "memory");
   #define ROR_RD_RS \
          asm ("ror %%cl, %%eax;"\
               EMIT1(setcb, VAR(C_FLAG)) \
               : "=a" (value)\
-              : "a" (reg[dest].I), "c" (value));
+              : "a" (reg[dest].I), "c" (value), FLAG_CONSTRAINTS : "memory");
   #define NEG_RD_RS \
      asm ("neg %%ebx;"\
           EMIT1(setsb, VAR(N_FLAG)) \
@@ -396,7 +401,7 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setncb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
           : "=b" (reg[dest].I)\
-          : "b" (reg[source].I));
+          : "b" (reg[source].I), FLAG_CONSTRAINTS : "memory");
   #define CMP_RD_RS \
      asm ("sub %0, %1;"\
           EMIT1(setsb, VAR(N_FLAG)) \
@@ -404,29 +409,29 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
           EMIT1(setncb, VAR(C_FLAG)) \
           EMIT1(setob, VAR(V_FLAG)) \
           : \
-          : "r" (value), "r" (reg[dest].I):"1");
+          : "r" (value), "r" (reg[dest].I), FLAG_CONSTRAINTS:"1","memory");
   #define IMM5_INSN(OP,N) \
      asm("movl %%eax,%%ecx;"         \
          "shrl $1,%%eax;"            \
          "andl $7,%%ecx;"            \
          "andl $0x1C,%%eax;"         \
-         EMIT2(movl, REGREF1(eax), edx) \
+         EMIT2(movl, REGREF1(ax), edx) \
          OP                          \
          EMIT1(setsb, VAR(N_FLAG)) \
          EMIT1(setzb, VAR(Z_FLAG)) \
-         EMIT2(movl, edx, REGREF2(ecx,4)) \
-         : : "i" (N))
+         EMIT2(movl, edx, REGREF2(cx,4)) \
+         : : "i" (N), "a"(opcode), FLAG_CONSTRAINTS, REG_CONSTRAINT : "ecx", "edx","memory" )
   #define IMM5_INSN_0(OP)            \
      asm("movl %%eax,%%ecx;"         \
          "shrl $1,%%eax;"            \
          "andl $7,%%ecx;"            \
          "andl $0x1C,%%eax;"         \
-         EMIT2(movl, REGREF1(eax), edx) \
+         EMIT2(movl, REGREF1(ax), edx) \
          OP                          \
          EMIT1(setsb, VAR(N_FLAG)) \
          EMIT1(setzb, VAR(Z_FLAG)) \
-         EMIT2(movl, edx, REGREF2(ecx,4)) \
-         : : )
+         EMIT2(movl, edx, REGREF2(cx,4)) \
+         : : "a"(opcode), FLAG_CONSTRAINTS, REG_CONSTRAINT : "ecx","edx","memory" )
   #define IMM5_LSL \
          "shll %0,%%edx;"\
          EMIT1(setcb, VAR(C_FLAG))
@@ -450,14 +455,14 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
          "shrl $1,%%edx;"          \
          "andl $0x1C,%%edx;"       \
          "andl $7,%%eax;"          \
-         EMIT2(movl, REGREF1(edx), ecx) \
+         EMIT2(movl, REGREF1(dx), ecx) \
          OP(N)                     \
          EMIT1(setsb, VAR(N_FLAG)) \
          EMIT1(setzb, VAR(Z_FLAG)) \
-         EMIT2(movl, ecx, REGREF2(eax,4)) \
-         : : )
+         EMIT2(movl, ecx, REGREF2(ax,4)) \
+         : : "a"(opcode), FLAG_CONSTRAINTS, REG_CONSTRAINT : "ecx", "edx", "memory")
   #define ADD_RD_RS_RN(N)          \
-         EMIT2(add,VAR(reg)"+"#N"*4",ecx) \
+         EMIT2(add,REGREF0(N*4), ecx)  \
          EMIT1(setcb, VAR(C_FLAG)) \
          EMIT1(setob, VAR(V_FLAG))
   #define ADD_RD_RS_O3(N)          \
@@ -469,7 +474,7 @@ static INSN_REGPARM void thumbBreakpoint(u32 opcode)
          "add $0,%%ecx;"           \
          EMIT2(movb,CONST(0),VAR(V_FLAG))
   #define SUB_RD_RS_RN(N) \
-         EMIT2(sub,VAR(reg)"+"#N"*4",ecx) \
+         EMIT2(sub,REGREF0(N*4), ecx)   \
          EMIT1(setncb, VAR(C_FLAG)) \
          EMIT1(setob, VAR(V_FLAG))
   #define SUB_RD_RS_O3(N) \

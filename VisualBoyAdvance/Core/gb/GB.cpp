@@ -2240,11 +2240,13 @@ void gbReset()
   }
 
   // clean LineBuffer
-  if (gbLineBuffer != NULL)
-    memset(gbLineBuffer, 0, sizeof(gbLineBuffer));
+  if (gbLineBuffer != NULL) {
+      free(gbLineBuffer);
+      gbLineBuffer = NULL;
+  }
   // clean Pix
   if (pix != NULL)
-    memset(pix, 0, sizeof(pix));
+    pix = NULL;
   // clean Vram
   if (gbVram != NULL)
     memset(gbVram, 0, 0x4000);
