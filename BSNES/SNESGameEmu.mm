@@ -38,12 +38,9 @@
 
 @interface BSNESGameEmu () <OESNESSystemResponderClient>
 @end
-/*
-NSUInteger BSNESEmulatorValues[] = { SNES_DEVICE_ID_JOYPAD_R, SNES_DEVICE_ID_JOYPAD_L, SNES_DEVICE_ID_JOYPAD_X, SNES_DEVICE_ID_JOYPAD_A, SNES_DEVICE_ID_JOYPAD_RIGHT, SNES_DEVICE_ID_JOYPAD_LEFT, SNES_DEVICE_ID_JOYPAD_DOWN, SNES_DEVICE_ID_JOYPAD_UP, SNES_DEVICE_ID_JOYPAD_START, SNES_DEVICE_ID_JOYPAD_SELECT, SNES_DEVICE_ID_JOYPAD_Y, SNES_DEVICE_ID_JOYPAD_B };
-NSString *BSNESEmulatorNames[] = { @"Joypad@ R", @"Joypad@ L", @"Joypad@ X", @"Joypad@ A", @"Joypad@ Right", @"Joypad@ Left", @"Joypad@ Down", @"Joypad@ Up", @"Joypad@ Start", @"Joypad@ Select", @"Joypad@ Y", @"Joypad@ B" };
-*/
-NSUInteger BSNESEmulatorValues[] = { SNES_DEVICE_ID_JOYPAD_B, SNES_DEVICE_ID_JOYPAD_Y, SNES_DEVICE_ID_JOYPAD_SELECT, SNES_DEVICE_ID_JOYPAD_START, SNES_DEVICE_ID_JOYPAD_UP, SNES_DEVICE_ID_JOYPAD_DOWN, SNES_DEVICE_ID_JOYPAD_LEFT, SNES_DEVICE_ID_JOYPAD_RIGHT, SNES_DEVICE_ID_JOYPAD_A, SNES_DEVICE_ID_JOYPAD_X, SNES_DEVICE_ID_JOYPAD_L, SNES_DEVICE_ID_JOYPAD_R };
-NSString *BSNESEmulatorNames[] = { @"Joypad@ B", @"Joypad@ Y", @"Joypad@ Select", @"Joypad@ Start", @"Joypad@ Up", @"Joypad@ Down", @"Joypad@ Left", @"Joypad@ Right", @"Joypad@ A", @"Joypad@ X", @"Joypad@ L", @"Joypad@ R" };
+
+NSUInteger BSNESEmulatorValues[] = { SNES_DEVICE_ID_JOYPAD_A, SNES_DEVICE_ID_JOYPAD_B, SNES_DEVICE_ID_JOYPAD_X, SNES_DEVICE_ID_JOYPAD_Y, SNES_DEVICE_ID_JOYPAD_UP, SNES_DEVICE_ID_JOYPAD_DOWN, SNES_DEVICE_ID_JOYPAD_LEFT, SNES_DEVICE_ID_JOYPAD_RIGHT, SNES_DEVICE_ID_JOYPAD_START, SNES_DEVICE_ID_JOYPAD_SELECT, SNES_DEVICE_ID_JOYPAD_L, SNES_DEVICE_ID_JOYPAD_R };
+NSString *BSNESEmulatorKeys[] = { @"Joypad@ A", @"Joypad@ B", @"Joypad@ X", @"Joypad@ Y", @"Joypad@ Up", @"Joypad@ Down", @"Joypad@ Left", @"Joypad@ Right", @"Joypad@ Start", @"Joypad@ Select", @"Joypad@ L", @"Joypad@ R"};
 
 BSNESGameEmu *current;
 @implementation BSNESGameEmu
