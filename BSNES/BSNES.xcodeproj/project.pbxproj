@@ -35,7 +35,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		822837B1101A20B10031D125 /* liblibco.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 82BFB26E1015430A00AC34CF /* liblibco.a */; };
+		822837B1101A20B10031D125 /* libco.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 82BFB26E1015430A00AC34CF /* libco.a */; };
 		8230C69910AFBC3A00412F24 /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = 8230C69810AFBC3A00412F24 /* dsa_pub.pem */; };
 		8230C6AE10AFBCE500412F24 /* config.yaml in CopyFiles */ = {isa = PBXBuildFile; fileRef = 8230C6AA10AFBCC700412F24 /* config.yaml */; };
 		826FDE5110142B230023A8E9 /* bsnes.desktop in Resources */ = {isa = PBXBuildFile; fileRef = 826FDD6710142B230023A8E9 /* bsnes.desktop */; };
@@ -52,7 +52,7 @@
 		8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */; };
 		9483027314CCA6B1003DAED8 /* libco.c in Sources */ = {isa = PBXBuildFile; fileRef = 9490639714CAB244006C5630 /* libco.c */; };
 		949063A214CAB244006C5630 /* libco.h in Headers */ = {isa = PBXBuildFile; fileRef = 9490639814CAB244006C5630 /* libco.h */; };
-		949063C914CB42C4006C5630 /* libsnes.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 949063C814CB42C4006C5630 /* libsnes.dylib */; };
+		949063C914CB42C4006C5630 /* libsnes.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 949063C814CB42C4006C5630 /* libsnes.a */; };
 		94D9257314CA9879008F697D /* SNESGameEmu.mm in Sources */ = {isa = PBXBuildFile; fileRef = 826FE0F41014D8930023A8E9 /* SNESGameEmu.mm */; };
 		94D9257414CA9879008F697D /* SNESGameController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 826FE0F61014D8930023A8E9 /* SNESGameController.mm */; };
 /* End PBXBuildFile section */
@@ -224,7 +224,7 @@
 		826FE1971014DE550023A8E9 /* BSNESInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BSNESInterface.h; sourceTree = "<group>"; };
 		82B9198710150FA9007BD6DB /* bsnes.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = bsnes.icns; sourceTree = "<group>"; };
 		82B91C841015267F007BD6DB /* libco.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libco.a; sourceTree = "<group>"; };
-		82BFB26E1015430A00AC34CF /* liblibco.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = liblibco.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		82BFB26E1015430A00AC34CF /* libco.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libco.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D5B49B6048680CD000E48DA /* BSNES.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BSNES.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D5B49B7048680CD000E48DA /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9490639414CAB244006C5630 /* amd64.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = amd64.c; sourceTree = "<group>"; };
@@ -238,7 +238,7 @@
 		9490639C14CAB244006C5630 /* x86.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = x86.c; sourceTree = "<group>"; };
 		9490639D14CAB244006C5630 /* x86_msvc.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = x86_msvc.c; sourceTree = "<group>"; };
 		949063A814CAB269006C5630 /* libsnes.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = libsnes.hpp; path = libsnescore/libsnes.hpp; sourceTree = "<group>"; };
-		949063C814CB42C4006C5630 /* libsnes.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsnes.dylib; path = libsnescore/libsnes.dylib; sourceTree = "<group>"; };
+		949063C814CB42C4006C5630 /* libsnes.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsnes.a; path = libsnescore/libsnes.a; sourceTree = "<group>"; };
 		C6480FFB1364B2E10094FA33 /* OESNESSystemResponderClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OESNESSystemResponderClient.h; path = ../OpenEmu/SuperNES/OESNESSystemResponderClient.h; sourceTree = "<group>"; };
 		D2F7E65807B2D6F200F64583 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = /System/Library/Frameworks/CoreData.framework; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
@@ -257,8 +257,8 @@
 			files = (
 				8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */,
 				826FE1291014D8F60023A8E9 /* OpenEmuBase.framework in Frameworks */,
-				822837B1101A20B10031D125 /* liblibco.a in Frameworks */,
-				949063C914CB42C4006C5630 /* libsnes.dylib in Frameworks */,
+				822837B1101A20B10031D125 /* libco.a in Frameworks */,
+				949063C914CB42C4006C5630 /* libsnes.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,7 +268,7 @@
 		089C166AFE841209C02AAC07 /* BSNES */ = {
 			isa = PBXGroup;
 			children = (
-				949063C814CB42C4006C5630 /* libsnes.dylib */,
+				949063C814CB42C4006C5630 /* libsnes.a */,
 				826FE1131014D8CF0023A8E9 /* OpenEmu.xcodeproj */,
 				08FB77AFFE84173DC02AAC07 /* Classes */,
 				32C88E010371C26100C91783 /* Other Sources */,
@@ -339,7 +339,7 @@
 			isa = PBXGroup;
 			children = (
 				8D5B49B6048680CD000E48DA /* BSNES.oecoreplugin */,
-				82BFB26E1015430A00AC34CF /* liblibco.a */,
+				82BFB26E1015430A00AC34CF /* libco.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -435,7 +435,7 @@
 			);
 			name = libco;
 			productName = libco;
-			productReference = 82BFB26E1015430A00AC34CF /* liblibco.a */;
+			productReference = 82BFB26E1015430A00AC34CF /* libco.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 		8D5B49AC048680CD000E48DA /* BSNES */ = {
@@ -833,7 +833,7 @@
 			buildSettings = {
 				INSTALL_PATH = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
-				PRODUCT_NAME = libco;
+				PRODUCT_NAME = co;
 			};
 			name = Debug;
 		};
@@ -843,7 +843,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				INSTALL_PATH = /usr/local/lib;
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
-				PRODUCT_NAME = libco;
+				PRODUCT_NAME = co;
 			};
 			name = Release;
 		};
