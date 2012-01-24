@@ -68,7 +68,18 @@ static void audio_callback(uint16_t left, uint16_t right)
 
 static void video_callback(const uint16_t *data, unsigned width, unsigned height)
 {
-	memcpy(current->videoBuffer, data, width * height * 2);
+//    uint16_t frame[width * height];
+//    const uint16_t *src;
+//    uint16_t *dst;
+//	
+//    for (int i = 0; i < height; i++ )
+//    {
+//        src = data + i * 1024;
+//        dst = frame + i * width;
+//        memcpy(dst, src, width * sizeof(uint16_t));
+//    }
+    
+    memcpy(current->videoBuffer, data, width * height * 2);
 }
 
 static void input_poll_callback(void)
@@ -78,7 +89,16 @@ static void input_poll_callback(void)
 
 static int16_t input_state_callback(bool port, unsigned device, unsigned index, unsigned id)
 {
-	return 0;
+    //NSLog(@"polled input: port: %d device: %d id: %d", port, device, id);
+    
+	if (port == SNES_PORT_1 & device == SNES_DEVICE_JOYPAD) {
+        return current->pad[0][id];
+    }
+    else if(port == SNES_PORT_2 & device == SNES_DEVICE_JOYPAD) {
+        return current->pad[1][id];
+    }
+    
+    return 0;
 }
 
 - (void)didPushSNESButton:(OESNESButton)button forPlayer:(NSUInteger)player;
@@ -178,6 +198,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     const char *filename;
     filename = [path UTF8String];
     
+    //load cart, read bytes, get length
     NSData* dataObj = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:filename] stringByStandardizingPath]];
     if(dataObj == nil) return false;
     size = [dataObj length];
@@ -227,7 +248,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 #pragma mark Video
 - (const void *)videoBuffer
 {
-    //return interface->video;
+    //return video;
     return videoBuffer;
 }
 

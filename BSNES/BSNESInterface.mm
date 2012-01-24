@@ -28,6 +28,23 @@
 #include <base.hpp>
 #include "BSNESInterface.h"
 
+void pack_frame (uint16_t * restrict out, const uint16_t * restrict in, unsigned width, unsigned height)
+{
+    // Normally our pitch is 2048 bytes.
+    int pitch_pixels = 1024;
+    // If we have an interlaced mode, pitch is 1024 bytes.
+    if ( height == 448 || height == 478 )
+        pitch_pixels = 512;
+
+    for ( int y = 0; y < height; y++ )
+    {
+        const uint16_t *src = in + y * pitch_pixels;
+        uint16_t *dst = out + y * width;
+
+        memcpy(dst, src, width * sizeof(uint16_t));
+    }
+}
+
 static uint16_t conv555Rto565(uint16_t p)
 {
     unsigned r, g, b;

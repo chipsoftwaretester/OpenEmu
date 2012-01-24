@@ -42,9 +42,10 @@ extern NSString *BSNESEmulatorNames[];
     uint32    controlPad[MAC_MAX_PLAYERS];
     UInt16 *soundBuffer;
     unsigned char *videoBuffer;
-    //BSNESInterface *interface;
-    //SNES::System *system;
     int16_t pad[2][12];
+    //int width;
+    //int height;
+    //int pitch;
     //uint16_t *video;
 }
 
