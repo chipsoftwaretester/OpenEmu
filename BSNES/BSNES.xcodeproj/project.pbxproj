@@ -220,8 +220,6 @@
 		826FE0F51014D8930023A8E9 /* SNESGameController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SNESGameController.h; sourceTree = "<group>"; };
 		826FE0F61014D8930023A8E9 /* SNESGameController.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = SNESGameController.mm; sourceTree = "<group>"; };
 		826FE1131014D8CF0023A8E9 /* OpenEmu.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = OpenEmu.xcodeproj; path = ../OpenEmu/OpenEmu.xcodeproj; sourceTree = SOURCE_ROOT; };
-		826FE1931014DB530023A8E9 /* BSNESInterface.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BSNESInterface.mm; sourceTree = "<group>"; };
-		826FE1971014DE550023A8E9 /* BSNESInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BSNESInterface.h; sourceTree = "<group>"; };
 		82B9198710150FA9007BD6DB /* bsnes.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = bsnes.icns; sourceTree = "<group>"; };
 		82B91C841015267F007BD6DB /* libco.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libco.a; sourceTree = "<group>"; };
 		82BFB26E1015430A00AC34CF /* libco.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libco.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -303,8 +301,6 @@
 			isa = PBXGroup;
 			children = (
 				C6480FFB1364B2E10094FA33 /* OESNESSystemResponderClient.h */,
-				826FE1971014DE550023A8E9 /* BSNESInterface.h */,
-				826FE1931014DB530023A8E9 /* BSNESInterface.mm */,
 				826FE0F31014D8930023A8E9 /* SNESGameEmu.h */,
 				826FE0F41014D8930023A8E9 /* SNESGameEmu.mm */,
 				826FE0F51014D8930023A8E9 /* SNESGameController.h */,

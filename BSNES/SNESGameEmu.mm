@@ -49,9 +49,9 @@ static uint16_t conv555Rto565(uint16_t p)
 {
     unsigned r, g, b;
     
-    r = (p >> 10);
+    b = (p >> 10);
     g = (p >> 5) & 0x1f;
-    b = p & 0x1f;
+    r = p & 0x1f;
     
     // 5 to 6 bit
     g = (g << 1) + (g >> 4);
@@ -68,18 +68,26 @@ static void audio_callback(uint16_t left, uint16_t right)
 
 static void video_callback(const uint16_t *data, unsigned width, unsigned height)
 {
-//    uint16_t frame[width * height];
-//    const uint16_t *src;
-//    uint16_t *dst;
-//	
-//    for (int i = 0; i < height; i++ )
-//    {
-//        src = data + i * 1024;
-//        dst = frame + i * width;
-//        memcpy(dst, src, width * sizeof(uint16_t));
-//    }
+    // Normally our pitch is 2048 bytes.
+    int stride = 1024;
+    // If we have an interlaced mode, pitch is 1024 bytes.
+    if ( height == 448 || height == 478 )
+        stride = 512;
+
+    current->videoWidth  = width;
+    current->videoHeight = height;
     
-    memcpy(current->videoBuffer, data, width * height * 2);
+    dispatch_queue_t the_queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+
+    // TODO opencl CPU device?
+    dispatch_apply(height, the_queue, ^(size_t y){
+        const uint16_t *src = data + y * stride;
+        uint16_t *dst = current->videoBuffer + y * 512;
+
+        for (int x = 0; x < width; x++) {
+            dst[x] = conv555Rto565(src[x]);
+        }
+    });
 }
 
 static void input_poll_callback(void)
@@ -118,7 +126,7 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
     {
         if(videoBuffer) 
             free(videoBuffer);
-        videoBuffer = (unsigned char*) malloc(512 * 478 * 2);
+        videoBuffer = (uint16_t*)malloc(512 * 478 * 2);
     }
 	
 	current = self;
@@ -262,7 +270,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 {
     // hope this handles hires :/
     //return OERectMake(0, 0, interface->width, interface->height);
-    return OERectMake(0, 0, 256, 224);
+    return OERectMake(0, 0, videoWidth, videoHeight);
 }
 
 - (OEIntSize)bufferSize

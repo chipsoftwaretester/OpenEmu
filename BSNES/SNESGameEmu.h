@@ -39,9 +39,11 @@ extern NSString *BSNESEmulatorNames[];
 
 @interface BSNESGameEmu : OEGameCore
 {
+    @public
     uint32    controlPad[MAC_MAX_PLAYERS];
-    UInt16 *soundBuffer;
-    unsigned char *videoBuffer;
+    uint16_t *soundBuffer;
+    uint16_t *videoBuffer;
+    int videoWidth, videoHeight;
     int16_t pad[2][12];
     //int width;
     //int height;
