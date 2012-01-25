@@ -408,7 +408,6 @@
 			children = (
 				94ED896814CF933600FF8901 /* genplusgx_source */,
 				94ED8A8814CF933700FF8901 /* openemu */,
-				82ACCE5C101FA45700D5EAC6 /* Core */,
 				C6B948191365164700A425F0 /* OEGenesisSystemResponderClient.h */,
 				82287C35101E9DB40072172D /* GenPlusGameController.h */,
 				82287C36101E9DB40072172D /* GenPlusGameController.m */,
@@ -471,13 +470,6 @@
 				3D96F18014CE57040039004B /* GameGear.oesystemplugin */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		82ACCE5C101FA45700D5EAC6 /* Core */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Core;
 			sourceTree = "<group>";
 		};
 		94ED896814CF933600FF8901 /* genplusgx_source */ = {
@@ -957,6 +949,7 @@
 				OTHER_CFLAGS = (
 					"-DDOS",
 					"-DLSB_FIRST",
+					"-D_POSIX_C_SOURCE=200112L",
 				);
 				PRODUCT_NAME = GenesisPlus;
 				USER_HEADER_SEARCH_PATHS = "\"$(PROJECT_DIR)\"";
@@ -980,6 +973,7 @@
 				OTHER_CFLAGS = (
 					"-DDOS",
 					"-DLSB_FIRST",
+					"-D_POSIX_C_SOURCE=200112L",
 				);
 				PRODUCT_NAME = GenesisPlus;
 				USER_HEADER_SEARCH_PATHS = "\"$(PROJECT_DIR)\"";

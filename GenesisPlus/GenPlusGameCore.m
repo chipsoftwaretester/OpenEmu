@@ -47,6 +47,10 @@
 
 extern void set_config_defaults(void);
 
+void openemu_input_UpdateEmu(void)
+{
+}
+
 @implementation GenPlusGameCore
 
 @synthesize romPath;
