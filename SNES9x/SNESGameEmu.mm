@@ -99,7 +99,6 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
 - (BOOL)loadFileAtPath: (NSString*) path
 {
     memset(&Settings, 0, sizeof(Settings));
-    //ZeroMemory(&Settings, sizeof(Settings));
     Settings.ForcePAL            = false;
     Settings.ForceNTSC           = false;
     Settings.ForceHeader         = false;
@@ -116,7 +115,6 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
     Settings.SixteenBitSound = true;
     Settings.Transparency = true;
     Settings.SupportHiRes = true;
-    //GFX.InfoString = nil;
     GFX.InfoString = NULL;
     GFX.InfoStringTimeout = 0;
     //Settings.OpenGLEnable = true; -enable this once (BOOL)rendersToOpenGL works well.

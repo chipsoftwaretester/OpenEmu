@@ -272,7 +272,6 @@
 		826C1B1D0F420C2200FB9014 /* SNESGameEmu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SNESGameEmu.h; sourceTree = "<group>"; };
 		826C1B1E0F420C2200FB9014 /* SNESGameEmu.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = SNESGameEmu.mm; sourceTree = "<group>"; };
 		828F16CA0F43A10000FD7321 /* APPL.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = APPL.icns; sourceTree = "<group>"; };
-		82AD85B40F41646E00DF0AE1 /* test.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = test.h; sourceTree = "<group>"; };
 		82AD85B50F41646E00DF0AE1 /* SNESOESupport.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = SNESOESupport.mm; sourceTree = "<group>"; };
 		82CAFD350FEDD64800CCDC7E /* config.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = config.yaml; sourceTree = "<group>"; };
 		82CAFD430FEDD66800CCDC7E /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
@@ -496,11 +495,10 @@
 				C6480FFA1364B1CF0094FA33 /* OESNESSystemResponderClient.h */,
 				826C1B1D0F420C2200FB9014 /* SNESGameEmu.h */,
 				826C1B1E0F420C2200FB9014 /* SNESGameEmu.mm */,
-				82AD83C60F4154DD00DF0AE1 /* core */,
-				82AD85B40F41646E00DF0AE1 /* test.h */,
 				82AD85B50F41646E00DF0AE1 /* SNESOESupport.mm */,
 				C650C7300FD21B1C009AD8F2 /* SNESGameController.h */,
 				C650C7310FD21B1C009AD8F2 /* SNESGameController.m */,
+				82AD83C60F4154DD00DF0AE1 /* core */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
