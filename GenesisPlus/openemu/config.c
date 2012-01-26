@@ -6,6 +6,8 @@ t_config config;
 
 void set_config_defaults(void)
 {
+    int i;
+    
 	/* sound options */
 	config.psg_preamp     = 150;
 	config.fm_preamp      = 100;
@@ -47,5 +49,8 @@ void set_config_defaults(void)
 	config.gun_cursor[0]  = 1;
 	config.gun_cursor[1]  = 1;
 	config.invert_mouse   = 0;
+    for (i=0;i<MAX_INPUTS;i++)
+    {
+        config.input[i].padtype = DEVICE_PAD6B;
+    }
 }
-
