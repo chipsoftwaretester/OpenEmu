@@ -167,8 +167,6 @@ NSString *SNESEmulatorKeys[] = { @"A", @"B", @"X", @"Y", @"Up", @"Down", @"Left"
         
             Memory.LoadSRAM([filePath UTF8String]);
         }
-        //NSAutoreleasePool
-        
     }
     return YES;
 }
@@ -282,9 +280,11 @@ bool8 S9xOpenSoundDevice (void)
 
 - (BOOL)saveStateToFileAtPath: (NSString *) fileName
 {
+    //NSLog(@"fileName %@",fileName);
     bool8 success = S9xFreezeGame([fileName UTF8String]);
     
     if(success)
+        //NSLog(@"save success");
         return YES;
     return NO;
 }

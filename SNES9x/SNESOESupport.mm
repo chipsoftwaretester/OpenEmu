@@ -29,7 +29,6 @@
 #include "gfx.h"
 #include "display.h"
 #include "ppu.h"
-//#include "soundux.h"
 #include "conffile.h"
 #include "apu.h"
 #include "controls.h"
@@ -39,9 +38,10 @@
 
 const char *S9xBasename (const char *filename)
 {
-    NSLog(@"basename");
+    //NSLog(@"basename %s",filename);
     return NULL;
 }
+
 void _splitpath(const char *path, char *drive, char *dir, char *fname, char *ext)
 {
     short    x;
