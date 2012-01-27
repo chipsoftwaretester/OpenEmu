@@ -228,7 +228,7 @@
 //#undef	WRITE_WORD(s, d)
 //#undef	WRITE_3WORD(s, d)
 //#undef	WRITE_DWORD(s, d)
-#define ZLIB
+//#define ZLIB - OE fix
 //#define UNZIP_SUPPORT
 //#define	JMA_SUPPORT
 #define CPU_SHUTDOWN
