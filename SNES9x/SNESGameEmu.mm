@@ -280,11 +280,9 @@ bool8 S9xOpenSoundDevice (void)
 
 - (BOOL)saveStateToFileAtPath: (NSString *) fileName
 {
-    //NSLog(@"fileName %@",fileName);
     bool8 success = S9xFreezeGame([fileName UTF8String]);
     
     if(success)
-        //NSLog(@"save success");
         return YES;
     return NO;
 }
