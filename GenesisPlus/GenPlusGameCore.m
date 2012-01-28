@@ -33,11 +33,6 @@
 #import "OEGenesisSystemResponderClient.h"
 
 #include "shared.h"
-//#include "system.h"
-//#include "genesis.h"
-//#include "loadrom.h"
-//#include "gen_input.h"
-//#include "state.h"
 
 #define SAMPLERATE 48000
 #define SAMPLEFRAME 800
@@ -70,14 +65,13 @@ void openemu_input_UpdateEmu(void)
         position = 0;
         sndBuf = malloc(SIZESOUNDBUFFER * sizeof(UInt16));
         memset(sndBuf, 0, SIZESOUNDBUFFER * sizeof(UInt16));
-        //ringBuffer = [self ringBufferAtIndex:0];
     }
     return self;
 }
 
 - (void) dealloc
 {
-    DLog(@"releasing/deallocating CrabEmu memory");
+    DLog(@"releasing/deallocating memory");
     free(sndBuf);
     [soundLock release];
     [bufLock release];
@@ -90,10 +84,8 @@ void openemu_input_UpdateEmu(void)
 - (void)executeFrame
 {
     system_frame(0);
-    //audio_update(snd.buffer_size);
     int size = audio_update();
     for(int i = 0 ; i < size; i++)
-    //for(int i = 0 ; i < snd.buffer_size; i++)
     {
         [[self ringBufferAtIndex:0] write:&snd.buffer[0][i] maxLength:2];
         [[self ringBufferAtIndex:0] write:&snd.buffer[1][i] maxLength:2];
@@ -115,7 +107,6 @@ void update_input()
     
     set_config_defaults();
     
-    //cart_rom = malloc(MAXROMSIZE);
     /* allocate cart.rom here (10 MBytes) */
     cart.rom = malloc(MAXROMSIZE);
     
@@ -135,18 +126,15 @@ void update_input()
         //bitmap.viewport.h = 224;
         //bitmap.viewport.x = 0;
         //bitmap.viewport.y = 0;
-        bitmap.data =videoBuffer;
+        bitmap.data = videoBuffer;
         
         /* default system */
-        //input.system[0] = SYSTEM_GAMEPAD;
-        //input.system[1] = SYSTEM_GAMEPAD;
         input.system[0] = SYSTEM_MD_GAMEPAD;
         input.system[1] = SYSTEM_MD_GAMEPAD;
         
         float framerate = vdp_pal ? 50.0 : 60.0;
 		audio_init(SAMPLERATE, framerate);
         system_init();
-        //audio_init(SAMPLERATE);
         system_reset();
         
         [self setRomPath:path];
@@ -179,7 +167,6 @@ void update_input()
 - (OEIntRect)screenRect
 {
     return OERectMake(bitmap.viewport.x, bitmap.viewport.y, bitmap.viewport.w, bitmap.viewport.h);
-    //return OERectMake(bitmap.viewport.x, bitmap.viewport.y, 320, 224);
 }
 
 - (OEIntSize)bufferSize
