@@ -227,6 +227,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     {
         snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
         snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_JOYPAD);
+        
         /*
         NSString *path = [NSString stringWithUTF8String:Memory.ROMFilename];
         NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
@@ -244,10 +245,13 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
             Memory.LoadSRAM([filePath UTF8String]);
             //snes_get_memory_data(unsigned id);
          */
-            snes_get_region();
+        snes_get_region();
+        
+        serial_size = snes_serialize_size();
+        serial_data = (uint8_t *) malloc(sizeof(uint8_t)*serial_size);
             
-            snes_run();
-        }
+        snes_run();
+    }
 
     return YES;
 }
@@ -299,7 +303,9 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
      Memory.SaveSRAM([filePath UTF8String]);
      */
     NSLog(@"snes term");
+    //snes_unload_cartridge();
     snes_term();
+    //free(serial_data);
     [super stopEmulation];
 }
 
@@ -351,22 +357,55 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 }
 
 - (BOOL)saveStateToFileAtPath:(NSString *)fileName
-{
-//    SNES::system.runtosave();
-//    serializer state = SNES::system.serialize();
-//    FILE *state_file = fopen([fileName UTF8String], "w+b");
-//    long bytes_written = fwrite(state.data(), sizeof(uint8_t), state.size(), state_file);
-//    if( bytes_written != state.size() )
-//    {
-//        NSLog(@"Couldn't write state");
-//        return NO;
-//    }
-//    fclose( state_file );
+{   
+    //size_t size = current->serial_size;
+    
+    //unsigned size = snes_serialize_size();
+    //uint8_t *data = (uint8_t *) malloc(sizeof(uint8_t)*size);
+    //uint8_t *data;
+    //unsigned size;
+    //size = snes_serialize_size();
+    snes_serialize(serial_data, serial_size);
+
+    FILE *state_file = fopen([fileName UTF8String], "w+b");
+    long bytes_written = fwrite(serial_data, sizeof(uint8_t), serial_size, state_file);
+    //long bytes_written = fwrite(data, 1, size, state_file);
+    if( bytes_written != serial_size )
+    {
+        NSLog(@"Couldn't write state");
+        return NO;
+    }
+    fclose( state_file );
     return YES;
 }
 
 - (BOOL)loadStateFromFileAtPath:(NSString *)fileName
 {
+    FILE *state_file = fopen([fileName UTF8String], "rb");
+    if( !state_file )
+    {
+        NSLog(@"Could not open state file");
+        return NO;
+    }
+    
+//    long file_size;
+//    
+//    fseek (state_file , 0 , SEEK_END);
+//    file_size = ftell (state_file);
+//    rewind (state_file);
+//    
+//    uint8_t* state_buffer = (uint8_t *) malloc (sizeof(uint8_t)*file_size);
+//    long read_bytes =fread(state_buffer, sizeof(uint8_t), file_size, state_file);
+//    if( read_bytes != file_size )
+//    {
+//        NSLog(@"Couldn't read file");
+//        return NO;
+//    }
+    
+    fread(serial_data, 1, serial_size, state_file);
+    fclose(state_file);
+    snes_unserialize(serial_data, serial_size);
+
 //    FILE* state_file = fopen([fileName UTF8String], "rb");
 //    if( !state_file )
 //    {
