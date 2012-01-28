@@ -27,8 +27,6 @@
 
 #import <Cocoa/Cocoa.h>
 #import <OEGameCore.h>
-//#include <base.hpp>
-//#include "BSNESInterface.h"
 
 #define MAC_MAX_PLAYERS 8
 #define SNES_CONTROL_COUNT 12
@@ -45,10 +43,6 @@ extern NSString *BSNESEmulatorNames[];
     uint16_t *videoBuffer;
     int videoWidth, videoHeight;
     int16_t pad[2][12];
-    //int width;
-    //int height;
-    //int pitch;
-    //uint16_t *video;
 }
 
 @end

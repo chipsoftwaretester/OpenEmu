@@ -199,8 +199,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 - (BOOL)loadFileAtPath: (NSString*) path
 {
 	memset(pad, 0, sizeof(int16_t) * 24);
-    //interface = new BSNESInterface();
-    //interface->video = (uint16_t*)malloc(512*478*sizeof(uint16_t));
+
     uint8_t *data;
     unsigned size;
     const char *filename;
@@ -256,20 +255,12 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 #pragma mark Video
 - (const void *)videoBuffer
 {
-    //return video;
     return videoBuffer;
 }
-
-/*
- return 512 / 2;
-
- return (SNES::system.region() == SNES::System::NTSC ? 448 : 478) / 2;
-*/
 
 - (OEIntRect)screenRect
 {
     // hope this handles hires :/
-    //return OERectMake(0, 0, interface->width, interface->height);
     return OERectMake(0, 0, videoWidth, videoHeight);
 }
 
