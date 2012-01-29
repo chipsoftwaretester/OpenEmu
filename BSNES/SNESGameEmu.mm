@@ -139,16 +139,6 @@ static void loadSaveFile(const char* path, int type)
     fclose(file);
 }
 
-//static void saveFile(const char* path, int type)
-//{
-//    size_t size = snes_get_memory_size(type);
-//    uint8_t *data = snes_get_memory_data(type);
-//    
-//    if ( data && size > 0 )
-//        writeSaveFile(path, data, size);
-//}
-
-//static void writeSaveFile(const char* path, uint8_t* data, size_t size)
 static void writeSaveFile(const char* path, int type)
 {
     size_t size = snes_get_memory_size(type);
@@ -211,11 +201,10 @@ static void writeSaveFile(const char* path, int type)
 
     uint8_t *data;
     unsigned size;
-    //const char *filename;
-    romName = [path UTF8String];
+    romName = [path copy];
     
     //load cart, read bytes, get length
-    NSData* dataObj = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:romName] stringByStandardizingPath]];
+    NSData* dataObj = [NSData dataWithContentsOfFile:[romName stringByStandardizingPath]];
     if(dataObj == nil) return false;
     size = [dataObj length];
     data = (uint8_t*)[dataObj bytes];
@@ -234,7 +223,7 @@ static void writeSaveFile(const char* path, int type)
 	
     if(snes_load_cartridge_normal(NULL, data, size))
     {
-        NSString *path = [NSString stringWithUTF8String:romName];
+        NSString *path = romName;
         NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
         
         NSString *batterySavesDirectory = [self batterySavesDirectoryPath];
@@ -295,8 +284,7 @@ static void writeSaveFile(const char* path, int type)
 
 - (void)stopEmulation
 {
-    //NSString *path = [NSString stringWithUTF8String:current->romName];
-    NSString *path = [NSString stringWithUTF8String:romName];
+    NSString *path = romName;
     NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
     
     NSString *batterySavesDirectory = [self batterySavesDirectoryPath];
