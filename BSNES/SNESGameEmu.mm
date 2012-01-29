@@ -128,7 +128,7 @@ static void loadSaveFile(const char* path, int type)
         return;
     }
     
-    int rc = fread(data, 1, size, file);
+    int rc = fread(data, sizeof(uint8_t), size, file);
     if ( rc != size )
     {
         NSLog(@"Couldn't load save file.");
@@ -247,7 +247,6 @@ static void writeSaveFile(const char* path, int type)
             NSString *filePath = [batterySavesDirectory stringByAppendingPathComponent:[extensionlessFilename stringByAppendingPathExtension:@"sav"]];
             
             loadSaveFile([filePath UTF8String], SNES_MEMORY_CARTRIDGE_RAM);
-            //writeSaveFile([filePath UTF8String], SNES_MEMORY_CARTRIDGE_RAM);
         }
         
         snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
