@@ -45,7 +45,7 @@ extern NSString *BSNESEmulatorNames[];
     int16_t pad[2][12];
     unsigned serial_size;
     uint8_t *serial_data;
-    const char *filename;
+    const char *romName;
 }
 
 @end

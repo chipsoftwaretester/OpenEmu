@@ -109,6 +109,65 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
     return 0;
 }
 
+static void loadSaveFile(const char* path, int type)
+{
+    FILE *file;
+    
+    file = fopen(path, "rb");
+    if ( !file )
+    {
+        return;
+    }
+    
+    size_t size = snes_get_memory_size(type);
+    uint8_t *data = snes_get_memory_data(type);
+    
+    if (size == 0 || !data)
+    {
+        fclose(file);
+        return;
+    }
+    
+    int rc = fread(data, 1, size, file);
+    if ( rc != size )
+    {
+        NSLog(@"Couldn't load save file.");
+    }
+    
+    NSLog(@"Loaded save file: %s", path);
+    
+    fclose(file);
+}
+
+//static void saveFile(const char* path, int type)
+//{
+//    size_t size = snes_get_memory_size(type);
+//    uint8_t *data = snes_get_memory_data(type);
+//    
+//    if ( data && size > 0 )
+//        writeSaveFile(path, data, size);
+//}
+
+//static void writeSaveFile(const char* path, uint8_t* data, size_t size)
+static void writeSaveFile(const char* path, int type)
+{
+    size_t size = snes_get_memory_size(type);
+    uint8_t *data = snes_get_memory_data(type);
+    
+    if ( data && size > 0 )
+    {
+        FILE *file = fopen(path, "wb");
+        if ( file != NULL )
+        {
+            NSLog(@"Saving state \"%s\". Size: %d bytes.", path, (int)size);
+            snes_serialize(data, size);
+            if ( fwrite(data, sizeof(uint8_t), size, file) != size )
+                NSLog(@"Did not save state properly.");
+            fclose(file);
+        }
+    }
+}
+
 - (void)didPushSNESButton:(OESNESButton)button forPlayer:(NSUInteger)player;
 {
     pad[player-1][BSNESEmulatorValues[button]] = 0xFFFF;
@@ -145,56 +204,6 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
 {
     snes_run();
 }
-/*
-bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
-    if(file::exists(filename) == false) return false;
-    //Reader::Type filetype = Reader::detect(filename, true);
-    
-    uint8_t *data;
-    unsigned size;
-    
-    NSData* dataObj = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:filename] stringByStandardizingPath]];
-    if(dataObj == nil) return false;
-    size = [dataObj length];
-    data = (uint8_t*)[dataObj bytes];
-    
-    //remove copier header, if it exists
-    if((size & 0x7fff) == 512) memmove(data, data + 512, size -= 512);
-    
-    memory.copy(data, size);
-    return true;
-}
-
-- (BOOL)loadFileAtPath: (NSString*) path
-{
-    //system = new SNES::System();
-    
-    //[self mapButtons];
-    
-    interface = new BSNESInterface();
-    
-    memset(&interface->pad, 0, sizeof(int16_t) * 24);
-    interface->video = (uint16_t*)malloc(512*478*sizeof(uint16_t));
-    interface->ringBuffer = [self ringBufferAtIndex:0];
-    SNES::system.init(interface);
-    
-    
-    
-    SNES::MappedRAM memory;
-    if(loadCartridge([path UTF8String], memory) == false) return NO;
-    SNES::Cartridge::Type type = SNES::cartridge.detect_image_type(memory.data(), memory.size());
-    memory.reset();
-    
-    if(loadCartridge([path UTF8String], SNES::memory::cartrom))
-    {
-        SNES::cartridge.load(SNES::Cartridge::ModeNormal);
-        SNES::system.power();
-        SNES::input.port_set_device(0, SNES::Input::DeviceJoypad);
-        SNES::input.port_set_device(1, SNES::Input::DeviceJoypad);
-    }
-    return YES;
-}
-*/
 
 - (BOOL)loadFileAtPath: (NSString*) path
 {
@@ -203,10 +212,10 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
     uint8_t *data;
     unsigned size;
     //const char *filename;
-    filename = [path UTF8String];
+    romName = [path UTF8String];
     
     //load cart, read bytes, get length
-    NSData* dataObj = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:filename] stringByStandardizingPath]];
+    NSData* dataObj = [NSData dataWithContentsOfFile:[[NSString stringWithUTF8String:romName] stringByStandardizingPath]];
     if(dataObj == nil) return false;
     size = [dataObj length];
     data = (uint8_t*)[dataObj bytes];
@@ -225,10 +234,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 	
     if(snes_load_cartridge_normal(NULL, data, size))
     {
-        snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
-        snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_JOYPAD);
-        
-        NSString *path = [NSString stringWithUTF8String:filename];
+        NSString *path = [NSString stringWithUTF8String:romName];
         NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
         
         NSString *batterySavesDirectory = [self batterySavesDirectoryPath];
@@ -240,24 +246,12 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
             
             NSString *filePath = [batterySavesDirectory stringByAppendingPathComponent:[extensionlessFilename stringByAppendingPathExtension:@"sav"]];
             
-            FILE *sramloadFile;
-            
-            sramloadFile = fopen(filename, "rb");
-            
-            size_t sramloadSize = snes_get_memory_size(SNES_MEMORY_CARTRIDGE_RAM);
-            uint8_t *sramloadData = snes_get_memory_data(SNES_MEMORY_CARTRIDGE_RAM);
-            
-//            if (sramsize == 0 || !sramdata)
-//            {
-//                fclose(sramfile);
-//                return;
-//            }
-            
-            fread(sramloadData, sizeof(uint8_t), sramloadSize, sramloadFile);
-            
-            fclose(sramloadFile);
-            
+            loadSaveFile([filePath UTF8String], SNES_MEMORY_CARTRIDGE_RAM);
+            //writeSaveFile([filePath UTF8String], SNES_MEMORY_CARTRIDGE_RAM);
         }
+        
+        snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
+        snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_JOYPAD);
         
         snes_get_region();
         
@@ -302,22 +296,8 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
 
 - (void)stopEmulation
 {
-    /*
-     NSString *path = [NSString stringWithUTF8String:Memory.ROMFilename];
-     NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
-     
-     NSString *batterySavesDirectory = [self batterySavesDirectoryPath];
-     
-     [[NSFileManager defaultManager] createDirectoryAtPath:batterySavesDirectory withIntermediateDirectories:YES attributes:nil error:NULL];
-     
-     NSLog(@"Trying to save SRAM");
-     
-     NSString *filePath = [batterySavesDirectory stringByAppendingPathComponent:[extensionlessFilename stringByAppendingPathExtension:@"sav"]];
-     
-     Memory.SaveSRAM([filePath UTF8String]);
-     */
-    
-    NSString *path = [NSString stringWithUTF8String:filename];
+    //NSString *path = [NSString stringWithUTF8String:current->romName];
+    NSString *path = [NSString stringWithUTF8String:romName];
     NSString *extensionlessFilename = [[path lastPathComponent] stringByDeletingPathExtension];
     
     NSString *batterySavesDirectory = [self batterySavesDirectoryPath];
@@ -331,19 +311,7 @@ bool loadCartridge(const char *filename, SNES::MappedRAM &memory) {
         
         NSString *filePath = [batterySavesDirectory stringByAppendingPathComponent:[extensionlessFilename stringByAppendingPathExtension:@"sav"]];
         
-        size_t sramsaveSize = snes_get_memory_size(SNES_MEMORY_CARTRIDGE_RAM);
-        uint8_t *sramsaveData = snes_get_memory_data(SNES_MEMORY_CARTRIDGE_RAM);
-        
-        if (sramsaveData && sramsaveSize > 0)
-        {
-            FILE *sramsaveFile = fopen([filePath UTF8String], "w+b");
-            if (sramsaveFile != NULL)
-            {
-                snes_serialize(sramsaveData, sramsaveSize);
-                fwrite(serial_data, sizeof(uint8_t), serial_size, sramsaveFile);
-                fclose(sramsaveFile);
-            }
-        }
+        writeSaveFile([filePath UTF8String], SNES_MEMORY_CARTRIDGE_RAM);
     }
     
     NSLog(@"snes term");
