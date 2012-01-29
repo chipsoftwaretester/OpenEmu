@@ -149,7 +149,7 @@ static void writeSaveFile(const char* path, int type)
         FILE *file = fopen(path, "wb");
         if ( file != NULL )
         {
-            NSLog(@"Saving state \"%s\". Size: %d bytes.", path, (int)size);
+            NSLog(@"Saving state %s. Size: %d bytes.", path, (int)size);
             snes_serialize(data, size);
             if ( fwrite(data, sizeof(uint8_t), size, file) != size )
                 NSLog(@"Did not save state properly.");
