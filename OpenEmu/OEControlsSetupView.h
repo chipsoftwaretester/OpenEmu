@@ -26,7 +26,7 @@
  */
 
 #import <Cocoa/Cocoa.h>
-@interface OEGameControllerView : NSView
+@interface OEControlsSetupView : NSView
 {
     float lastWidth;
 	NSMutableArray *elementPages;
@@ -45,4 +45,6 @@
 - (void)nextPage;
 
 - (void)selectNextKeyButton:(id)currentButton;
+
+- (id)controllerButtonClosestTo:(NSPoint)point;
 @end

@@ -33,7 +33,7 @@
 {
     [super awakeFromNib];
     
-    OEGameControllerView *view = (OEGameControllerView *)[self view];
+    OEControlsSetupView *view = (OEControlsSetupView *)[self view];
     
     [view addButtonWithName:@"OESNESButtonUp[@]" label:@"Up:" target:self highlightPoint:NSMakePoint(98, 133)];
     [view addButtonWithName:@"OESNESButtonDown[@]" label:@"Down:" target:self highlightPoint:NSMakePoint(98, 89)];
@@ -68,6 +68,11 @@
     }
     
     NSString *path = [[NSBundle bundleForClass:[self class]] pathForImageResource:controllerImageName];
+    return [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
+}
+
+- (NSImage*)controllerImageMask{
+    NSString *path = [[NSBundle bundleForClass:[self class]] pathForImageResource:@"controller_snes_mask.png"];
     return [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
 }
 @end
