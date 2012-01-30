@@ -713,7 +713,6 @@
 					"$(inherited)",
 					"\"$(SRCROOT)\"",
 					"\"$(SRCROOT)/libsnescore\"",
-					"\"$(SRCROOT)/libsnescore/libsnes/out\"",
 					"\"$(SRCROOT)/libsnescore/libs\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
@@ -743,7 +742,6 @@
 					"$(inherited)",
 					"\"$(SRCROOT)\"",
 					"\"$(SRCROOT)/libsnescore\"",
-					"\"$(SRCROOT)/libsnescore/libsnes/out\"",
 					"\"$(SRCROOT)/libsnescore/libs\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
