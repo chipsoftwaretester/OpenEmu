@@ -266,7 +266,6 @@
 		089C166AFE841209C02AAC07 /* BSNES */ = {
 			isa = PBXGroup;
 			children = (
-				949E4F4814D6678100F3BFC8 /* libsnes-performance.a */,
 				826FE1131014D8CF0023A8E9 /* OpenEmu.xcodeproj */,
 				08FB77AFFE84173DC02AAC07 /* Classes */,
 				32C88E010371C26100C91783 /* Other Sources */,
@@ -315,6 +314,7 @@
 		1058C7ACFEA557BF11CA2CBB /* Linked Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				949E4F4814D6678100F3BFC8 /* libsnes-performance.a */,
 				82B91C841015267F007BD6DB /* libco.a */,
 				1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */,
 			);
