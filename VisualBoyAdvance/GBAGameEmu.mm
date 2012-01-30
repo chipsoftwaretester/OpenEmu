@@ -225,7 +225,6 @@ OERingBuffer *ringBuffer = nil;
     //soundInterpolation = true;
     
     flashSetSize(0x20000);
-    //soundSampleRate = SAMPLERATE;
     //soundSetSampleRate(SAMPLERATE);
     systemColorDepth = 32;
     systemRedShift = 19;
