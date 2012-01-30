@@ -39,7 +39,7 @@
 #include "Core/gba/Flash.h"
 #include "Core/common/Port.h"
 #include "Core/gba/RTC.h"
-#include "Core/gba/Sound.h"
+//#include "Core/gba/Sound.h"
 //#include "core/Text.h"
 //#include "core/unzip.h"
 #include "Core/Util.h"
@@ -50,7 +50,8 @@
 
 #define GBA_WIDTH   240
 #define GBA_HEIGHT  160
-#define SAMPLERATE 44100
+//#define SAMPLERATE 44100
+#define SAMPLERATE 48000
 #define SAMPLEFRAME (SAMPLERATE/60)
 #define SIZESOUNDBUFFER SAMPLEFRAME*4
 
@@ -221,10 +222,11 @@ OERingBuffer *ringBuffer = nil;
     readBattery();
     
     //soundFiltering = 0.0f;
-    //soundInterpolation = false;
+    //soundInterpolation = true;
     
     flashSetSize(0x20000);
     //soundSampleRate = SAMPLERATE;
+    //soundSetSampleRate(SAMPLERATE);
     systemColorDepth = 32;
     systemRedShift = 19;
     systemGreenShift = 11;

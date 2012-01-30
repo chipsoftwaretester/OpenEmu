@@ -41,8 +41,10 @@ extern bool stopState;      // TODO: silence sound when true
 int const SOUND_CLOCK_TICKS_ = 167772; // 1/100 second
 
 static u16   soundFinalWave [1600];
-long  soundSampleRate    = 44100;
-bool  soundInterpolation = true;
+long  soundSampleRate    = 48000;
+//long  soundSampleRate    = 44100;
+//bool  soundInterpolation = true;
+bool  soundInterpolation = false;
 bool  soundPaused        = true;
 float soundFiltering     = 0.5f;
 int   SOUND_CLOCK_TICKS  = SOUND_CLOCK_TICKS_;
