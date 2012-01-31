@@ -39,7 +39,6 @@
 #include "Core/gba/Flash.h"
 #include "Core/common/Port.h"
 #include "Core/gba/RTC.h"
-//#include "Core/gba/Sound.h"
 //#include "core/Text.h"
 //#include "core/unzip.h"
 #include "Core/Util.h"
