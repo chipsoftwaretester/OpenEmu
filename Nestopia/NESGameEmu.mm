@@ -40,6 +40,7 @@
 #include <NstApiRewinder.hpp>
 #include <NstApiRam.h>
 #include <NstApiMovie.hpp>
+#include <NstApiFds.hpp>
 #include <iostream>
 #include <fstream>
 #include <map>
@@ -56,6 +57,8 @@ NSUInteger NESControlValues[] = { Nes::Api::Input::Controllers::Pad::A, Nes::Api
 @synthesize romPath;
 
 UInt32 bufInPos, bufOutPos, bufUsed;
+
+char biosFilePath[2048];
 
 static bool NST_CALLBACK VideoLock(void* userData, Nes::Api::Video::Output& video)
 {
@@ -175,6 +178,25 @@ void NST_CALLBACK doFileIO(void *userData, Nes::Api::User::File& file)
             }
             theData = [NSData dataWithContentsOfFile:filePath];
             file.SetContent([theData bytes], [theData length]);
+            break;
+        }
+        case Nes::Api::User::File::LOAD_FDS:
+        {
+            NSString *appSupportPath = [[[[NSHomeDirectory() stringByAppendingPathComponent:@"Library"] 
+                                          stringByAppendingPathComponent:@"Application Support"] 
+                                         stringByAppendingPathComponent:@"OpenEmu"]
+                                        stringByAppendingPathComponent:@"BIOS"];
+            
+            strcpy(biosFilePath, [[appSupportPath stringByAppendingPathComponent:@"disksys.rom"] UTF8String]);
+            //Nes::Api::Fds(*emu).SetBIOS(std::istream biosFilePath);
+            
+            //Nes::Api::Emulator *emulator = (Nes::Api::Emulator *)emulator;
+            //Nes::Api::Fds bios( *emulator );
+            //bios.SetBIOS(std::istream *stream);
+            //bios.SetBIOS(biosFilePath);
+            
+            NSLog(@"Tried to load FDS");
+            NSLog(@"%s",biosFilePath);
             break;
         }
         case Nes::Api::User::File::SAVE_BATTERY: // save battery data to a file
