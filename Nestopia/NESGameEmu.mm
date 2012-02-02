@@ -180,25 +180,6 @@ void NST_CALLBACK doFileIO(void *userData, Nes::Api::User::File& file)
             file.SetContent([theData bytes], [theData length]);
             break;
         }
-        case Nes::Api::User::File::LOAD_FDS:
-        {
-            NSString *appSupportPath = [[[[NSHomeDirectory() stringByAppendingPathComponent:@"Library"] 
-                                          stringByAppendingPathComponent:@"Application Support"] 
-                                         stringByAppendingPathComponent:@"OpenEmu"]
-                                        stringByAppendingPathComponent:@"BIOS"];
-            
-            strcpy(biosFilePath, [[appSupportPath stringByAppendingPathComponent:@"disksys.rom"] UTF8String]);
-            //Nes::Api::Fds(*emu).SetBIOS(std::istream biosFilePath);
-            
-            //Nes::Api::Emulator *emulator = (Nes::Api::Emulator *)emulator;
-            //Nes::Api::Fds bios( *emulator );
-            //bios.SetBIOS(std::istream *stream);
-            //bios.SetBIOS(biosFilePath);
-            
-            NSLog(@"Tried to load FDS");
-            NSLog(@"%s",biosFilePath);
-            break;
-        }
         case Nes::Api::User::File::SAVE_BATTERY: // save battery data to a file
         case Nes::Api::User::File::SAVE_EEPROM: // can be treated the same as battery files
         {
@@ -393,10 +374,20 @@ void NST_CALLBACK doEvent(void* userData, Nes::Api::Machine::Event event,Nes::Re
     Nes::Api::Machine::eventCallback.Set(doEvent, self);
     Nes::Api::User::questionCallback.Set(doQuestion, self);
     
+    Nes::Api::Fds fds(*emu);
+    NSString *appSupportPath = [[[[NSHomeDirectory() stringByAppendingPathComponent:@"Library"] 
+                                  stringByAppendingPathComponent:@"Application Support"] 
+                                 stringByAppendingPathComponent:@"OpenEmu"]
+                                stringByAppendingPathComponent:@"BIOS"];
+    
+    strcpy(biosFilePath, [[appSupportPath stringByAppendingPathComponent:@"disksys.rom"] UTF8String]);
+    std::ifstream biosFile(biosFilePath, std::ios::in | std::ios::binary);
+    fds.SetBIOS(&biosFile);
+    
     std::ifstream romFile([path cStringUsingEncoding:NSUTF8StringEncoding], std::ios::in | std::ios::binary);
     result = machine.Load(romFile, Nes::Api::Machine::FAVORED_NES_PAL, Nes::Api::Machine::ASK_PROFILE);
     
-    
+
     if(NES_FAILED(result)) {
         NSString *errorDescription = nil;
         switch(result) {
