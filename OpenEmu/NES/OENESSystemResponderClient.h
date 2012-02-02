@@ -36,6 +36,7 @@ typedef enum _OENESButton
     OENESButtonRight,
     OENESButtonStart,
     OENESButtonSelect,
+    OENESButtonFDSChangeSide,
     OENESButtonCount
 } OENESButton;
 
@@ -43,5 +44,8 @@ typedef enum _OENESButton
 
 - (void)didPushNESButton:(OENESButton)button forPlayer:(NSUInteger)player;
 - (void)didReleaseNESButton:(OENESButton)button forPlayer:(NSUInteger)player;
+
+- (void)didPushFDSChangeSideButton;
+- (void)didReleaseFDSChangeSideButton;
 
 @end

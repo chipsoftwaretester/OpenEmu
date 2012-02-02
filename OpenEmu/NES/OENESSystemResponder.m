@@ -37,7 +37,8 @@ NSString *const OENESControlNameTable[] =
     @"OENESButtonLeft[@]",
     @"OENESButtonRight[@]",
     @"OENESButtonStart[@]",
-    @"OENESButtonSelect[@]"
+    @"OENESButtonSelect[@]",
+    @"OENESButtonFDSChangeSide[@]"
 };
 
 @implementation OENESSystemResponder
@@ -55,12 +56,29 @@ NSString *const OENESControlNameTable[] =
 
 - (void)pressEmulatorKey:(OEEmulatorKey)aKey
 {
-    [[self client] didPushNESButton:(OENESButton)aKey.key forPlayer:aKey.player];
+    OENESButton button = (OENESButton)aKey.key;
+    
+    switch(button)
+    {
+        case OENESButtonFDSChangeSide : [[self client] didPushFDSChangeSideButton]; break;
+        default :
+            [[self client] didPushNESButton:button forPlayer:aKey.player];
+            break;
+    }
+    //[[self client] didPushNESButton:(OENESButton)aKey.key forPlayer:aKey.player];
 }
 
 - (void)releaseEmulatorKey:(OEEmulatorKey)aKey
 {
-    [[self client] didReleaseNESButton:(OENESButton)aKey.key forPlayer:aKey.player];
+    OENESButton button = (OENESButton)aKey.key;
+    
+    switch(button)
+    {
+        case OENESButtonFDSChangeSide : [[self client] didReleaseFDSChangeSideButton]; break;
+        default :
+            [[self client] didReleaseNESButton:button forPlayer:aKey.player];
+            break;
+    }
+    //[self client] didReleaseNESButton:(OENESButton)aKey.key forPlayer:aKey.player];
 }
-
 @end

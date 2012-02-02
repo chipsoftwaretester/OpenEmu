@@ -783,4 +783,15 @@ static int Heights[2] =
                                 : OESizeMake(Widths[0], Heights[0]);
 }
 
+- (void)didPushFDSChangeSideButton;
+{
+    Nes::Api::Fds fds(*emu);
+    fds.ChangeSide();
+    NSLog(@"didPushFDSChangeSideButton"); 
+}
+
+- (void)didReleaseFDSChangeSideButton;
+{
+    
+}
 @end

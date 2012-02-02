@@ -69,6 +69,7 @@
                               [NSNumber numberWithUnsignedInt:kHIDUsage_KeyboardS]         , @"OENESButtonB[1]"     ,
                               [NSNumber numberWithUnsignedInt:kHIDUsage_KeyboardSpacebar]  , @"OENESButtonStart[1]" ,
                               [NSNumber numberWithUnsignedInt:kHIDUsage_KeyboardEscape]    , @"OENESButtonSelect[1]",
+                              [NSNumber numberWithUnsignedInt:kHIDUsage_KeyboardTab]    , @"OENESButtonFDSChangeSide[1]",
                               nil];
     return controls;
 }
