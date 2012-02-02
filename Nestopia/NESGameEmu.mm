@@ -786,8 +786,12 @@ static int Heights[2] =
 - (void)didPushFDSChangeSideButton;
 {
     Nes::Api::Fds fds(*emu);
-    fds.ChangeSide();
-    NSLog(@"didPushFDSChangeSideButton"); 
+    Nes::Result result;
+    if (fds.IsAnyDiskInserted())
+        result = fds.ChangeSide();
+    else
+        result = fds.InsertDisk(0, 0);
+    NSLog(@"didPushFDSChangeSideButton: %d", result);
 }
 
 - (void)didReleaseFDSChangeSideButton;
