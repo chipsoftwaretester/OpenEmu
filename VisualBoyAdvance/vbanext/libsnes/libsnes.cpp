@@ -521,11 +521,13 @@ void systemSoundReset()
 void systemSoundResume()
 {}
 
+#if 0
 void systemOnWriteDataToSoundBuffer(int16_t *finalWave, int length)
 {
    for (int i = 0; i < length; i += 2)
       audio_cb(finalWave[i + 0], finalWave[i + 1]);
 }
+#endif
 
 static uint16_t pix_buf[160 * 256];
 

@@ -31,10 +31,9 @@
 #import <OpenGL/gl.h>
 
 #include "libsnes.hpp"
+#include "Sound.h"
 
-#define SAMPLERATE 32040
-//#define SAMPLERATE 44100
-//#define SAMPLERATE 48000
+#define SAMPLERATE 48000
 #define SAMPLEFRAME 800
 #define SIZESOUNDBUFFER SAMPLEFRAME*4
 
@@ -61,13 +60,6 @@ static uint16_t conv555Rto565(uint16_t p)
     return r | (g << 5) | (b << 11);
 }
 
-//LIBSNES callbacks
-static void audio_callback(uint16_t left, uint16_t right)
-{
-	[[current ringBufferAtIndex:0] write:&left maxLength:2];
-    [[current ringBufferAtIndex:0] write:&right maxLength:2];
-}
-
 static void video_callback(const uint16_t *data, unsigned width, unsigned height)
 {
     // Normally our pitch is 2048 bytes.
@@ -90,6 +82,13 @@ static void video_callback(const uint16_t *data, unsigned width, unsigned height
             dst[x] = conv555Rto565(src[x]);
         }
     });
+}
+
+// TODO implement systemDrawScreen here
+
+void systemOnWriteDataToSoundBuffer(int16_t *finalWave, int length)
+{
+    [[current ringBufferAtIndex:0] write:finalWave maxLength:2*length];
 }
 
 static void input_poll_callback(void)
@@ -217,7 +216,6 @@ static void writeSaveFile(const char* path, int type)
     //snes_set_environment(environment_callback);
 	snes_init();
 	
-    snes_set_audio_sample(audio_callback);
     snes_set_video_refresh(video_callback);
     snes_set_input_poll(input_poll_callback);
     snes_set_input_state(input_state_callback);
@@ -242,7 +240,9 @@ static void writeSaveFile(const char* path, int type)
         snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD);
         //snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_NONE);
         
-        snes_get_region();
+        //snes_get_region();
+        
+        soundSetSampleRate(SAMPLERATE);
         
         snes_run();
     }
