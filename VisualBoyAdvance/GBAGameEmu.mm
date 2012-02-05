@@ -61,7 +61,7 @@ static uint16_t conv555Rto565(uint16_t p)
     return r | (g << 5) | (b << 11);
 }
 
-//BSNES callbacks
+//LIBSNES callbacks
 static void audio_callback(uint16_t left, uint16_t right)
 {
 	[[current ringBufferAtIndex:0] write:&left maxLength:2];
@@ -70,10 +70,6 @@ static void audio_callback(uint16_t left, uint16_t right)
 
 static void video_callback(const uint16_t *data, unsigned width, unsigned height)
 {
-    //current->videoWidth  = width;
-    //current->videoHeight = height;
-    //memcpy(current->videoBuffer, data, 240 * 160 * 2);
-    
     // Normally our pitch is 2048 bytes.
     int stride = 256;
     // If we have an interlaced mode, pitch is 1024 bytes.
@@ -180,7 +176,6 @@ static void writeSaveFile(const char* path, int type)
     {
         if(videoBuffer) 
             free(videoBuffer);
-        //videoBuffer = (uint16_t*)malloc(512 * 478 * 2);
         videoBuffer = (uint16_t*)malloc(240 * 160 * 2);
     }
 	
@@ -265,12 +260,10 @@ static void writeSaveFile(const char* path, int type)
 {
     // hope this handles hires :/
     return OERectMake(0, 0, videoWidth, videoHeight);
-    //return OERectMake(0, 0, 240, 160);
 }
 
 - (OEIntSize)bufferSize
 {
-    //return OESizeMake(512, 478);
     return OESizeMake(240, 160);
 }
 
