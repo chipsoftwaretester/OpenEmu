@@ -484,7 +484,7 @@ int ZEXPORT memgzread (file, buf, len)
 	    /* Copy first the lookahead bytes: */
 	    uInt n = s->stream.avail_in;
 	    if (n > s->stream.avail_out) n = s->stream.avail_out;
-	    if (n) {
+	    if (n > 0) {
 		zmemcpy(s->stream.next_out, s->stream.next_in, n);
 		next_out += n;
 		s->stream.next_out = next_out;
@@ -492,7 +492,7 @@ int ZEXPORT memgzread (file, buf, len)
 		s->stream.avail_out -= n;
 		s->stream.avail_in  -= n;
 	    }
-	    if (s->stream.avail_out) {
+	    if (s->stream.avail_out > 0) {
 		s->stream.avail_out -= (uInt)memRead(next_out, 1, s->stream.avail_out, s->file);
 	    }
 	    len -= s->stream.avail_out;
@@ -700,8 +700,9 @@ long ZEXPORT memtell(file)
  * PKWare Zip Header - adopted into zip standard
  */
 #define PKZIPID 0x504b0304
+//#define MAXROM 0x500000
 #define ZIPCHUNK 2048
-#define MAXROMSIZE 67108864
+#define MAXROMSIZE 64*1024*1024
 
 /*
  * Zip file header definition

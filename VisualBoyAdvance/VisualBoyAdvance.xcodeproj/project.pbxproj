@@ -323,6 +323,7 @@
 		94343B8214DF1091006671D6 /* zlib.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = zlib.txt; sourceTree = "<group>"; };
 		94343B8314DF1091006671D6 /* zutil.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = zutil.c; sourceTree = "<group>"; };
 		94343B8414DF1091006671D6 /* zutil.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = zutil.h; sourceTree = "<group>"; };
+		94343BAC14DF13D2006671D6 /* blargg_source.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = blargg_source.h; sourceTree = "<group>"; };
 		B5008DAD0E8BFB3E005AECAF /* GBAGameEmu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GBAGameEmu.h; sourceTree = "<group>"; };
 		B5008DAE0E8BFB3E005AECAF /* GBAGameEmu.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = GBAGameEmu.mm; sourceTree = "<group>"; };
 		C63E6C640FCDA565009C8555 /* ControlsPreference.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = ControlsPreference.xib; sourceTree = "<group>"; };
@@ -491,6 +492,7 @@
 		94343B2A14DF1091006671D6 /* apu */ = {
 			isa = PBXGroup;
 			children = (
+				94343BAC14DF13D2006671D6 /* blargg_source.h */,
 				94343B2B14DF1091006671D6 /* blargg_common.h */,
 				94343B2C14DF1091006671D6 /* Gb_Apu.h */,
 				94343B2D14DF1091006671D6 /* Gb_Apu_.h */,
