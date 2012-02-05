@@ -338,9 +338,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				82EC409F0FD9EC420017FC19 /* libz.dylib in Frameworks */,
 				82EA60570F514D8C008E18C5 /* OpenEmuBase.framework in Frameworks */,
 				8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */,
-				82EC409F0FD9EC420017FC19 /* libz.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -918,6 +918,8 @@
 					"-DHAVE_INTTYPES_H",
 					"-DSPEEDHAX",
 					"-DINLINE=inline",
+					"-I./utils/zlib",
+					"-I./src",
 				);
 				PRODUCT_NAME = VisualBoyAdvance;
 				VALID_ARCHS = x86_64;
@@ -948,6 +950,8 @@
 					"-DHAVE_INTTYPES_H",
 					"-DSPEEDHAX",
 					"-DINLINE=inline",
+					"-I./utils/zlib",
+					"-I./src",
 				);
 				PRODUCT_NAME = VisualBoyAdvance;
 				VALID_ARCHS = x86_64;
