@@ -39,63 +39,12 @@
 		82CAFD020FEDD54000CCDC7E /* dsa_pub.pem in Resources */ = {isa = PBXBuildFile; fileRef = 82CAFD010FEDD54000CCDC7E /* dsa_pub.pem */; };
 		82CAFD1E0FEDD5B300CCDC7E /* config.yaml in CopyFiles */ = {isa = PBXBuildFile; fileRef = 82CAFD030FEDD54800CCDC7E /* config.yaml */; };
 		82EA60570F514D8C008E18C5 /* OpenEmuBase.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82EA60550F514D80008E18C5 /* OpenEmuBase.framework */; settings = {ATTRIBUTES = (Required, ); }; };
-		82EC40480FD9EAF20017FC19 /* agbprint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FEF0FD9EAF10017FC19 /* agbprint.cpp */; };
-		82EC40490FD9EAF20017FC19 /* armdis.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FF10FD9EAF10017FC19 /* armdis.cpp */; };
-		82EC404A0FD9EAF20017FC19 /* bios.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FF30FD9EAF10017FC19 /* bios.cpp */; };
-		82EC404B0FD9EAF20017FC19 /* Cheats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FF50FD9EAF10017FC19 /* Cheats.cpp */; };
-		82EC404C0FD9EAF20017FC19 /* CheatSearch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FF70FD9EAF10017FC19 /* CheatSearch.cpp */; };
-		82EC404D0FD9EAF20017FC19 /* EEprom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FF90FD9EAF10017FC19 /* EEprom.cpp */; };
-		82EC404E0FD9EAF20017FC19 /* elf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FFB0FD9EAF20017FC19 /* elf.cpp */; };
-		82EC404F0FD9EAF20017FC19 /* Flash.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FFD0FD9EAF20017FC19 /* Flash.cpp */; };
-		82EC40500FD9EAF20017FC19 /* GBA-arm.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC3FFF0FD9EAF20017FC19 /* GBA-arm.cpp */; };
-		82EC40510FD9EAF20017FC19 /* GBA-thumb.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40000FD9EAF20017FC19 /* GBA-thumb.cpp */; };
-		82EC40520FD9EAF20017FC19 /* GBA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40010FD9EAF20017FC19 /* GBA.cpp */; };
-		82EC40530FD9EAF20017FC19 /* GBAGfx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40040FD9EAF20017FC19 /* GBAGfx.cpp */; };
-		82EC40550FD9EAF20017FC19 /* Globals.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40090FD9EAF20017FC19 /* Globals.cpp */; };
-		82EC40560FD9EAF20017FC19 /* Mode0.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC400B0FD9EAF20017FC19 /* Mode0.cpp */; };
-		82EC40570FD9EAF20017FC19 /* Mode1.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC400C0FD9EAF20017FC19 /* Mode1.cpp */; };
-		82EC40580FD9EAF20017FC19 /* Mode2.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC400D0FD9EAF20017FC19 /* Mode2.cpp */; };
-		82EC40590FD9EAF20017FC19 /* Mode3.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC400E0FD9EAF20017FC19 /* Mode3.cpp */; };
-		82EC405A0FD9EAF20017FC19 /* Mode4.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC400F0FD9EAF20017FC19 /* Mode4.cpp */; };
-		82EC405B0FD9EAF20017FC19 /* Mode5.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40100FD9EAF20017FC19 /* Mode5.cpp */; };
-		82EC405D0FD9EAF20017FC19 /* RTC.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40120FD9EAF20017FC19 /* RTC.cpp */; };
-		82EC405E0FD9EAF20017FC19 /* Sound.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40140FD9EAF20017FC19 /* Sound.cpp */; };
-		82EC405F0FD9EAF20017FC19 /* Sram.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40160FD9EAF20017FC19 /* Sram.cpp */; };
-		82EC40600FD9EAF20017FC19 /* GB.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40190FD9EAF20017FC19 /* GB.cpp */; };
-		82EC40610FD9EAF20017FC19 /* gbCheats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC401B0FD9EAF20017FC19 /* gbCheats.cpp */; };
-		82EC40620FD9EAF20017FC19 /* gbDis.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC401F0FD9EAF20017FC19 /* gbDis.cpp */; };
-		82EC40630FD9EAF20017FC19 /* gbGfx.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40200FD9EAF20017FC19 /* gbGfx.cpp */; };
-		82EC40640FD9EAF20017FC19 /* gbGlobals.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40210FD9EAF20017FC19 /* gbGlobals.cpp */; };
-		82EC40650FD9EAF20017FC19 /* gbMemory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40230FD9EAF20017FC19 /* gbMemory.cpp */; };
-		82EC40670FD9EAF20017FC19 /* gbSGB.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40270FD9EAF20017FC19 /* gbSGB.cpp */; };
-		82EC40680FD9EAF20017FC19 /* gbSound.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40290FD9EAF20017FC19 /* gbSound.cpp */; };
-		82EC406A0FD9EAF20017FC19 /* memgzio.c in Sources */ = {isa = PBXBuildFile; fileRef = 82EC402F0FD9EAF20017FC19 /* memgzio.c */; };
-		82EC406B0FD9EAF20017FC19 /* Patch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40310FD9EAF20017FC19 /* Patch.cpp */; };
-		82EC406D0FD9EAF20017FC19 /* Blip_Buffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC403D0FD9EAF20017FC19 /* Blip_Buffer.cpp */; };
-		82EC406E0FD9EAF20017FC19 /* Effects_Buffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC403F0FD9EAF20017FC19 /* Effects_Buffer.cpp */; };
-		82EC406F0FD9EAF20017FC19 /* Gb_Apu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40410FD9EAF20017FC19 /* Gb_Apu.cpp */; };
-		82EC40700FD9EAF20017FC19 /* Gb_Apu_State.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40430FD9EAF20017FC19 /* Gb_Apu_State.cpp */; };
-		82EC40710FD9EAF20017FC19 /* Gb_Oscs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40440FD9EAF20017FC19 /* Gb_Oscs.cpp */; };
-		82EC40720FD9EAF20017FC19 /* Multi_Buffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40460FD9EAF20017FC19 /* Multi_Buffer.cpp */; };
-		82EC40880FD9EB560017FC19 /* Util.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 82EC40840FD9EB560017FC19 /* Util.cpp */; };
 		82EC409F0FD9EC420017FC19 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 82EC409E0FD9EC420017FC19 /* libz.dylib */; };
 		82EC40A30FD9EC5A0017FC19 /* GBAGameEmu.mm in Sources */ = {isa = PBXBuildFile; fileRef = B5008DAE0E8BFB3E005AECAF /* GBAGameEmu.mm */; };
 		82EC40A40FD9EC5D0017FC19 /* GBAGameController.m in Sources */ = {isa = PBXBuildFile; fileRef = C63E6C7A0FCDA5D6009C8555 /* GBAGameController.m */; };
-		82EC41110FD9EEC10017FC19 /* CASoundDriver.mm in Sources */ = {isa = PBXBuildFile; fileRef = 82EC41100FD9EEC10017FC19 /* CASoundDriver.mm */; };
 		8D5B49B0048680CD000E48DA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C167DFE841241C02AAC07 /* InfoPlist.strings */; };
 		8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7ADFEA557BF11CA2CBB /* Cocoa.framework */; };
-		941097E614C7F4E600539163 /* gbafilter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 941097E214C7F4E600539163 /* gbafilter.cpp */; };
-		9410983E14C8011400539163 /* Binary_Extractor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410981114C8011400539163 /* Binary_Extractor.cpp */; };
-		9410983F14C8011400539163 /* blargg_common.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410981314C8011400539163 /* blargg_common.cpp */; };
-		9410984014C8011400539163 /* blargg_errors.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410981714C8011400539163 /* blargg_errors.cpp */; };
-		9410984114C8011400539163 /* Data_Reader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410981A14C8011400539163 /* Data_Reader.cpp */; };
-		9410984214C8011400539163 /* fex.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410981C14C8011400539163 /* fex.cpp */; };
-		9410984314C8011400539163 /* File_Extractor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410981E14C8011400539163 /* File_Extractor.cpp */; };
-		9410984414C8011400539163 /* Gzip_Extractor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410982014C8011400539163 /* Gzip_Extractor.cpp */; };
-		9410984514C8011400539163 /* Gzip_Reader.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410982214C8011400539163 /* Gzip_Reader.cpp */; };
-		9410984614C8011400539163 /* Rar_Extractor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410982414C8011400539163 /* Rar_Extractor.cpp */; };
-		9410984814C8011400539163 /* Zip_Extractor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410982814C8011400539163 /* Zip_Extractor.cpp */; };
-		9410984914C8011400539163 /* Zlib_Inflater.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9410982A14C8011400539163 /* Zlib_Inflater.cpp */; };
+		94B5B0E914DE11670027CD74 /* vba-libsnes.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 94B5B0E814DE11670027CD74 /* vba-libsnes.a */; };
 		C63E6CCE0FCDABEF009C8555 /* gba.png in Resources */ = {isa = PBXBuildFile; fileRef = C63E6CCD0FCDABEF009C8555 /* gba.png */; };
 		C6C71E4A0FCDE25F002FAC4D /* ControlsPreference.xib in Resources */ = {isa = PBXBuildFile; fileRef = C63E6C640FCDA565009C8555 /* ControlsPreference.xib */; };
 /* End PBXBuildFile section */
@@ -332,8 +281,6 @@
 		82EC40860FD9EB560017FC19 /* System.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = System.h; sourceTree = "<group>"; };
 		82EC40870FD9EB560017FC19 /* NLS.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NLS.h; sourceTree = "<group>"; };
 		82EC409E0FD9EC420017FC19 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
-		82EC410F0FD9EEC10017FC19 /* CASoundDriver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CASoundDriver.h; sourceTree = "<group>"; };
-		82EC41100FD9EEC10017FC19 /* CASoundDriver.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = CASoundDriver.mm; sourceTree = "<group>"; };
 		8D5B49B6048680CD000E48DA /* VisualBoyAdvance.oecoreplugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VisualBoyAdvance.oecoreplugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D5B49B7048680CD000E48DA /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		941097CE14C7F45000539163 /* ffmpeg.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ffmpeg.cpp; sourceTree = "<group>"; };
@@ -368,6 +315,8 @@
 		9410982A14C8011400539163 /* Zlib_Inflater.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Zlib_Inflater.cpp; sourceTree = "<group>"; };
 		9410982B14C8011400539163 /* Zlib_Inflater.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Zlib_Inflater.h; sourceTree = "<group>"; };
 		945A9FAF14D79645005EDA34 /* OEGBASystemResponderClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = OEGBASystemResponderClient.h; path = "../OpenEmu/GameBoy Advance/OEGBASystemResponderClient.h"; sourceTree = "<group>"; };
+		94B5B0E714DE114C0027CD74 /* libsnes.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; name = libsnes.hpp; path = vbanextcore/libsnes.hpp; sourceTree = "<group>"; };
+		94B5B0E814DE11670027CD74 /* vba-libsnes.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "vba-libsnes.a"; path = "vbanextcore/vba-libsnes.a"; sourceTree = "<group>"; };
 		B5008DAD0E8BFB3E005AECAF /* GBAGameEmu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GBAGameEmu.h; sourceTree = "<group>"; };
 		B5008DAE0E8BFB3E005AECAF /* GBAGameEmu.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = GBAGameEmu.mm; sourceTree = "<group>"; };
 		C63E6C640FCDA565009C8555 /* ControlsPreference.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = ControlsPreference.xib; sourceTree = "<group>"; };
@@ -385,6 +334,7 @@
 				82EA60570F514D8C008E18C5 /* OpenEmuBase.framework in Frameworks */,
 				8D5B49B4048680CD000E48DA /* Cocoa.framework in Frameworks */,
 				82EC409F0FD9EC420017FC19 /* libz.dylib in Frameworks */,
+				94B5B0E914DE11670027CD74 /* vba-libsnes.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -408,6 +358,7 @@
 			isa = PBXGroup;
 			children = (
 				82EC409E0FD9EC420017FC19 /* libz.dylib */,
+				94B5B0E814DE11670027CD74 /* vba-libsnes.a */,
 				1058C7ACFEA557BF11CA2CBB /* Linked Frameworks */,
 				1058C7AEFEA557BF11CA2CBB /* Other Frameworks */,
 			);
@@ -436,8 +387,7 @@
 				B5008DAE0E8BFB3E005AECAF /* GBAGameEmu.mm */,
 				C63E6C790FCDA5D6009C8555 /* GBAGameController.h */,
 				C63E6C7A0FCDA5D6009C8555 /* GBAGameController.m */,
-				82EC410F0FD9EEC10017FC19 /* CASoundDriver.h */,
-				82EC41100FD9EEC10017FC19 /* CASoundDriver.mm */,
+				94B5B0E714DE114C0027CD74 /* libsnes.hpp */,
 			);
 			name = Classes;
 			sourceTree = "<group>";
@@ -867,60 +817,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				82EC40480FD9EAF20017FC19 /* agbprint.cpp in Sources */,
-				82EC40490FD9EAF20017FC19 /* armdis.cpp in Sources */,
-				82EC404A0FD9EAF20017FC19 /* bios.cpp in Sources */,
-				82EC404B0FD9EAF20017FC19 /* Cheats.cpp in Sources */,
-				82EC404C0FD9EAF20017FC19 /* CheatSearch.cpp in Sources */,
-				82EC404D0FD9EAF20017FC19 /* EEprom.cpp in Sources */,
-				82EC404E0FD9EAF20017FC19 /* elf.cpp in Sources */,
-				82EC404F0FD9EAF20017FC19 /* Flash.cpp in Sources */,
-				82EC40500FD9EAF20017FC19 /* GBA-arm.cpp in Sources */,
-				82EC40510FD9EAF20017FC19 /* GBA-thumb.cpp in Sources */,
-				82EC40520FD9EAF20017FC19 /* GBA.cpp in Sources */,
-				82EC40530FD9EAF20017FC19 /* GBAGfx.cpp in Sources */,
-				82EC40550FD9EAF20017FC19 /* Globals.cpp in Sources */,
-				82EC40560FD9EAF20017FC19 /* Mode0.cpp in Sources */,
-				82EC40570FD9EAF20017FC19 /* Mode1.cpp in Sources */,
-				82EC40580FD9EAF20017FC19 /* Mode2.cpp in Sources */,
-				82EC40590FD9EAF20017FC19 /* Mode3.cpp in Sources */,
-				82EC405A0FD9EAF20017FC19 /* Mode4.cpp in Sources */,
-				82EC405B0FD9EAF20017FC19 /* Mode5.cpp in Sources */,
-				82EC405D0FD9EAF20017FC19 /* RTC.cpp in Sources */,
-				82EC405E0FD9EAF20017FC19 /* Sound.cpp in Sources */,
-				82EC405F0FD9EAF20017FC19 /* Sram.cpp in Sources */,
-				82EC40600FD9EAF20017FC19 /* GB.cpp in Sources */,
-				82EC40610FD9EAF20017FC19 /* gbCheats.cpp in Sources */,
-				82EC40620FD9EAF20017FC19 /* gbDis.cpp in Sources */,
-				82EC40630FD9EAF20017FC19 /* gbGfx.cpp in Sources */,
-				82EC40640FD9EAF20017FC19 /* gbGlobals.cpp in Sources */,
-				82EC40650FD9EAF20017FC19 /* gbMemory.cpp in Sources */,
-				82EC40670FD9EAF20017FC19 /* gbSGB.cpp in Sources */,
-				82EC40680FD9EAF20017FC19 /* gbSound.cpp in Sources */,
-				82EC406A0FD9EAF20017FC19 /* memgzio.c in Sources */,
-				82EC406B0FD9EAF20017FC19 /* Patch.cpp in Sources */,
-				82EC406D0FD9EAF20017FC19 /* Blip_Buffer.cpp in Sources */,
-				82EC406E0FD9EAF20017FC19 /* Effects_Buffer.cpp in Sources */,
-				82EC406F0FD9EAF20017FC19 /* Gb_Apu.cpp in Sources */,
-				82EC40700FD9EAF20017FC19 /* Gb_Apu_State.cpp in Sources */,
-				82EC40710FD9EAF20017FC19 /* Gb_Oscs.cpp in Sources */,
-				82EC40720FD9EAF20017FC19 /* Multi_Buffer.cpp in Sources */,
-				82EC40880FD9EB560017FC19 /* Util.cpp in Sources */,
 				82EC40A30FD9EC5A0017FC19 /* GBAGameEmu.mm in Sources */,
 				82EC40A40FD9EC5D0017FC19 /* GBAGameController.m in Sources */,
-				82EC41110FD9EEC10017FC19 /* CASoundDriver.mm in Sources */,
-				941097E614C7F4E600539163 /* gbafilter.cpp in Sources */,
-				9410983E14C8011400539163 /* Binary_Extractor.cpp in Sources */,
-				9410983F14C8011400539163 /* blargg_common.cpp in Sources */,
-				9410984014C8011400539163 /* blargg_errors.cpp in Sources */,
-				9410984114C8011400539163 /* Data_Reader.cpp in Sources */,
-				9410984214C8011400539163 /* fex.cpp in Sources */,
-				9410984314C8011400539163 /* File_Extractor.cpp in Sources */,
-				9410984414C8011400539163 /* Gzip_Extractor.cpp in Sources */,
-				9410984514C8011400539163 /* Gzip_Reader.cpp in Sources */,
-				9410984614C8011400539163 /* Rar_Extractor.cpp in Sources */,
-				9410984814C8011400539163 /* Zip_Extractor.cpp in Sources */,
-				9410984914C8011400539163 /* Zlib_Inflater.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -967,6 +865,10 @@
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				LD_RUNPATH_SEARCH_PATHS = "\"/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" \"~/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" ~/Library/Frameworks /Library/Frameworks @loader_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SRCROOT)/vbanextcore\"",
+				);
 				OTHER_CFLAGS = (
 					"-fomit-frame-pointer",
 					"-DNO_PNG",
@@ -999,6 +901,10 @@
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				LD_RUNPATH_SEARCH_PATHS = "\"/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" \"~/Library/Graphics/Quartz Composer Plug-Ins/OpenEmuQC.plugin/Contents/Frameworks/\" ~/Library/Frameworks /Library/Frameworks @loader_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(SRCROOT)/vbanextcore\"",
+				);
 				OTHER_CFLAGS = (
 					"-fomit-frame-pointer",
 					"-DNO_PNG",

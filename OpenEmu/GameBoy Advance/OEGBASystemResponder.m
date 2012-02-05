@@ -38,9 +38,7 @@ NSString *OEGBAButtonNameTable[] =
     @"OEGBAButtonUp[@]",
     @"OEGBAButtonDown[@]",
     @"OEGBAButtonR[@]",
-    @"OEGBAButtonL[@]",
-    @"OEGBAButtonSpeed[@]",
-    @"OEGBAButtonCapture[@]"
+    @"OEGBAButtonL[@]"
 };
 
 @implementation OEGBASystemResponder
