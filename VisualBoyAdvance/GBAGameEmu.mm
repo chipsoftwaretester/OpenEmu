@@ -97,15 +97,15 @@ static void input_poll_callback(void)
 	//NSLog(@"poll callback");
 }
 
-static int16_t input_state_callback(bool port, unsigned device, unsigned index, unsigned id)
+static int16_t input_state_callback(bool port, unsigned device, unsigned index, unsigned devid)
 {
-    //NSLog(@"polled input: port: %d device: %d id: %d", port, device, id);
+    //NSLog(@"polled input: port: %d device: %d id: %d", port, device, devid);
     
 	if (port == SNES_PORT_1 & device == SNES_DEVICE_JOYPAD) {
-        return current->pad[0][id];
+        return current->pad[0][devid];
     }
     else if(port == SNES_PORT_2 & device == SNES_DEVICE_JOYPAD) {
-        return current->pad[1][id];
+        return current->pad[1][devid];
     }
     
     return 0;
@@ -214,7 +214,7 @@ static void writeSaveFile(const char* path, int type)
     //ssif((size & 0x7fff) == 512) memmove(data, data + 512, size -= 512);
     
     //memory.copy(data, size);
-    
+    //snes_set_environment(environment_callback);
 	snes_init();
 	
     snes_set_audio_sample(audio_callback);
