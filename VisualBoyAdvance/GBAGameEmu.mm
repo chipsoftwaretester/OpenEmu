@@ -198,7 +198,7 @@ static void writeSaveFile(const char* path, int type)
 
 - (BOOL)loadFileAtPath: (NSString*) path
 {
-	memset(pad, 0, sizeof(int16_t) * 24);
+	//memset(pad, 0, sizeof(int16_t) * 24);
     
     uint8_t *data;
     unsigned size;
