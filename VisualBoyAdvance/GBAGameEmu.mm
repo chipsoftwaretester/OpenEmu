@@ -113,7 +113,7 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
 static bool environment_callback(unsigned cmd, void *data)
 {
     switch (cmd)
-    {
+    {/*
         case SNES_ENVIRONMENT_GET_FULLPATH:
             *(const char**)data = (const char*)current->romName;
             NSLog(@"Environ FULLPATH: \"%@\"\n", current->romName);

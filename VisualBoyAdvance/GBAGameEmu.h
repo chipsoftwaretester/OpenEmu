@@ -37,7 +37,7 @@ extern NSString *GBAEmulatorNames[];
 
 @interface GBAGameEmu : OEGameCore
 {
-@public
+    @public
     uint32    controlPad[MAC_MAX_PLAYERS];
     uint16_t *soundBuffer;
     uint16_t *videoBuffer;
