@@ -49,6 +49,7 @@
 	
 	[view addButtonWithName:@"OENESButtonA[@]" label:@"A:" target:self highlightPoint:NSMakePoint(famicom?449:441, famicom?95:100)];
 	[view addButtonWithName:@"OENESButtonB[@]" label:@"B:" target:self highlightPoint:NSMakePoint(famicom?391:384, famicom?95:100)];
+    [view addButtonWithName:@"OENESButtonFDSChangeSide[@]" label:@"Change Side:" target:self];
 	
 	[view updateButtons];
 }
