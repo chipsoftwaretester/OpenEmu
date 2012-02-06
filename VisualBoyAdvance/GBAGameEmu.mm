@@ -43,8 +43,6 @@
 NSUInteger GBAEmulatorValues[] = { SNES_DEVICE_ID_JOYPAD_A, SNES_DEVICE_ID_JOYPAD_B, SNES_DEVICE_ID_JOYPAD_SELECT, SNES_DEVICE_ID_JOYPAD_START, SNES_DEVICE_ID_JOYPAD_RIGHT, SNES_DEVICE_ID_JOYPAD_LEFT, SNES_DEVICE_ID_JOYPAD_UP, SNES_DEVICE_ID_JOYPAD_DOWN, SNES_DEVICE_ID_JOYPAD_R, SNES_DEVICE_ID_JOYPAD_L };
 NSString *GBAEmulatorKeys[] = { @"Joypad@ A", @"Joypad@ B", @"Joypad@ Select", @"Joypad@ Start", @"Joypad@ Right", @"Joypad@ Left", @"Joypad@ Up", @"Joypad@ Down", @"Joypad@ R", @"Joypad@ L"};
 
-const char *romFullPath;
-
 GBAGameEmu *current;
 @implementation GBAGameEmu
 
@@ -117,8 +115,8 @@ static bool environment_callback(unsigned cmd, void *data)
     switch (cmd)
     {
         case SNES_ENVIRONMENT_GET_FULLPATH:
-            *(const char**)data = romFullPath;
-            NSLog(@"Environ FULLPATH: \"%@\"\n", romFullPath);
+            *(const char**)data = (const char*)current->romName;
+            NSLog(@"Environ FULLPATH: \"%@\"\n", current->romName);
             break;
         /*    
         case SNES_ENVIRONMENT_SET_GEOMETRY:
@@ -264,7 +262,6 @@ static void writeSaveFile(const char* path, int type)
     uint8_t *data;
     unsigned size;
     romName = [path copy];
-    romFullPath = (const char*)[path copy];
     
     //load cart, read bytes, get length
     NSData* dataObj = [NSData dataWithContentsOfFile:[romName stringByStandardizingPath]];
