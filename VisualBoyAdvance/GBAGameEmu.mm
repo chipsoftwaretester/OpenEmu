@@ -115,7 +115,8 @@ static bool environment_callback(unsigned cmd, void *data)
     switch (cmd)
     {
         case SNES_ENVIRONMENT_GET_FULLPATH:
-            *(const char**)data = (const char*)current->romName;
+            //*(const char**)data = (const char*)current->romName;
+            *(const char**)data = [current->romName cStringUsingEncoding:NSUTF8StringEncoding];
             NSLog(@"Environ FULLPATH: \"%@\"\n", current->romName);
             break;
         /*    
