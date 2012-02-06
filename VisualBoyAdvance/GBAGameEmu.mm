@@ -43,6 +43,8 @@
 NSUInteger GBAEmulatorValues[] = { SNES_DEVICE_ID_JOYPAD_A, SNES_DEVICE_ID_JOYPAD_B, SNES_DEVICE_ID_JOYPAD_SELECT, SNES_DEVICE_ID_JOYPAD_START, SNES_DEVICE_ID_JOYPAD_RIGHT, SNES_DEVICE_ID_JOYPAD_LEFT, SNES_DEVICE_ID_JOYPAD_UP, SNES_DEVICE_ID_JOYPAD_DOWN, SNES_DEVICE_ID_JOYPAD_R, SNES_DEVICE_ID_JOYPAD_L };
 NSString *GBAEmulatorKeys[] = { @"Joypad@ A", @"Joypad@ B", @"Joypad@ Select", @"Joypad@ Start", @"Joypad@ Right", @"Joypad@ Left", @"Joypad@ Up", @"Joypad@ Down", @"Joypad@ R", @"Joypad@ L"};
 
+const char *romFullPath;
+
 GBAGameEmu *current;
 @implementation GBAGameEmu
 
@@ -108,6 +110,66 @@ static int16_t input_state_callback(bool port, unsigned device, unsigned index, 
     }
     
     return 0;
+}
+
+static bool environment_callback(unsigned cmd, void *data)
+{
+    switch (cmd)
+    {
+        case SNES_ENVIRONMENT_GET_FULLPATH:
+            *(const char**)data = romFullPath;
+            NSLog(@"Environ FULLPATH: \"%@\"\n", romFullPath);
+            break;
+        /*    
+        case SNES_ENVIRONMENT_SET_GEOMETRY:
+            g_extern.system.geom = *(const struct snes_geometry*)data;
+            g_extern.system.geom.max_width = next_pow2(g_extern.system.geom.max_width);
+            g_extern.system.geom.max_height = next_pow2(g_extern.system.geom.max_height);
+            NSLog(@"Environ SET_GEOMETRY: (%ux%u) / (%ux%u)\n",
+                      g_extern.system.geom.base_width,
+                      g_extern.system.geom.base_height,
+                      g_extern.system.geom.max_width,
+                      g_extern.system.geom.max_height);
+            break;
+            
+        case SNES_ENVIRONMENT_SET_PITCH:
+            g_extern.system.pitch = *(const unsigned*)data;
+            NSLog(@"Environ SET_PITCH: %u\n", g_extern.system.pitch);
+            break;
+            
+        case SNES_ENVIRONMENT_GET_OVERSCAN:
+            *(bool*)data = !g_settings.video.crop_overscan;
+            NSLog(@"Environ GET_OVERSCAN: %u\n", (unsigned)!g_settings.video.crop_overscan);
+            break;
+            
+        case SNES_ENVIRONMENT_SET_TIMING:
+            g_extern.system.timing = *(const struct snes_system_timing*)data;
+            g_extern.system.timing_set = true;
+            NSLog(@"Environ SET_TIMING: %.3f Hz/ %.3f Hz\n",
+                      (float)g_extern.system.timing.fps, (float)g_extern.system.timing.sample_rate);
+            break;
+            
+        case SNES_ENVIRONMENT_GET_CAN_DUPE:
+            *(bool*)data = true;
+            NSLog(@"Environ GET_CAN_DUPE: true\n");
+            break;
+            
+        case SNES_ENVIRONMENT_SET_NEED_FULLPATH:
+            g_extern.system.need_fullpath = *(const bool*)data;
+            NSLog(@"Environ SET_NEED_FULLPATH: %s\n", g_extern.system.need_fullpath ? "true" : "false");
+            break;
+            
+        case SNES_ENVIRONMENT_GET_CAN_REWIND:
+            *(bool*)data = g_settings.rewind_enable;
+            NSLog(@"Environ GET_CAN_REWIND: %s\n", g_settings.rewind_enable ? "true" : "false");
+            break;*/
+            
+        default:
+            NSLog(@"Environ UNSUPPORTED (#%u)!\n", cmd);
+            return false;
+    }
+    
+    return true;
 }
 
 static void loadSaveFile(const char* path, int type)
@@ -202,6 +264,7 @@ static void writeSaveFile(const char* path, int type)
     uint8_t *data;
     unsigned size;
     romName = [path copy];
+    romFullPath = (const char*)[path copy];
     
     //load cart, read bytes, get length
     NSData* dataObj = [NSData dataWithContentsOfFile:[romName stringByStandardizingPath]];
@@ -213,7 +276,7 @@ static void writeSaveFile(const char* path, int type)
     //ssif((size & 0x7fff) == 512) memmove(data, data + 512, size -= 512);
     
     //memory.copy(data, size);
-    //snes_set_environment(environment_callback);
+    snes_set_environment(environment_callback);
 	snes_init();
 	
     snes_set_video_refresh(video_callback);
