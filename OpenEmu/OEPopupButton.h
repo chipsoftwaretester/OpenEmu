@@ -26,6 +26,8 @@
 
 #import <Foundation/Foundation.h>
 #import "OEMenu.h"
+
+
 @interface OEPopupButton : NSPopUpButton <OEMenuDelegate>
 {
 @private

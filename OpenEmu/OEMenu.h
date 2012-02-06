@@ -27,11 +27,15 @@
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import "OEMenuItem.h"
-
-@class OEPopupButton, OEMenuView;
+@class OEPopupButton;
 @protocol OEMenuDelegate;
+@class OEMenuView;
 
-@interface OEMenu : NSWindow
+typedef enum _OEMenuStyle {
+    OEMenuStyleDark,
+    OEMenuStyleLight
+} OEMenuStyle;
+@interface OEMenu : NSWindow 
 {
 @private
     NSMenu *menu;
@@ -50,11 +54,14 @@
     BOOL closing;
     BOOL _alternate;
     id <OEMenuDelegate> delegate;
+    
+    OEMenuStyle style;
 }
 
 #pragma mark -
 
 - (void)openAtPoint:(NSPoint)p ofWindow:(NSWindow*)win;
+- (void)openOnEdge:(NSRectEdge)edge atPoint:(NSPoint)p ofWindow:(NSWindow*)win;
 - (void)closeMenuWithoutChanges:(id)sender;
 - (void)closeMenu;
 
@@ -68,9 +75,12 @@
 @property(nonatomic, retain) OEMenu *submenu;
 @property(nonatomic, retain) OEMenu *supermenu;
 
-@property(nonatomic, retain) NSMenu *menu;
-@property(retain) NSMenuItem *highlightedItem;
-@property(readonly, getter = isVisible) BOOL visible;
+@property OEMenuStyle style;
+@property (readonly) NSRectEdge edge;
+
+@property (nonatomic, retain) NSMenu *menu;
+@property (retain) NSMenuItem *highlightedItem;
+@property (readonly, getter = isVisible) BOOL visible;
 
 @property int itemsAboveScroller, itemsBelowScroller;
 @property(nonatomic, retain) id <OEMenuDelegate> delegate;
@@ -95,8 +105,7 @@
 @private
     BOOL imageIncluded;
 }
-- (void)update;
-
+- (void)updateAndDisplay:(BOOL)displayFlag;
 #pragma mark -
 - (void)highlightItemAtPoint:(NSPoint)p;
 - (NSMenuItem *)itemAtPoint:(NSPoint)p;

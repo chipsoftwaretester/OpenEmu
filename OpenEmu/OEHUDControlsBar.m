@@ -260,11 +260,10 @@
     OEMenu *oemenu = [menu convertToOEMenu];
     [oemenu setDelegate:self];
     oemenu.itemsAboveScroller = 2;
-    oemenu.maxSize = NSMakeSize(192, 256);
-    
+    oemenu.maxSize = NSMakeSize(230, 256);
     NSRect buttonRect = [sender frame];
-    NSPoint menuPoint = NSMakePoint(NSMaxX(buttonRect)+[self frame].origin.x, NSMinY(buttonRect)+[self frame].origin.y);
-    [oemenu openAtPoint:menuPoint ofWindow:self];
+    NSPoint menuPoint = NSMakePoint(NSMidX(buttonRect)+[self frame].origin.x-4, NSMaxY(buttonRect)+[self frame].origin.y-7);
+    [oemenu openOnEdge:NSMinYEdge atPoint:menuPoint ofWindow:self];
     [menu release];
 }
 
@@ -328,11 +327,11 @@
     OEMenu *oemenu = [menu convertToOEMenu];
     [oemenu setDelegate:self];
     oemenu.itemsAboveScroller = 2;
-    oemenu.maxSize = NSMakeSize(192, 256);
-    
+    oemenu.maxSize = NSMakeSize(230, 256);
     NSRect buttonRect = [sender frame];
-    NSPoint menuPoint = NSMakePoint(NSMaxX(buttonRect)+[self frame].origin.x, NSMinY(buttonRect)+[self frame].origin.y);
-    [oemenu openAtPoint:menuPoint ofWindow:self];
+    NSPoint menuPoint = NSMakePoint(NSMidX(buttonRect)+[self frame].origin.x-4, NSMaxY(buttonRect)+[self frame].origin.y-7);
+    [oemenu openOnEdge:NSMinYEdge atPoint:menuPoint ofWindow:self];
+
     [menu release];
 }
 
