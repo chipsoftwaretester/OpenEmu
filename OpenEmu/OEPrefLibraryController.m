@@ -68,11 +68,33 @@
 #pragma mark UI Actions
 - (IBAction)resetLibraryFolder:(id)sender
 {
-	
+    NSString *databasePath = [[NSUserDefaults standardUserDefaults] valueForKey:UDDefaultDatabasePathKey];
+    
+    [[NSUserDefaults standardUserDefaults] setValue:databasePath forKey:UDDatabasePathKey];
+    [pathField setStringValue:[databasePath stringByAbbreviatingWithTildeInPath]];
 }
 
 - (IBAction)changeLibraryFolder:(id)sender
 {
+    NSOpenPanel *openDlg = [NSOpenPanel openPanel];
+    
+    openDlg.canChooseFiles = NO;
+    openDlg.canChooseDirectories = YES;
+    openDlg.canCreateDirectories = YES;
+    
+    [openDlg beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result)
+    {
+        if (NSFileHandlingPanelOKButton == result)
+        {
+            NSString *databasePath = [[openDlg URL] path];
+            
+            if (databasePath && ![databasePath isEqualToString:[[NSUserDefaults standardUserDefaults] valueForKey:UDDatabasePathKey]])
+            {
+                [[NSUserDefaults standardUserDefaults] setValue:databasePath forKey:UDDatabasePathKey];
+                [pathField setStringValue:[databasePath stringByAbbreviatingWithTildeInPath]];
+            }
+        }
+    }];
 }
 
 - (IBAction)toggleLibrary:(id)sender
@@ -149,9 +171,9 @@
     __block float y =  librariesView.frame.size.height-iHeight;
     
     // enumerate plugins and add buttons for them
-    [systems enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) 
+    [systems enumerateObjectsUsingBlock:
+     ^(OEDBSystem *system, NSUInteger idx, BOOL *stop)
      {
-         OEDBSystem *system = (OEDBSystem*)obj;
          // if we're still in the first column an we should be in the second
          if(x==0 && idx>[systems count]/2){
              // we reset x and y
