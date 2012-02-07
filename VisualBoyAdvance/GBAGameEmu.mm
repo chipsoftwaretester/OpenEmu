@@ -119,49 +119,6 @@ static bool environment_callback(unsigned cmd, void *data)
             *(const char**)data = [current->romName cStringUsingEncoding:NSUTF8StringEncoding];
             NSLog(@"Environ FULLPATH: \"%@\"\n", current->romName);
             break;
-        /*    
-        case SNES_ENVIRONMENT_SET_GEOMETRY:
-            g_extern.system.geom = *(const struct snes_geometry*)data;
-            g_extern.system.geom.max_width = next_pow2(g_extern.system.geom.max_width);
-            g_extern.system.geom.max_height = next_pow2(g_extern.system.geom.max_height);
-            NSLog(@"Environ SET_GEOMETRY: (%ux%u) / (%ux%u)\n",
-                      g_extern.system.geom.base_width,
-                      g_extern.system.geom.base_height,
-                      g_extern.system.geom.max_width,
-                      g_extern.system.geom.max_height);
-            break;
-            
-        case SNES_ENVIRONMENT_SET_PITCH:
-            g_extern.system.pitch = *(const unsigned*)data;
-            NSLog(@"Environ SET_PITCH: %u\n", g_extern.system.pitch);
-            break;
-            
-        case SNES_ENVIRONMENT_GET_OVERSCAN:
-            *(bool*)data = !g_settings.video.crop_overscan;
-            NSLog(@"Environ GET_OVERSCAN: %u\n", (unsigned)!g_settings.video.crop_overscan);
-            break;
-            
-        case SNES_ENVIRONMENT_SET_TIMING:
-            g_extern.system.timing = *(const struct snes_system_timing*)data;
-            g_extern.system.timing_set = true;
-            NSLog(@"Environ SET_TIMING: %.3f Hz/ %.3f Hz\n",
-                      (float)g_extern.system.timing.fps, (float)g_extern.system.timing.sample_rate);
-            break;
-            
-        case SNES_ENVIRONMENT_GET_CAN_DUPE:
-            *(bool*)data = true;
-            NSLog(@"Environ GET_CAN_DUPE: true\n");
-            break;
-            
-        case SNES_ENVIRONMENT_SET_NEED_FULLPATH:
-            g_extern.system.need_fullpath = *(const bool*)data;
-            NSLog(@"Environ SET_NEED_FULLPATH: %s\n", g_extern.system.need_fullpath ? "true" : "false");
-            break;
-            
-        case SNES_ENVIRONMENT_GET_CAN_REWIND:
-            *(bool*)data = g_settings.rewind_enable;
-            NSLog(@"Environ GET_CAN_REWIND: %s\n", g_settings.rewind_enable ? "true" : "false");
-            break;*/
             
         default:
             NSLog(@"Environ UNSUPPORTED (#%u)!\n", cmd);
