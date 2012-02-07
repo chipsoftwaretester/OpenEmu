@@ -17,7 +17,7 @@
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>1.8.0.1054</string>
+	<string>1.8.0-vbanext</string>
 	<key>NSPrincipalClass</key>
 	<string>GBAGameController</string>
 	<key>OEProjectURL</key>
