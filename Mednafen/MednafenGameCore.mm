@@ -26,15 +26,15 @@
  */
 
 #import "MednafenGameCore.h"
-//#import <OERingBuffer.h>
-//#import <OpenGL/gl.h>
+#import <OERingBuffer.h>
+#import <OpenGL/gl.h>
 #include <map>
 #include "types.h"
 #include "git.h"
 #include "trio.h"
 #include "input.h"
 #include "state-driver.h"
-#import "OENESSystemResponderClient.h"
+//#import "OENESSystemResponderClient.h"
 
 uint16_t input_buffer[2];
 
