@@ -22,12 +22,12 @@ template<typename T, typename U, typename V> static INLINE void clamp(T *val, U 
 {
  if(*val < minimum)
  {
-  printf("Warning: clamping to minimum(%d)\n", (int)minimum);
+  //printf("Warning: clamping to minimum(%d)\n", (int)minimum);
   *val = minimum;
  }
  if(*val > maximum)
  {
-  printf("Warning: clamping to maximum(%d)\n", (int)maximum);
+  //printf("Warning: clamping to maximum(%d)\n", (int)maximum);
   *val = maximum;
  }
 }

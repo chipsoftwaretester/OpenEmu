@@ -578,6 +578,18 @@ void Genie_Kill(void)
   GENIEROM = NULL;
  }
 
+ if(AReadGG)
+ {
+  MDFN_free(AReadGG);
+  AReadGG = NULL;
+ }
+
+ if(BWriteGG)
+ {
+  MDFN_free(BWriteGG);
+  BWriteGG = NULL;
+ }
+
  memset(&GenieBackup, 0, sizeof(GenieBackup));
 }
 

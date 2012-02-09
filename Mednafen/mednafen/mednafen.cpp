@@ -34,6 +34,7 @@
 #include	"state.h"
 #include	"movie.h"
 #include        "video.h"
+#include	"video/Deinterlacer.h"
 #include	"file.h"
 #include	"sound/WAVRecord.h"
 #include	"cdrom/cdromif.h"
@@ -47,6 +48,8 @@
 #include	"Fir_Resampler.h"
 
 #include	"string/escape.h"
+
+#include	"cdrom/CDUtility.h"
 
 static const char *CSD_forcemono = gettext_noop("Force monophonic sound output.");
 static const char *CSD_enable = gettext_noop("Enable (automatic) usage of this module.");
@@ -87,8 +90,8 @@ static MDFNSetting MednafenSettings[] =
   { "srwframes", MDFNSF_NOFLAGS, gettext_noop("Number of frames to keep states for when state rewinding is enabled."), 
 	gettext_noop("WARNING: Setting this to a large value may cause excessive RAM usage in some circumstances, such as with games that stream large volumes of data off of CDs."), MDFNST_UINT, "600", "10", "99999" },
 
-  { "cdrom.lec_eval", MDFNSF_NOFLAGS, gettext_noop("Enable simple error correction of raw data sector rips by evaluating L-EC and EDC data."), NULL, MDFNST_BOOL, "1" },
-  // TODO: { "cdrom.ignore_physical_pq", MDFNSF_NOFLAGS, gettext_noop("Ignore P-Q subchannel data when reading physical discs, instead using computed P-Q data."), NULL, MDFNST_BOOL, "1" },
+  { "filesys.untrusted_fip_check", MDFNSF_NOFLAGS, gettext_noop("Enable untrusted file-inclusion path security check."),
+	gettext_noop("When this setting is set to \"1\", the default, paths to files referenced from files like CUE sheets and PSF rips are checked for certain characters that can be used in directory traversal, and if found, loading is aborted.  Set it to \"0\" if you want to allow constructs like absolute paths in CUE sheets, but only if you understand the security implications of doing so(see \"Security Issues\" section in the documentation)."), MDFNST_BOOL, "1" },
 
   { "filesys.path_snap", MDFNSF_NOFLAGS, gettext_noop("Path to directory for screen snapshots."), NULL, MDFNST_STRING, "snaps" },
   { "filesys.path_sav", MDFNSF_NOFLAGS, gettext_noop("Path to directory for save games and nonvolatile memory."), gettext_noop("WARNING: Do not set this path to a directory that contains Famicom Disk System disk images, or you will corrupt them when you load an FDS game and exit Mednafen."), MDFNST_STRING, "sav" },
@@ -151,17 +154,21 @@ static void *PortDataCache[16];
 static uint32 PortDataLenCache[16];
 
 MDFNGI *MDFNGameInfo = NULL;
-static bool CDInUse = 0;
 
 static QTRecord *qtrecorder = NULL;
 static WAVRecord *wavrecorder = NULL;
 static Fir_Resampler<16> ff_resampler;
-static float LastSoundMultiplier;
+static double LastSoundMultiplier;
 
 static bool FFDiscard = FALSE; // TODO:  Setting to discard sound samples instead of increasing pitch
 
 static MDFN_PixelFormat last_pixel_format;
 static double last_sound_rate;
+
+static bool PrevInterlaced;
+static Deinterlacer deint;
+
+static std::vector<CDIF *> CDInterfaces;	// FIXME: Cleanup on error out.
 
 bool MDFNI_StartWAVRecord(const char *path, double SoundRate)
 {
@@ -264,17 +271,28 @@ void MDFNI_CloseGame(void)
   MDFNGameInfo = NULL;
   MDFN_StateEvilEnd();
 
-  if(CDInUse)
-  {
-   CDIF_Close();
-   CDInUse = 0;
-  }
+  for(unsigned i = 0; i < CDInterfaces.size(); i++)
+   delete CDInterfaces[i];
+  CDInterfaces.clear();
  }
  TBlur_Kill();
 
  #ifdef WANT_DEBUGGER
  MDFNDBG_Kill();
  #endif
+
+ for(unsigned int x = 0; x < sizeof(PortDeviceCache) / sizeof(char *); x++)
+ {
+  if(PortDeviceCache[x])
+  {
+   free(PortDeviceCache[x]);
+   PortDeviceCache[x] = NULL;
+  }
+ }
+
+ memset(PortDataCache, 0, sizeof(PortDataCache));
+ memset(PortDataLenCache, 0, sizeof(PortDataLenCache));
+ memset(PortDeviceCache, 0, sizeof(PortDeviceCache));
 }
 
 int MDFNI_NetplayStart(uint32 local_players, uint32 netmerge, const std::string &nickname, const std::string &game_key, const std::string &connect_password)
@@ -321,6 +339,10 @@ extern MDFNGI EmulatedPCE_Fast;
 
 #ifdef WANT_PCFX_EMU
 extern MDFNGI EmulatedPCFX;
+#endif
+
+#ifdef WANT_PSX_EMU
+extern MDFNGI EmulatedPSX;
 #endif
 
 #ifdef WANT_VB_EMU
@@ -372,6 +394,40 @@ void MDFNI_DumpModulesDef(const char *fn)
  fclose(fp);
 }
 
+static void ReadM3U(std::vector<std::string> &file_list, std::string path, unsigned depth = 0)
+{
+ std::vector<std::string> ret;
+ FileWrapper m3u_file(path.c_str(), FileWrapper::MODE_READ, _("M3U CD Set"));
+ std::string dir_path;
+ char linebuf[2048];
+
+ MDFN_GetFilePathComponents(path, &dir_path);
+
+ while(m3u_file.get_line(linebuf, sizeof(linebuf)))
+ {
+  std::string efp;
+
+  if(linebuf[0] == '#') continue;
+  MDFN_rtrim(linebuf);
+  if(linebuf[0] == 0) continue;
+
+  efp = MDFN_EvalFIP(dir_path, std::string(linebuf));
+
+  if(efp.size() >= 4 && efp.substr(efp.size() - 4) == ".m3u")
+  {
+   if(efp == path)
+    throw(MDFN_Error(0, _("M3U at \"%s\" references self."), efp.c_str()));
+
+   if(depth == 99)
+    throw(MDFN_Error(0, _("M3U load recursion too deep!")));
+
+   ReadM3U(file_list, efp, depth++);
+  }
+  else
+   file_list.push_back(efp);
+ }
+}
+
 // TODO: LoadCommon()
 
 MDFNGI *MDFNI_LoadCD(const char *force_module, const char *devicename)
@@ -382,32 +438,91 @@ MDFNGI *MDFNI_LoadCD(const char *force_module, const char *devicename)
 
  LastSoundMultiplier = 1;
 
- int ret = CDIF_Open(devicename);
+ MDFN_printf(_("Loading %s...\n\n"), devicename ? devicename : _("PHYSICAL CD"));
 
- if(!ret)
+ try
  {
+  if(devicename && strlen(devicename) > 4 && !strcasecmp(devicename + strlen(devicename) - 4, ".m3u"))
+  {
+   std::vector<std::string> file_list;
+
+   ReadM3U(file_list, devicename);
+
+   for(unsigned i = 0; i < file_list.size(); i++)
+   {
+    CDInterfaces.push_back(new CDIF(file_list[i].c_str()));
+   }
+
+   GetFileBase(devicename);
+  }
+  else
+  {
+   CDInterfaces.push_back(new CDIF(devicename));
+   if(CDInterfaces[0]->IsPhysical())
+   {
+    GetFileBase("cdrom");
+   }
+   else
+    GetFileBase(devicename);
+  }
+ }
+ catch(std::exception &e)
+ {
+  MDFND_PrintError(e.what());
   MDFN_PrintError(_("Error opening CD."));
   return(0);
  }
 
+ //
+ // Print out a track list for all discs.
+ //
+ MDFN_indent(1);
+ for(unsigned i = 0; i < CDInterfaces.size(); i++)
+ {
+  CDUtility::TOC toc;
+
+  CDInterfaces[i]->ReadTOC(&toc);
+
+  MDFN_printf(_("CD %d Layout:\n"), i + 1);
+  MDFN_indent(1);
+
+  for(int32 track = toc.first_track; track <= toc.last_track; track++)
+  {
+   MDFN_printf(_("Track %2d, LBA: %6d  %s\n"), track, toc.tracks[track].lba, (toc.tracks[track].control & 0x4) ? "DATA" : "AUDIO");
+  }
+
+  MDFN_printf("Leadout: %6d\n", toc.tracks[100].lba);
+  MDFN_indent(-1);
+  MDFN_printf("\n");
+ }
+ MDFN_indent(-1);
+ //
+ //
+
+
+
  // Calculate layout MD5.  The system emulation LoadCD() code is free to ignore this value and calculate
  // its own, or to use it to look up a game in its database.
  {
-  CD_TOC toc;
   md5_context layout_md5;
-
-  CDIF_ReadTOC(&toc);
 
   layout_md5.starts();
 
-  layout_md5.update_u32_as_lsb(toc.first_track);
-  layout_md5.update_u32_as_lsb(toc.last_track);
-  layout_md5.update_u32_as_lsb(toc.tracks[100].lba);
-
-  for(uint32 track = toc.first_track; track <= toc.last_track; track++)
+  for(unsigned i = 0; i < CDInterfaces.size(); i++)
   {
-   layout_md5.update_u32_as_lsb(toc.tracks[track].lba);
-   layout_md5.update_u32_as_lsb(toc.tracks[track].control & 0x4);
+   CD_TOC toc;
+
+   CDInterfaces[i]->ReadTOC(&toc);
+
+   layout_md5.update_u32_as_lsb(toc.first_track);
+   layout_md5.update_u32_as_lsb(toc.last_track);
+   layout_md5.update_u32_as_lsb(toc.tracks[100].lba);
+
+   for(uint32 track = toc.first_track; track <= toc.last_track; track++)
+   {
+    layout_md5.update_u32_as_lsb(toc.tracks[track].lba);
+    layout_md5.update_u32_as_lsb(toc.tracks[track].control & 0x4);
+   }
   }
 
   layout_md5.finish(LayoutMD5);
@@ -437,7 +552,7 @@ MDFNGI *MDFNI_LoadCD(const char *force_module, const char *devicename)
           if(!(*it)->LoadCD || !(*it)->TestMagicCD)
            continue;
 
-          if((*it)->TestMagicCD())
+          if((*it)->TestMagicCD(&CDInterfaces))
           {
            MDFNGameInfo = *it;
            break;
@@ -471,13 +586,15 @@ MDFNGI *MDFNI_LoadCD(const char *force_module, const char *devicename)
  // TODO: include module name in hash
  memcpy(MDFNGameInfo->MD5, LayoutMD5, 16);
 
- if(!(MDFNGameInfo->LoadCD()))
+ if(!(MDFNGameInfo->LoadCD(&CDInterfaces)))
  {
-  CDIF_Close();
+  for(unsigned i = 0; i < CDInterfaces.size(); i++)
+   delete CDInterfaces[i];
+  CDInterfaces.clear();
+
   MDFNGameInfo = NULL;
   return(0);
  }
- CDInUse = 1;
 
  #ifdef WANT_DEBUGGER
  MDFNDBG_PostGameLoad(); 
@@ -545,7 +662,7 @@ MDFNGI *MDFNI_LoadGame(const char *force_module, const char *name)
 	struct stat stat_buf;
 	std::vector<FileExtensionSpecStruct> valid_iae;
 
-	if(strlen(name) > 4 && (!strcasecmp(name + strlen(name) - 4, ".cue") || !strcasecmp(name + strlen(name) - 4, ".toc")))
+	if(strlen(name) > 4 && (!strcasecmp(name + strlen(name) - 4, ".cue") || !strcasecmp(name + strlen(name) - 4, ".toc") || !strcasecmp(name + strlen(name) - 4, ".m3u")))
 	{
 	 return(MDFNI_LoadCD(force_module, name));
 	}
@@ -709,6 +826,9 @@ MDFNGI *MDFNI_LoadGame(const char *force_module, const char *name)
           *tmp = 0;
         }
 
+	PrevInterlaced = false;
+	deint.ClearState();
+
 	TBlur_Init();
 
         MDFN_StateEvilBegin();
@@ -860,6 +980,10 @@ bool MDFNI_InitializeModules(const std::vector<MDFNGI *> &ExternalSystems)
   &EmulatedNGP,
   #endif
 
+  #ifdef WANT_PSX_EMU
+  &EmulatedPSX,
+  #endif
+
   #ifdef WANT_VB_EMU
   &EmulatedVB,
   #endif
@@ -910,6 +1034,8 @@ bool MDFNI_InitializeModules(const std::vector<MDFNGI *> &ExternalSystems)
  for(it = MDFNSystemsPrio.
  f
  #endif
+
+ CDUtility::CDUtility_Init();
 
  return(1);
 }
@@ -994,15 +1120,6 @@ int MDFNI_Initialize(const char *basedir, const std::vector<MDFNSetting> &Driver
 void MDFNI_Kill(void)
 {
  MDFN_SaveSettings();
-
- for(unsigned int x = 0; x < sizeof(PortDeviceCache) / sizeof(char *); x++)
- {
-  if(PortDeviceCache[x])
-  {
-   free(PortDeviceCache[x]);
-   PortDeviceCache[x] = NULL;
-  }
- }
 }
 
 static double multiplier_save, volume_save;
@@ -1071,7 +1188,7 @@ static void ProcessAudio(EmulateSpecStruct *espec)
 
   if(multiplier_save != LastSoundMultiplier)
   {
-   ff_resampler.time_ratio((double)multiplier_save, 0.9965);
+   ff_resampler.time_ratio(multiplier_save, 0.9965);
    LastSoundMultiplier = multiplier_save;
   }
 
@@ -1254,6 +1371,21 @@ void MDFNI_Emulate(EmulateSpecStruct *espec)
  espec->NeedSoundReverse = MDFN_StateEvil(espec->NeedRewind);
 
  MDFNGameInfo->Emulate(espec);
+
+ if(espec->InterlaceOn)
+ {
+  if(!PrevInterlaced)
+   deint.ClearState();
+
+  deint.Process(espec->surface, espec->DisplayRect, espec->LineWidths, espec->InterlaceField);
+
+  PrevInterlaced = true;
+
+  espec->InterlaceOn = false;
+  espec->InterlaceField = 0;
+ }
+ else
+  PrevInterlaced = false;
 
  ProcessAudio(espec);
 

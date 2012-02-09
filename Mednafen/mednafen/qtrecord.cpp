@@ -956,6 +956,8 @@ void QTRecord::Finish(void)
  atom_end();
 
  Write_moov();
+
+ qtfile.close();
 }
 
 QTRecord::~QTRecord(void)

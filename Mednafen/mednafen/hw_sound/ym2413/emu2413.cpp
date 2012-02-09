@@ -121,7 +121,7 @@ static unsigned char default_inst[EMU2413_TONE_NUM][(16 + 3) * 16] = {
 #define DB_NEG(x) (uint32)(DB_MUTE+DB_MUTE+(x)/DB_STEP)
 
 /* Bits for liner value */
-#define DB2LIN_AMP_BITS 13 //8
+#define DB2LIN_AMP_BITS 10 //8
 #define SLOT_AMP_BITS (DB2LIN_AMP_BITS)
 
 /* Bits for envelope phase incremental counter */

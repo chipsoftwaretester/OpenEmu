@@ -21,6 +21,9 @@
 #include "GBAinline.h"
 #include "Globals.h"
 
+namespace MDFN_IEN_GBA
+{
+
 unsigned int RunTHUMB(void)
 {
 #define NEG(i) ((i) >> 31)
@@ -2107,4 +2110,6 @@ switch(opcode >> 8) {
    break;
 }
  return(clockTicks);
+}
+
 }

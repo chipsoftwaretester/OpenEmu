@@ -26,6 +26,7 @@
 #define SCSIDBG(format, ...) { printf("SCSI: " format "\n",  ## __VA_ARGS__); }
 //#define SCSIDBG(format, ...) { }
 
+using namespace CDUtility;
 
 
 static uint32 CD_DATA_TRANSFER_RATE;
@@ -34,6 +35,7 @@ static void (*CDIRQCallback)(int);
 static void (*CDStuffSubchannels)(uint8, int);
 static Blip_Buffer *sbuf[2];
 static int WhichSystem;
+static CDIF *Cur_CDIF;
 
 // Internal operation to the SCSI CD unit.  Only pass 1 or 0 to these macros!
 #define SetIOP(mask, set)	{ cd_bus.signals &= ~mask; if(set) cd_bus.signals |= mask; }
@@ -64,21 +66,6 @@ enum
  QMode_MCN = 2, // Media Catalog Number
  QMode_ISRC = 3 // International Standard Recording Code
 };
-
-
-static bool BCD_To_U8(uint8 bcd_value, uint8 *out_value)
-{
- *out_value = ((bcd_value >> 4) * 10) + (bcd_value & 0xF);
-
- if((bcd_value & 0x0F) >= 0x0A)
-  return(false);
-
- if((bcd_value & 0xF0) >= 0xA0)
-  return(false);
-
- return(true);
-}
-
 
 typedef struct
 {
@@ -178,9 +165,9 @@ scsicd_t cd;
 scsicd_bus_t cd_bus;
 static cdda_t cdda;
 
-static SimpleFIFO *din = NULL;
+static SimpleFIFO<uint8> *din = NULL;
 
-static CD_TOC toc;
+static CDUtility::TOC toc;
 
 static uint32 read_sec_start;
 static uint32 read_sec;
@@ -261,9 +248,10 @@ void SCSICD_Power(scsicd_timestamp_t system_timestamp)
 
  monotonic_timestamp = system_timestamp;
 
- cd.TrayOpen = false;
- //cd.IsInserted = TRUE;
  cd.DiscChanged = false;
+
+ if(Cur_CDIF && !cd.TrayOpen)
+  Cur_CDIF->ReadTOC(&toc);
 
  CurrentPhase = PHASE_BUS_FREE;
 
@@ -310,13 +298,13 @@ static void GenSubQFromSubPW(void)
  for(int i = 0; i < 96; i++)
   SubQBuf[i >> 3] |= ((cd.SubPWBuf[i] & 0x40) >> 6) << (7 - (i & 7));
 
- //printf("Real %d/ SubQ %d - ", read_sec, BCD_TO_INT(SubQBuf[7]) * 75 * 60 + BCD_TO_INT(SubQBuf[8]) * 75 + BCD_TO_INT(SubQBuf[9]) - 150);
+ //printf("Real %d/ SubQ %d - ", read_sec, BCD_to_U8(SubQBuf[7]) * 75 * 60 + BCD_to_U8(SubQBuf[8]) * 75 + BCD_to_U8(SubQBuf[9]) - 150);
  // Debug code, remove me.
  //for(int i = 0; i < 0xC; i++)
  // printf("%02x ", SubQBuf[i]);
  //printf("\n");
 
- if(!CDIF_CheckSubQChecksum(SubQBuf))
+ if(!subq_check_checksum(SubQBuf))
  {
   SCSIDBG("SubQ checksum error!");
  }
@@ -480,48 +468,31 @@ static void DoSimpleDataIn(const uint8 *data_in, uint32 len)
  ChangePhase(PHASE_DATA_IN);
 }
 
-bool SCSICD_IsInserted(void)
+void SCSICD_SetDisc(bool tray_open, CDIF *cdif, bool no_emu_side_effects)
 {
- // FIXME when we allow tray to be closed with no disc.
- return(!cd.TrayOpen);
-}
+ Cur_CDIF = cdif;
 
-bool SCSICD_EjectVirtual(void)
-{
- if(!cd.TrayOpen)
- {
-  cd.TrayOpen = true;
-
-  return(true);
- }
- return (false);
-}
-
-bool SCSICD_InsertVirtual(void)
-{
- if(cd.TrayOpen)
+ // Closing the tray.
+ if(cd.TrayOpen && !tray_open)
  {
   cd.TrayOpen = false;
-  cd.DiscChanged = true;
-  return(true);
+
+  if(cdif)
+  {
+   cdif->ReadTOC(&toc);
+
+   if(!no_emu_side_effects)
+   {
+    memset(cd.SubQBuf, 0, sizeof(cd.SubQBuf));
+    memset(cd.SubQBuf_Last, 0, sizeof(cd.SubQBuf_Last));
+    cd.DiscChanged = true;
+   }
+  }
  }
- return(false);
-}
-
-
-// NOTE: For example, converts an LBA of 0 to an MSF of 00:02:00. (a +150 offset to LBA)
-static void lba2msf(uint32 lba, uint8 * m, uint8 * s, uint8 * f)
-{
- lba += 150;
-
- *m = lba / 75 / 60;
- *s = (lba - *m * 75 * 60) / 75;
- *f = lba - (*m * 75 * 60) - (*s * 75);
-}
-
-static int32 msf2lba(uint8 m, uint8 s, uint8 f)
-{
- return((f + 75 * s + 75 * 60 * m) - 150);
+ else if(!cd.TrayOpen && tray_open)	// Opening the tray
+ {
+  cd.TrayOpen = true;
+ }
 }
 
 static void CommandCCError(int key, int asc = 0, int ascq = 0)
@@ -538,7 +509,7 @@ static void CommandCCError(int key, int asc = 0, int ascq = 0)
 
 static bool ValidateRawDataSector(uint8 *data, const uint32 lba)
 {
- if(!CDIF_ValidateRawSector(data))
+ if(!Cur_CDIF->ValidateRawSector(data))
  {
   MDFN_DispMessage(_("Uncorrectable data at sector %d"), lba);
   MDFN_PrintError(_("Uncorrectable data at sector %d"), lba);
@@ -1108,19 +1079,19 @@ static void EncodeM3TOC(uint8 *buf, uint8 POINTER_RAW, int32 LBA, uint32 PLBA, u
  uint8 MIN, SEC, FRAC;
  uint8 PMIN, PSEC, PFRAC;
 
- lba2msf(LBA, &MIN, &SEC, &FRAC);
- lba2msf(PLBA, &PMIN, &PSEC, &PFRAC);
+ LBA_to_AMSF(LBA, &MIN, &SEC, &FRAC);
+ LBA_to_AMSF(PLBA, &PMIN, &PSEC, &PFRAC);
 
  buf[0x0] = control << 4;
  buf[0x1] = 0x00;	// TNO
  buf[0x2] = POINTER_RAW;
- buf[0x3] = INT_TO_BCD(MIN);
- buf[0x4] = INT_TO_BCD(SEC);
- buf[0x5] = INT_TO_BCD(FRAC);
+ buf[0x3] = U8_to_BCD(MIN);
+ buf[0x4] = U8_to_BCD(SEC);
+ buf[0x5] = U8_to_BCD(FRAC);
  buf[0x6] = 0x00;	// Zero
- buf[0x7] = INT_TO_BCD(PMIN);
- buf[0x8] = INT_TO_BCD(PSEC);
- buf[0x9] = INT_TO_BCD(PFRAC);
+ buf[0x7] = U8_to_BCD(PMIN);
+ buf[0x8] = U8_to_BCD(PSEC);
+ buf[0x9] = U8_to_BCD(PFRAC);
 }
 
 /********************************************************
@@ -1186,7 +1157,7 @@ static void DoNEC_GETDIRINFO(const uint8 *cdb)
     if(!match)
      for(int track = toc.first_track; track <= toc.last_track; track++)
      {
-      EncodeM3TOC(&data_in[offset], INT_TO_BCD(track), lilba, toc.tracks[track].lba, toc.tracks[track].control);
+      EncodeM3TOC(&data_in[offset], U8_to_BCD(track), lilba, toc.tracks[track].lba, toc.tracks[track].control);
       lilba++;
       offset += 0xA;
      }
@@ -1204,8 +1175,8 @@ static void DoNEC_GETDIRINFO(const uint8 *cdb)
    break;
 
   case 0x0:
-   data_in[0] = INT_TO_BCD(toc.first_track);
-   data_in[1] = INT_TO_BCD(toc.last_track);
+   data_in[0] = U8_to_BCD(toc.first_track);
+   data_in[1] = U8_to_BCD(toc.last_track);
 
    data_in_size = 4;
    break;
@@ -1214,11 +1185,11 @@ static void DoNEC_GETDIRINFO(const uint8 *cdb)
    {
     uint8 m, s, f;
 
-    lba2msf(toc.tracks[100].lba, &m, &s, &f);
+    LBA_to_AMSF(toc.tracks[100].lba, &m, &s, &f);
 
-    data_in[0] = INT_TO_BCD(m);
-    data_in[1] = INT_TO_BCD(s);
-    data_in[2] = INT_TO_BCD(f);
+    data_in[0] = U8_to_BCD(m);
+    data_in[1] = U8_to_BCD(s);
+    data_in[2] = U8_to_BCD(f);
 
     data_in_size = 4;
    }
@@ -1227,7 +1198,7 @@ static void DoNEC_GETDIRINFO(const uint8 *cdb)
   case 0x2:
    {
     uint8 m, s, f;
-    int track = BCD_TO_INT(cdb[2]);
+    int track = BCD_to_U8(cdb[2]);
 
     if(track < toc.first_track || track > toc.last_track)
     {
@@ -1235,11 +1206,11 @@ static void DoNEC_GETDIRINFO(const uint8 *cdb)
      return;
     }
 
-    lba2msf(toc.tracks[track].lba, &m, &s, &f);
+    LBA_to_AMSF(toc.tracks[track].lba, &m, &s, &f);
 
-    data_in[0] = INT_TO_BCD(m);
-    data_in[1] = INT_TO_BCD(s);
-    data_in[2] = INT_TO_BCD(f);
+    data_in[0] = U8_to_BCD(m);
+    data_in[1] = U8_to_BCD(s);
+    data_in[2] = U8_to_BCD(f);
     data_in[3] = toc.tracks[track].control;
     data_in_size = 4;
    }
@@ -1302,7 +1273,7 @@ static void DoREADTOC(const uint8 *cdb)
    eff_track = track;
 
   lba = toc.tracks[eff_track].lba;
-  lba2msf(lba, &m, &s, &f);
+  LBA_to_AMSF(lba, &m, &s, &f);
 
   subptr[0] = 0;
   subptr[1] = toc.tracks[eff_track].control | (toc.tracks[eff_track].adr << 4);
@@ -1377,7 +1348,7 @@ static void DoREADCDCAP10(const uint8 *cdb)
    ret_lba = toc.tracks[toc.first_track].lba - 1;
   else
   {
-   const int track = CDIF_FindTrackByLBA(lba);
+   const int track = toc.FindTrackByLBA(lba);
 
    for(int st = track + 1; st <= toc.last_track; st++)
    {
@@ -1431,15 +1402,15 @@ static void DoREADHEADER10(const uint8 *cdb)
   return;
  }
 
- CDIF_ReadRawSector(raw_buf, HeaderLBA);	//, HeaderLBA + 1);
+ Cur_CDIF->ReadRawSector(raw_buf, HeaderLBA);	//, HeaderLBA + 1);
  if(!ValidateRawDataSector(raw_buf, HeaderLBA))
   return;
 
- m = BCD_TO_INT(raw_buf[12 + 0]);
- s = BCD_TO_INT(raw_buf[12 + 1]);
- f = BCD_TO_INT(raw_buf[12 + 2]);
+ m = BCD_to_U8(raw_buf[12 + 0]);
+ s = BCD_to_U8(raw_buf[12 + 1]);
+ f = BCD_to_U8(raw_buf[12 + 2]);
  mode = raw_buf[12 + 3];
- lba = msf2lba(m, s, f);
+ lba = AMSF_to_LBA(m, s, f);
 
  //printf("%d:%d:%d(LBA=%08x) %02x\n", m, s, f, lba, mode);
 
@@ -1494,7 +1465,7 @@ static void DoPABase(const uint32 lba, const uint32 length, unsigned int status 
  }
  else
  {
-  if(toc.tracks[CDIF_FindTrackByLBA(lba)].control & 0x04)
+  if(toc.tracks[toc.FindTrackByLBA(lba)].control & 0x04)
   {
    CommandCCError(SENSEKEY_MEDIUM_ERROR, NSE_NOT_AUDIO_TRACK);
    return;
@@ -1509,7 +1480,7 @@ static void DoPABase(const uint32 lba, const uint32 length, unsigned int status 
 
   if(read_sec < toc.tracks[100].lba)
   {
-   CDIF_HintReadSector(read_sec);	//, read_sec_end, read_sec_start);
+   Cur_CDIF->HintReadSector(read_sec);	//, read_sec_end, read_sec_start);
   }
  }
 
@@ -1542,13 +1513,13 @@ static void DoNEC_SAPSP(const uint8 *cdb)
 	{
 	 uint8 m, s, f;
 
-	 if(!BCD_To_U8(cdb[2], &m) || !BCD_To_U8(cdb[3], &s) || !BCD_To_U8(cdb[4], &f))
+	 if(!BCD_to_U8_check(cdb[2], &m) || !BCD_to_U8_check(cdb[3], &s) || !BCD_to_U8_check(cdb[4], &f))
 	 {
 	  CommandCCError(SENSEKEY_ILLEGAL_REQUEST, NSE_INVALID_PARAMETER);
 	  return;
 	 }
 
-	 lba = msf2lba(m, s, f);
+	 lba = AMSF_to_LBA(m, s, f);
 	}
 	break;
 
@@ -1556,7 +1527,7 @@ static void DoNEC_SAPSP(const uint8 *cdb)
 	{
 	 uint8 track;
 
-	 if(!cdb[2] || !BCD_To_U8(cdb[2], &track))
+	 if(!cdb[2] || !BCD_to_U8_check(cdb[2], &track))
 	 {
 	  CommandCCError(SENSEKEY_ILLEGAL_REQUEST, NSE_INVALID_PARAMETER);
 	  return;
@@ -1612,13 +1583,13 @@ static void DoNEC_SAPEP(const uint8 *cdb)
 	{
 	 uint8 m, s, f;
 
-	 if(!BCD_To_U8(cdb[2], &m) || !BCD_To_U8(cdb[3], &s) || !BCD_To_U8(cdb[4], &f))
+	 if(!BCD_to_U8_check(cdb[2], &m) || !BCD_to_U8_check(cdb[3], &s) || !BCD_to_U8_check(cdb[4], &f))
 	 {
 	  CommandCCError(SENSEKEY_ILLEGAL_REQUEST, NSE_INVALID_PARAMETER);
 	  return;
 	 }
 
-	 lba = msf2lba(m, s, f);
+	 lba = AMSF_to_LBA(m, s, f);
 	}
 	break;
 
@@ -1626,7 +1597,7 @@ static void DoNEC_SAPEP(const uint8 *cdb)
 	{
 	 uint8 track;
 
-	 if(!cdb[2] || !BCD_To_U8(cdb[2], &track))
+	 if(!cdb[2] || !BCD_to_U8_check(cdb[2], &track))
 	 {
 	  CommandCCError(SENSEKEY_ILLEGAL_REQUEST, NSE_INVALID_PARAMETER);
 	  return;
@@ -1705,8 +1676,8 @@ static void DoPAMSF(const uint8 *cdb)
 {
  int32 lba_start, lba_end;
 
- lba_start = msf2lba(cdb[3], cdb[4], cdb[5]);
- lba_end = msf2lba(cdb[6], cdb[7], cdb[8]);
+ lba_start = AMSF_to_LBA(cdb[3], cdb[4], cdb[5]);
+ lba_end = AMSF_to_LBA(cdb[6], cdb[7], cdb[8]);
 
  if(lba_start < 0 || lba_end < 0 || lba_start >= (int32)toc.tracks[100].lba)
  {
@@ -1754,7 +1725,7 @@ static void DoPATI(const uint8 *cdb)
   return;
  }
 
- //printf("PATI: %d %d %d  SI: %d, EI: %d\n", StartTrack, EndTrack, CDIF_GetTrackStartPositionLBA(StartTrack), StartIndex, EndIndex);
+ //printf("PATI: %d %d %d  SI: %d, EI: %d\n", StartTrack, EndTrack, Cur_CDIF->GetTrackStartPositionLBA(StartTrack), StartIndex, EndIndex);
 
  DoPABase(toc.tracks[StartTrack].lba, toc.tracks[EndTrack].lba - toc.tracks[StartTrack].lba);
 }
@@ -1781,7 +1752,7 @@ static void DoPATRBase(const uint32 lba, const uint32 length)
  }
  else
  {  
-  if(toc.tracks[CDIF_FindTrackByLBA(lba)].control & 0x04)
+  if(toc.tracks[toc.FindTrackByLBA(lba)].control & 0x04)
   {
    CommandCCError(SENSEKEY_MEDIUM_ERROR, NSE_NOT_AUDIO_TRACK);
    return;
@@ -1875,7 +1846,7 @@ static void DoREADBase(uint32 sa, uint32 sc)
   return;
  }
 
- if((track = CDIF_FindTrackByLBA(sa)) == 0)
+ if((track = toc.FindTrackByLBA(sa)) == 0)
  {
   CommandCCError(SENSEKEY_ILLEGAL_REQUEST, NSE_END_OF_VOLUME);
   return;
@@ -1896,8 +1867,8 @@ static void DoREADBase(uint32 sa, uint32 sc)
 
  if(SCSILog)
  {
-  int Track = CDIF_FindTrackByLBA(sa);
-  uint32 Offset = sa - CDIF_GetTrackStartPositionLBA(Track);
+  int Track = toc.FindTrackByLBA(sa);
+  uint32 Offset = sa - toc.tracks[Track].lba; //Cur_CDIF->GetTrackStartPositionLBA(Track);
   SCSILog("SCSI", "Read: start=0x%08x(track=%d, offs=0x%08x), cnt=0x%08x", sa, Track, Offset, sc);
  }
 
@@ -1905,7 +1876,7 @@ static void DoREADBase(uint32 sa, uint32 sc)
  SectorCount = sc;
  if(SectorCount)
  {
-  CDIF_HintReadSector(sa);	//, sa + sc);
+  Cur_CDIF->HintReadSector(sa);	//, sa + sc);
 
   CDReadTimer = (uint64)1 * 2048 * System_Clock / CD_DATA_TRANSFER_RATE;
  }
@@ -2106,13 +2077,13 @@ static void DoREADSUBCHANNEL(const uint8 *cdb)
    if(WantMSF)
    {
     data_in[offset++] = 0;
-    data_in[offset++] = BCD_TO_INT(SubQBuf[7]); // M
-    data_in[offset++] = BCD_TO_INT(SubQBuf[8]); // S
-    data_in[offset++] = BCD_TO_INT(SubQBuf[9]); // F
+    data_in[offset++] = BCD_to_U8(SubQBuf[7]); // M
+    data_in[offset++] = BCD_to_U8(SubQBuf[8]); // S
+    data_in[offset++] = BCD_to_U8(SubQBuf[9]); // F
    }
    else
    {
-    uint32 tmp_lba = BCD_TO_INT(SubQBuf[7]) * 60 * 75 + BCD_TO_INT(SubQBuf[8]) * 75 + BCD_TO_INT(SubQBuf[9]) - 150;
+    uint32 tmp_lba = BCD_to_U8(SubQBuf[7]) * 60 * 75 + BCD_to_U8(SubQBuf[8]) * 75 + BCD_to_U8(SubQBuf[9]) - 150;
 
     data_in[offset++] = tmp_lba >> 24;
     data_in[offset++] = tmp_lba >> 16;
@@ -2124,13 +2095,13 @@ static void DoREADSUBCHANNEL(const uint8 *cdb)
    if(WantMSF)
    {
     data_in[offset++] = 0;
-    data_in[offset++] = BCD_TO_INT(SubQBuf[3]); // M
-    data_in[offset++] = BCD_TO_INT(SubQBuf[4]); // S
-    data_in[offset++] = BCD_TO_INT(SubQBuf[5]); // F
+    data_in[offset++] = BCD_to_U8(SubQBuf[3]); // M
+    data_in[offset++] = BCD_to_U8(SubQBuf[4]); // S
+    data_in[offset++] = BCD_to_U8(SubQBuf[5]); // F
    }
    else
    {
-    uint32 tmp_lba = BCD_TO_INT(SubQBuf[3]) * 60 * 75 + BCD_TO_INT(SubQBuf[4]) * 75 + BCD_TO_INT(SubQBuf[5]);	// Don't subtract 150 in the conversion!
+    uint32 tmp_lba = BCD_to_U8(SubQBuf[3]) * 60 * 75 + BCD_to_U8(SubQBuf[4]) * 75 + BCD_to_U8(SubQBuf[5]);	// Don't subtract 150 in the conversion!
 
     data_in[offset++] = tmp_lba >> 24;
     data_in[offset++] = tmp_lba >> 16;
@@ -2247,11 +2218,11 @@ static void DoNEC_SCAN(const uint8 *cdb)
    break;
 
   case 0x40:
-   sector_tmp = msf2lba(BCD_TO_INT(cdb[2]), BCD_TO_INT(cdb[3]), BCD_TO_INT(cdb[4]));
+   sector_tmp = AMSF_to_LBA(BCD_to_U8(cdb[2]), BCD_to_U8(cdb[3]), BCD_to_U8(cdb[4]));
    break;
 
-  case 0x80:
-   sector_tmp = CDIF_GetTrackStartPositionLBA(BCD_TO_INT(cdb[2]));
+  case 0x80:	// FIXME: error on invalid track number???
+   sector_tmp = toc.tracks[BCD_to_U8(cdb[2])].lba;
    break;
  }
 
@@ -2479,7 +2450,7 @@ static INLINE void RunCDDA(uint32 system_timestamp, int32 run_time)
     {
      uint8 tmpbuf[2352 + 96];
 
-     CDIF_ReadRawSector(tmpbuf, read_sec);	//, read_sec_end, read_sec_start);
+     Cur_CDIF->ReadRawSector(tmpbuf, read_sec);	//, read_sec_end, read_sec_start);
 
      for(int i = 0; i < 588 * 2; i++)
       cdda.CDDASectorBuffer[i] = MDFN_de16lsb(&tmpbuf[i * 2]);
@@ -2577,7 +2548,7 @@ static INLINE void RunCDRead(uint32 system_timestamp, int32 run_time)
     {
      CommandCCError(SENSEKEY_ILLEGAL_REQUEST, NSE_END_OF_VOLUME);
     }
-    else if(!CDIF_ReadRawSector(tmp_read_buf, SectorAddr))	//, SectorAddr + SectorCount))
+    else if(!Cur_CDIF->ReadRawSector(tmp_read_buf, SectorAddr))	//, SectorAddr + SectorCount))
     {
      cd.data_transfer_done = FALSE;
 
@@ -2612,7 +2583,7 @@ static INLINE void RunCDRead(uint32 system_timestamp, int32 run_time)
       cd.data_transfer_done = TRUE;
      }
     }
-   }				// end else to if(!CDIF_ReadSector
+   }				// end else to if(!Cur_CDIF->ReadSector
 
   }
  }
@@ -2733,6 +2704,10 @@ uint32 SCSICD_Run(scsicd_timestamp_t system_timestamp)
        if(cd.TrayOpen && (cmd_info_ptr->flags & SCF_REQUIRES_MEDIUM))
        {
 	CommandCCError(SENSEKEY_NOT_READY, NSE_TRAY_OPEN);
+       }
+       else if(!Cur_CDIF && (cmd_info_ptr->flags & SCF_REQUIRES_MEDIUM))
+       {
+	CommandCCError(SENSEKEY_NOT_READY, NSE_NO_DISC);
        }
        else if(cd.DiscChanged && (cmd_info_ptr->flags & SCF_REQUIRES_MEDIUM))
        {
@@ -2982,13 +2957,19 @@ void SCSICD_SetTransferRate(uint32 TransferRate)
  CD_DATA_TRANSFER_RATE = TransferRate;
 }
 
+void SCSICD_Close(void)
+{
+ if(din)
+ {
+  delete din;
+  din = NULL;
+ }
+}
+
 void SCSICD_Init(int type, int cdda_time_div, Blip_Buffer *leftbuf, Blip_Buffer *rightbuf, uint32 TransferRate, uint32 SystemClock, void (*IRQFunc)(int), void (*SSCFunc)(uint8, int))
 {
- if(!CDIF_ReadTOC(&toc))
- {
-  // FIXME
-  exit(1);
- }
+ Cur_CDIF = NULL;
+ cd.TrayOpen = false;
 
  monotonic_timestamp = 0;
  lastts = 0;
@@ -2996,9 +2977,9 @@ void SCSICD_Init(int type, int cdda_time_div, Blip_Buffer *leftbuf, Blip_Buffer 
  SCSILog = NULL;
 
  if(type == SCSICD_PCFX)
-  din = new SimpleFIFO(65536);	//4096);
+  din = new SimpleFIFO<uint8>(65536);	//4096);
  else
-  din = new SimpleFIFO(2048); //8192); //1024); /2048);
+  din = new SimpleFIFO<uint8>(2048); //8192); //1024); /2048);
 
  WhichSystem = type;
  cdda.CDDATimeDiv = cdda_time_div;
@@ -3074,7 +3055,7 @@ int SCSICD_StateAction(StateMem * sm, int load, int data_only, const char *sname
   SFVARN(cd.command_size_left, "command_size_left"),
 
   // Don't save the FIFO's write position, it will be reconstructed from read_pos and in_count
-  SFARRAYN(din->ptr, din->size, "din_fifo"),
+  SFARRAYN(&din->data[0], din->data.size(), "din_fifo"),
   SFVARN(din->read_pos, "din_read_pos"),
   SFVARN(din->in_count, "din_in_count"),
   SFVARN(cd.data_transfer_done, "data_transfer_done"),

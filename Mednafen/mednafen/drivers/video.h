@@ -8,6 +8,13 @@ enum
  VDRIVER_OVERLAY = 2
 };
 
+enum
+{
+ VIDEOIP_OFF = 0,	// Off should always be 0 here.
+ VIDEOIP_BILINEAR,
+ VIDEOIP_LINEAR_X,
+ VIDEOIP_LINEAR_Y
+};
 
 void PtoV(int *x, int *y);
 int InitVideo(MDFNGI *gi);

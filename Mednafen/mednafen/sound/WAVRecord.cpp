@@ -22,6 +22,7 @@
 WAVRecord::WAVRecord(const char *path, double SoundRate_arg, uint32 SoundChan_arg) : wavfile(path, FileWrapper::MODE_WRITE_SAFE)
 {
  Finished = false;
+ PCMBytesWritten = 0;
 
  SoundRate = SoundRate_arg;
  SoundChan = SoundChan_arg;
@@ -44,7 +45,6 @@ WAVRecord::WAVRecord(const char *path, double SoundRate_arg, uint32 SoundChan_ar
 
  MDFN_en32msb(&raw_headers[0x24], 0x64617461);	// "data"
  // @ 0x28 = bytes of PCM data following
-
 
  wavfile.write(raw_headers, sizeof(raw_headers));
 }
@@ -75,12 +75,13 @@ void WAVRecord::Finish(void)
  if(Finished)
   return;
 
- MDFN_en32lsb(&raw_headers[0x04], std::min(wavfile.tell() - 8, (int64)0xFFFFFFFF));
+ MDFN_en32lsb(&raw_headers[0x04], std::min(wavfile.tell() - 8, (int64)0xFFFFFFFFLL));
 
- MDFN_en32lsb(&raw_headers[0x28], std::min(PCMBytesWritten, (int64)0xFFFFFFFF));
+ MDFN_en32lsb(&raw_headers[0x28], std::min(PCMBytesWritten, (int64)0xFFFFFFFFLL));
 
  wavfile.seek(0, SEEK_SET);
  wavfile.write(raw_headers, sizeof(raw_headers));
+ wavfile.close();
 
  Finished = true;
 }

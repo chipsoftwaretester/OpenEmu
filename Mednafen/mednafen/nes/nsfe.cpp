@@ -84,7 +84,7 @@ int LoadNSFE(NSFINFO *nfe, const uint8 *buf, int32 size, int info_only)
    if(chunk_size) { nfe->StartingSong = *buf; buf++; size--; chunk_size--; }
    else nfe->StartingSong = 0;
 
-   nfe->SongNames = (UTF8 **)malloc(sizeof(char *) * nfe->TotalSongs);
+   nfe->SongNames = (char **)malloc(sizeof(char *) * nfe->TotalSongs);
    memset(nfe->SongNames, 0, sizeof(char *) * nfe->TotalSongs);
 
    nfe->SongLengths = (int32 *)malloc(sizeof(int32) * nfe->TotalSongs);
@@ -135,7 +135,7 @@ int LoadNSFE(NSFINFO *nfe, const uint8 *buf, int32 size, int info_only)
    {
     int slen = strlen((char *)buf);
 
-    nfe->SongNames[songcount++] = (UTF8*)MDFN_RemoveControlChars(strdup((char *)buf));
+    nfe->SongNames[songcount++] = (char*)MDFN_RemoveControlChars(strdup((char *)buf));
 
     buf += slen + 1;
     chunk_size -= slen + 1;
@@ -176,10 +176,10 @@ int LoadNSFE(NSFINFO *nfe, const uint8 *buf, int32 size, int info_only)
    {
     int slen = strlen((char *)buf);
 
-    if(!which) nfe->GameName = (UTF8*)MDFN_RemoveControlChars(strdup((char *)buf));
-    else if(which == 1) nfe->Artist = (UTF8*)MDFN_RemoveControlChars(strdup((char *)buf));
-    else if(which == 2) nfe->Copyright = (UTF8*)MDFN_RemoveControlChars(strdup((char *)buf));
-    else if(which == 3) nfe->Ripper = (UTF8*)MDFN_RemoveControlChars(strdup((char *)buf));
+    if(!which) nfe->GameName = (char*)MDFN_RemoveControlChars(strdup((char *)buf));
+    else if(which == 1) nfe->Artist = (char*)MDFN_RemoveControlChars(strdup((char *)buf));
+    else if(which == 2) nfe->Copyright = (char*)MDFN_RemoveControlChars(strdup((char *)buf));
+    else if(which == 3) nfe->Ripper = (char*)MDFN_RemoveControlChars(strdup((char *)buf));
 
     which++;
     buf += slen +1;

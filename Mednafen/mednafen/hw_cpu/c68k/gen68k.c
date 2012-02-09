@@ -353,7 +353,7 @@ static void GenMOVEPWaD()
     mem_op("\tREAD_BYTE_F(adr + 0, res)\n");
     mem_op("\tREAD_BYTE_F(adr + 2, src)\n");
     // write
-    wf_op("\t*(u16*)(&CPU->D[(Opcode >> %d) & 7]) = (res << 8) | src;\n", current_op->reg2_sft);
+    wf_op("\t*(WORD_OFF + (u16*)(&CPU->D[(Opcode >> %d) & 7])) = (res << 8) | src;\n", current_op->reg2_sft);
 
     terminate_op(16);
 }

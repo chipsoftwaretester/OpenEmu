@@ -21,8 +21,7 @@ namespace MDFN_IEN_SMS
 
 #define MASTER_CLOCK        3579545
 #define LINES_PER_FRAME     262
-#define FRAMES_PER_SECOND   60
-#define CYCLES_PER_LINE     ((MASTER_CLOCK / FRAMES_PER_SECOND) / LINES_PER_FRAME)
+#define CYCLES_PER_LINE     228
 
 /* VDP context */
 typedef struct
@@ -51,18 +50,20 @@ typedef struct
     uint8 mode;
     uint8 vint_pending;
     uint8 hint_pending;
+    uint8 hc_latch;
     uint16 cram_latch;
     uint8 bd;
 
     int lines_per_frame;
     int rshift, gshift, bshift;
+    bool quirk_disabled;
 } vdp_t;
 
 /* Global data */
 extern vdp_t vdp;
 
 /* Function prototypes */
-void vdp_init(void);
+void vdp_init(bool want_quirk);
 void vdp_shutdown(void);
 void vdp_reset(void);
 uint8 vdp_counter_r(int offset);
@@ -71,6 +72,7 @@ void vdp_write(int offset, uint8 data);
 void gg_vdp_write(int offset, uint8 data);
 void md_vdp_write(int offset, uint8 data);
 void tms_write(int offset, int data);
+void vdp_hclatch(void);
 
 
 void SMS_VDPRunFrame(int skip_render);

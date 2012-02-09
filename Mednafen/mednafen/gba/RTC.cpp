@@ -47,6 +47,11 @@ void RTC::InitTime(void)
  curtime = (int64)long_time * 16777216;
 }
 
+void RTC::AddTime(int32 amount)
+{
+ curtime += amount;
+}
+
 uint16 RTC::Read(uint32 address)
 {
     if(address == 0x80000c8)

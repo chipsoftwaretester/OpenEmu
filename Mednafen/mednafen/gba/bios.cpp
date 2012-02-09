@@ -24,6 +24,9 @@
 #include <math.h>
 #include <memory.h>
 
+namespace MDFN_IEN_GBA
+{
+
 int16 sineTable[256] = {
   (int16)0x0000, (int16)0x0192, (int16)0x0323, (int16)0x04B5, (int16)0x0645, (int16)0x07D5, (int16)0x0964, (int16)0x0AF1,
   (int16)0x0C7C, (int16)0x0E05, (int16)0x0F8C, (int16)0x1111, (int16)0x1294, (int16)0x1413, (int16)0x158F, (int16)0x1708,
@@ -1157,4 +1160,6 @@ void BIOS_SndDriverJmpTableCopy()
     CPUWriteMemory(reg[0].I, 0x9c);
     reg[0].I += 4;
   }
+}
+
 }

@@ -3,7 +3,7 @@
 
 typedef struct {
         uint8  ButtType;
-        uint8  DeviceNum;;
+        uint8  DeviceNum;
         uint32 ButtonNum;
 	uint64 DeviceID;
 } ButtConfig;
@@ -15,6 +15,8 @@ typedef struct {
 
 #define MKK(k) SDLK_##k
 #define MKK_COUNT (SDLK_LAST+1)
+
+void Input_Event(const SDL_Event *event);
 
 // Called after a game is loaded.
 void InitGameInput(MDFNGI *GI);

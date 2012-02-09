@@ -20,22 +20,39 @@
 
 #include "wswan.h"
 #include "v30mz.h"
+#include "debug.h"
 #include "dis/disasm.h"
 #include "memory.h"
 #include "gfx.h"
 #include <stdarg.h>
 #include <trio/trio.h>
 
-static int BTIndex = 0;
-static uint32 BTEntries[16];
-static uint32 BTEntriesCS[16];
+namespace MDFN_IEN_WSWAN
+{
 
-typedef struct __WSWAN_BPOINT
+#define NUMBT 32
+
+static int BTIndex = 0;
+
+struct BTEntry
+{
+ uint16 from_CS;
+ uint16 from_IP;
+ uint16 to_CS;
+ uint16 to_IP;
+
+ bool interrupt;
+ uint32 branch_count;
+};
+
+static BTEntry BTEntries[NUMBT];
+
+struct WSWAN_BPOINT
 {
         unsigned int A[2];
         int type;
 	bool logical;
-} WSWAN_BPOINT;
+};
 
 static std::vector<WSWAN_BPOINT> BreakPointsPC, BreakPointsRead, BreakPointsWrite, BreakPointsIORead, BreakPointsIOWrite, BreakPointsAux0Read, BreakPointsAux0Write;
 
@@ -154,7 +171,8 @@ static void RedoDH(void)
         (BreakPointsRead.size() || BreakPointsAux0Read.size()) ? ReadHandler : NULL,
         (BreakPointsWrite.size() || BreakPointsAux0Write.size()) ? WriteHandler : 0,
 	(BreakPointsIORead.size()) ? PortReadHandler : NULL,
-	(BreakPointsIOWrite.size()) ? PortWriteHandler : NULL);
+	(BreakPointsIOWrite.size()) ? PortWriteHandler : NULL,
+        (CPUHook) ? WSwanDBG_AddBranchTrace : NULL);
 }
 
 void WSwanDBG_SetCPUCallback(void (*callb)(uint32 PC))
@@ -234,90 +252,47 @@ uint32 WSwanDBG_MemPeek(uint32 A, unsigned int bsize, bool hl, bool logical)
  return(ret);
 }
 
-uint32 WSwanDBG_GetRegister(const std::string &name, std::string *special)
+void WSwanDBG_AddBranchTrace(uint16 from_CS, uint16 from_IP, uint16 to_CS, uint16 to_IP, bool interrupt)
 {
- if(name == "IP")
-  return(v30mz_get_reg(NEC_PC));
- if(name == "AX")
-  return(v30mz_get_reg(NEC_AW));
- if(name == "BX")
-  return(v30mz_get_reg(NEC_BW));
- if(name == "CX")
-  return(v30mz_get_reg(NEC_CW));
- if(name == "DX")
-  return(v30mz_get_reg(NEC_DW));
- if(name == "SP")
-  return(v30mz_get_reg(NEC_SP));
- if(name == "BP")
-  return(v30mz_get_reg(NEC_BP));
- if(name == "SI")
-  return(v30mz_get_reg(NEC_IX));
- if(name == "DI")
-  return(v30mz_get_reg(NEC_IY));
- if(name == "CS")
-  return(v30mz_get_reg(NEC_PS));
- if(name == "SS")
-  return(v30mz_get_reg(NEC_SS));
- if(name == "DS")
-  return(v30mz_get_reg(NEC_DS0));
- if(name == "ES")
-  return(v30mz_get_reg(NEC_DS1));
+ BTEntry *prevbt = &BTEntries[(BTIndex + NUMBT - 1) % NUMBT];
 
- return(0);
-}
-
-void WSwanDBG_SetRegister(const std::string &name, uint32 value)
-{
- if(name == "IP")
-  v30mz_set_reg(NEC_PC, value);
- else if(name == "AX")
-  v30mz_set_reg(NEC_AW, value);
- else if(name == "BX")
-  v30mz_set_reg(NEC_BW, value);
- else if(name == "CX")
-  v30mz_set_reg(NEC_CW, value);
- else if(name == "DX")
-  v30mz_set_reg(NEC_DW, value);
- else if(name == "SP")
-  v30mz_set_reg(NEC_SP, value);
- else if(name == "BP")
-  v30mz_set_reg(NEC_BP, value);
- else if(name == "SI")
-  v30mz_set_reg(NEC_IX, value);
- else if(name == "DI")
-  v30mz_set_reg(NEC_IY, value);
- else if(name == "CS")
-  v30mz_set_reg(NEC_PS, value);
- else if(name == "SS")
-  v30mz_set_reg(NEC_SS, value);
- else if(name == "DS")
-  v30mz_set_reg(NEC_DS0, value);
- else if(name == "ES")
-  v30mz_set_reg(NEC_DS1, value);
-}
-
-void WSwanDBG_AddBranchTrace(uint16 CS, uint16 IP)
-{
- if(BTEntries[(BTIndex - 1) & 0xF] == IP && BTEntriesCS[(BTIndex - 1) & 0xF] == CS) return;
-
- BTEntries[BTIndex] = IP;
- BTEntriesCS[BTIndex] = CS;
-
- BTIndex = (BTIndex + 1) & 0xF;
-}
-
-std::vector<std::string> WSwanDBG_GetBranchTrace(void)
-{
- std::vector<std::string> ret;
-
- for(int x = 0; x < 16; x++)
+ if(prevbt->from_CS == from_CS && prevbt->to_CS == to_CS &&
+    prevbt->from_IP == from_IP && prevbt->to_IP == to_IP &&
+	 prevbt->interrupt == interrupt && prevbt->branch_count < 0xFFFFFFFF)
+  prevbt->branch_count++;
+ else
  {
-  char *tmps = trio_aprintf("%04x:%04X", BTEntriesCS[(x + BTIndex) & 0xF], BTEntries[(x + BTIndex) & 0xF]);
-  ret.push_back(std::string(tmps));
-  free(tmps);
+  BTEntries[BTIndex].from_CS = from_CS;
+  BTEntries[BTIndex].to_CS = to_CS;
+  BTEntries[BTIndex].from_IP = from_IP;
+  BTEntries[BTIndex].to_IP = to_IP;
+
+  BTEntries[BTIndex].interrupt = interrupt;
+  BTEntries[BTIndex].branch_count = 1;
+
+  BTIndex = (BTIndex + 1) % NUMBT;
+ }
+}
+
+std::vector<BranchTraceResult> WSwanDBG_GetBranchTrace(void)
+{
+ BranchTraceResult tmp;
+ std::vector<BranchTraceResult> ret;
+
+ for(int x = 0; x < NUMBT; x++)
+ {
+  const BTEntry *bt = &BTEntries[(x + BTIndex) % NUMBT];
+
+  tmp.count = bt->branch_count;
+  trio_snprintf(tmp.from, sizeof(tmp.from), "%04X:%04X", bt->from_CS, bt->from_IP);
+  trio_snprintf(tmp.to, sizeof(tmp.to), "%04X:%04X", bt->to_CS, bt->to_IP);
+  trio_snprintf(tmp.code, sizeof(tmp.code), bt->interrupt ? "INT" : "");
+
+  ret.push_back(tmp);
  }
  return(ret);
 }
+
 
 void WSwanDBG_CheckBP(int type, uint32 address, unsigned int len)
 {
@@ -380,4 +355,99 @@ void WSwanDBG_Disassemble(uint32 &a, uint32 SpecialA, char *text_buffer)
 void WSwanDBG_ToggleSyntax(void)
 {
  zedis.toggle_syntax_mode();
+}
+
+
+
+//
+//
+//
+
+static RegType V30MZ_Regs[] =
+{
+        { NEC_PC, "IP", "Instruction Pointer", 2 },
+        { NEC_FLAGS, "PSW", "Program Status Word", 2 },
+        { NEC_AW, "AX", "Accumulator", 2 },
+        { NEC_BW, "BX", "Base", 2 },
+        { NEC_CW, "CX", "Counter", 2 },
+        { NEC_DW, "DX", "Data", 2 },
+        { NEC_SP, "SP", "Stack Pointer", 2 },
+        { NEC_BP, "BP", "Base Pointer", 2 },
+        { NEC_IX, "SI", "Source Index", 2 },
+        { NEC_IY, "DI", "Dest Index", 2 },
+        { NEC_PS, "CS", "Program Segment", 2 },
+        { NEC_SS, "SS", "Stack Segment", 2 },
+        { NEC_DS0, "DS", "Data Segment", 2 },
+        { NEC_DS1, "ES", "Extra Segment(Destination)", 2 },
+        { 0, "", "", 0 },
+};
+
+
+static uint32 V30MZ_GetRegister(const unsigned int id, char *special, const uint32 special_len)
+{
+ return(v30mz_get_reg(id));
+}
+
+static void V30MZ_SetRegister(const unsigned int id, uint32 value)
+{
+ v30mz_set_reg(id, value);
+}
+
+
+static RegGroupType V30MZRegsGroup =
+{
+ "V30MZ",
+ V30MZ_Regs,
+ V30MZ_GetRegister,
+ V30MZ_SetRegister,
+};
+
+//
+//
+
+static RegType MiscRegs[] =
+{
+ { MEMORY_GSREG_ROMBBSLCT, "ROMBBSLCT", "ROM Bank Base Selector for 64KiB banks 0x4-0xF", 1 },
+ { MEMORY_GSREG_BNK1SLCT, "BNK1SLCT", "???", 1 },
+ { MEMORY_GSREG_BNK2SLCT, "BNK2SLCT", "ROM Bank Selector for 64KiB bank 0x2", 1 },
+ { MEMORY_GSREG_BNK3SLCT, "BNK3SLCT", "ROM Bank Selector for 64KiB bank 0x3", 1 },
+
+ { 0x8000 | INT_GSREG_ISTATUS, "IStatus", "Interrupt Status", 1 },
+ { 0x8000 | INT_GSREG_IENABLE, "IEnable", "Interrupt Enable", 1 },
+ { 0x8000 | INT_GSREG_IVECTORBASE, "IVectorBase", "Interrupt Vector Base", 1 },
+ { 0, "", "", 0 },
+};
+
+static uint32 Misc_GetRegister(const unsigned int id, char *special, const uint32 special_len)
+{
+ if(id & 0x8000)
+  return(WSwan_InterruptGetRegister(id & ~0x8000, special, special_len));
+ else
+  return(WSwan_MemoryGetRegister(id, special, special_len));
+} 
+
+static void Misc_SetRegister(const unsigned int id, uint32 value)
+{
+ if(id & 0x8000)
+  WSwan_InterruptSetRegister(id & ~0x8000, value);
+ else
+  WSwan_MemorySetRegister(id, value);
+}
+
+
+static RegGroupType MiscRegsGroup =
+{
+ "Misc",
+ MiscRegs,
+ Misc_GetRegister,
+ Misc_SetRegister,
+};
+
+void WSwanDBG_Init(void)
+{
+ MDFNDBG_AddRegGroup(&V30MZRegsGroup);
+ MDFNDBG_AddRegGroup(&MiscRegsGroup);
+}
+
+
 }

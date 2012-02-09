@@ -20,6 +20,7 @@
 
 #include "../shared.h"
 #include "gamepad.h"
+#include <trio/trio.h>
 
 /*--------------------------------------------------------------------------*/
 /* Master System 2-button gamepad                                           */
@@ -29,12 +30,11 @@ class Gamepad2 : public MD_Input_Device
         public:
         Gamepad2();
         virtual ~Gamepad2();
-        virtual void Write(uint8 data);
-        virtual uint8 Read();
-        virtual void Update(const void *data);
+	virtual void UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted);
+        virtual void UpdatePhysicalState(const void *data);
+        virtual int StateAction(StateMem *sm, int load, int data_only, const char *section_prefix);
 
         private:
-        int select;
         uint8 buttons;
 };
 
@@ -46,13 +46,11 @@ class Gamepad3 : public MD_Input_Device
         public:
         Gamepad3();
         virtual ~Gamepad3();
-        virtual void Write(uint8 data);
-        virtual uint8 Read();
-        virtual void Update(const void *data);
-	virtual int StateAction(StateMem *sm, int load, int data_only, const char *section_name);
+	virtual void UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted);
+        virtual void UpdatePhysicalState(const void *data);
+	virtual int StateAction(StateMem *sm, int load, int data_only, const char *section_prefix);
 
 	private:
-	int select;
 	uint8 buttons;
 };
 
@@ -64,23 +62,34 @@ class Gamepad6 : public MD_Input_Device
         public:
         Gamepad6();
         virtual ~Gamepad6();
-        virtual void Write(uint8 data);
-        virtual uint8 Read();
-        virtual void Update(const void *data);
+
+	virtual void Power(void);
+
+        virtual void UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted);
+        virtual void UpdatePhysicalState(const void *data);
+        virtual void BeginTimePeriod(const int32 timestamp_base);
+        virtual void EndTimePeriod(const int32 master_timestamp);
+
+        virtual int StateAction(StateMem *sm, int load, int data_only, const char *section_prefix);
 
         private:
-	int count;
-	int select;
-	int timeout;
+	void Run(const int32 master_timestamp);
+
+	int32 prev_timestamp;
+	int32 count;
+	bool old_select;
+	int32 timeout;
 	uint16 buttons;
+
+	bool compat_mode;
 };
 
 const InputDeviceInputInfoStruct Gamepad2IDII[7] =
 {
  { "up", "UP ↑", 0, IDIT_BUTTON, "down" },
  { "down", "DOWN ↓", 1, IDIT_BUTTON, "up" },
- { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
  { "left", "LEFT ←", 2, IDIT_BUTTON, "right" },
+ { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
  { "a", "A", 5, IDIT_BUTTON_CAN_RAPID, NULL },
  { "b", "B", 6, IDIT_BUTTON_CAN_RAPID, NULL },
  { "start", "Start", 4, IDIT_BUTTON, NULL },
@@ -88,7 +97,7 @@ const InputDeviceInputInfoStruct Gamepad2IDII[7] =
 
 Gamepad2::Gamepad2()
 {
-
+ buttons = 0;
 }
 
 Gamepad2::~Gamepad2()
@@ -96,104 +105,20 @@ Gamepad2::~Gamepad2()
 
 }
 
-void Gamepad2::Write(uint8 data)
-{
-
-}
-
-uint8 Gamepad2::Read()
-{
-    uint8 temp = 0x3F;
-    if(buttons & INPUT_UP)    temp &= ~0x01;
-    if(buttons & INPUT_DOWN)  temp &= ~0x02;
-    if(buttons & INPUT_LEFT)  temp &= ~0x04;
-    if(buttons & INPUT_RIGHT) temp &= ~0x08;
-    if(buttons & INPUT_B)     temp &= ~0x10;
-    if(buttons & INPUT_C)     temp &= ~0x20;
-    return temp;
-}
-
-void Gamepad2::Update(const void *data)
-{
- buttons = *(uint8 *)data;
-}
-
-const InputDeviceInputInfoStruct GamepadIDII[8] =
-{
- { "up", "UP ↑", 0, IDIT_BUTTON, "down" },
- { "down", "DOWN ↓", 1, IDIT_BUTTON, "up" },
- { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
- { "left", "LEFT ←", 2, IDIT_BUTTON, "right" },
- { "a", "A", 5, IDIT_BUTTON_CAN_RAPID, NULL },
- { "b", "B", 6, IDIT_BUTTON_CAN_RAPID, NULL },
- { "c", "C", 7, IDIT_BUTTON_CAN_RAPID, NULL },
- { "start", "Start", 4, IDIT_BUTTON, NULL },
-// { "x", "B", 7, IDIT_BUTTON_CAN_RAPID, NULL },
-// { "y", "B", 7, IDIT_BUTTON_CAN_RAPID, NULL },
-// { "z", "B", 7, IDIT_BUTTON_CAN_RAPID, NULL },
-};
-
-Gamepad3::Gamepad3()
-{
-
-}
-
-Gamepad3::~Gamepad3()
-{
-
-}
-
-void Gamepad3::Write(uint8 data)
-{
-    select = (data >> 6) & 1;
-}
-
-uint8 Gamepad3::Read()
-{
-    uint8 temp = 0x3F;
-
-    if(select)
-    {
-        temp = 0x3F;
-        if(buttons & INPUT_UP)    temp &= ~0x01;
-        if(buttons & INPUT_DOWN)  temp &= ~0x02;
-        if(buttons & INPUT_LEFT)  temp &= ~0x04;
-        if(buttons & INPUT_RIGHT) temp &= ~0x08;
-        if(buttons & INPUT_B)     temp &= ~0x10;
-        if(buttons & INPUT_C)     temp &= ~0x20;
-
-	//printf("Read: %d, %02x\n", select, temp);
-
-        return temp | 0x40;
-    }
-    else
-    {
-        temp = 0x33;
-        if(buttons & INPUT_UP)    temp &= ~0x01;
-        if(buttons & INPUT_DOWN)  temp &= ~0x02;
-        if(buttons & INPUT_A)     temp &= ~0x10;
-        if(buttons & INPUT_START) temp &= ~0x20;
-
-	//printf("Read: %d, %02x\n", select, temp);
-        return temp;
-    }
-}
-
-void Gamepad3::Update(const void *data)
-{
- buttons = *(uint8 *)data;
-}
-
-int Gamepad3::StateAction(StateMem *sm, int load, int data_only, const char *section_name)
+int Gamepad2::StateAction(StateMem *sm, int load, int data_only, const char *section_prefix)
 {
  SFORMAT StateRegs[] =
  {
   SFVAR(buttons),
-  SFVAR(select),
   SFEND
  };
 
- int ret = MDFNSS_StateAction(sm, load, data_only, StateRegs, section_name);
+ int ret = 1;
+ char sname[64];
+
+ trio_snprintf(sname, sizeof(sname), "%s-gp2", section_prefix);
+
+ ret &= MDFNSS_StateAction(sm, load, data_only, StateRegs, sname);
 
  if(load)
  {
@@ -203,129 +128,268 @@ int Gamepad3::StateAction(StateMem *sm, int load, int data_only, const char *sec
 }
 
 
-const InputDeviceInputInfoStruct Gamepad6IDII[11] =
+void Gamepad2::UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted)
+{
+ bus = (bus &~ 0x3F) | (0x3F & ~buttons);
+}
+
+void Gamepad2::UpdatePhysicalState(const void *data)
+{
+ buttons = *(uint8 *)data;
+}
+
+const InputDeviceInputInfoStruct GamepadIDII[8] =
 {
  { "up", "UP ↑", 0, IDIT_BUTTON, "down" },
  { "down", "DOWN ↓", 1, IDIT_BUTTON, "up" },
- { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
  { "left", "LEFT ←", 2, IDIT_BUTTON, "right" },
- { "a", "A", 5, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
  { "b", "B", 6, IDIT_BUTTON_CAN_RAPID, NULL },
  { "c", "C", 7, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "a", "A", 5, IDIT_BUTTON_CAN_RAPID, NULL },
  { "start", "Start", 4, IDIT_BUTTON, NULL },
- { "x", "X", 8, IDIT_BUTTON_CAN_RAPID, NULL },
- { "y", "Y", 9, IDIT_BUTTON_CAN_RAPID, NULL },
+};
+
+Gamepad3::Gamepad3()
+{
+ buttons = 0;
+}
+
+Gamepad3::~Gamepad3()
+{
+
+}
+
+void Gamepad3::UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted)
+{
+ const bool select = (bus >> 6) & 1;
+ uint8 temp;
+
+ if(select)
+  temp = 0x3F & ~buttons;
+ else
+  temp = 0x33 & ~(buttons & 0x3) & ~((buttons >> 2) & 0x30);
+
+ bus = (bus & ~0x3F) | temp;
+}
+
+void Gamepad3::UpdatePhysicalState(const void *data)
+{
+ buttons = *(uint8 *)data;
+}
+
+int Gamepad3::StateAction(StateMem *sm, int load, int data_only, const char *section_prefix)
+{
+ SFORMAT StateRegs[] =
+ {
+  SFVAR(buttons),
+  SFEND
+ };
+
+ int ret = 1;
+ char sname[64];
+
+ trio_snprintf(sname, sizeof(sname), "%s-gp3", section_prefix);
+
+ ret &= MDFNSS_StateAction(sm, load, data_only, StateRegs, sname);
+
+ if(load)
+ {
+
+ }
+ return(ret);
+}
+
+
+const InputDeviceInputInfoStruct Gamepad6IDII[12] =
+{
+ { "up", "UP ↑", 0, IDIT_BUTTON, "down" },
+ { "down", "DOWN ↓", 1, IDIT_BUTTON, "up" },
+ { "left", "LEFT ←", 2, IDIT_BUTTON, "right" },
+ { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
+ { "b", "B", 6, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "c", "C", 7, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "a", "A", 5, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "start", "Start", 4, IDIT_BUTTON, NULL },
  { "z", "Z", 10, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "y", "Y", 9, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "x", "X", 8, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "mode", "Mode", 11, IDIT_BUTTON, NULL },
 };
 
 Gamepad6::Gamepad6()
 {
-
+ buttons = 0;
+ old_select = 0;
+ prev_timestamp = 0;
 }
 
-Gamepad6::~Gamepad6()
+Gamepad6::~Gamepad6()	// Destructor.  DEEEEEEEE.  Don't put variables to initialize here again!
 {
 
 }
 
-void Gamepad6::Write(uint8 data)
+void Gamepad6::Power(void)
 {
-    data = (data >> 6) & 1;
+ count = 0;
+ timeout = 0;
 
-    /* Ignore cases where TH isn't changed */
-    if(data == select)
-        return;
-
-    /* Update state of TH */
-    select = data;
-
-    /* Reset the timeout counter */
-    timeout = 0;
-
-    /* Bump the state counter */
-    ++count;
+ //compat_mode = false; //(bool)(buttons & (1 << 11));
+ //compat_mode_counter = 4474431; // ~5 video frames
+ compat_mode = (bool)(buttons & (1 << 11));
 }
 
-uint8 Gamepad6::Read()
+int Gamepad6::StateAction(StateMem *sm, int load, int data_only, const char *section_prefix)
 {
-    uint8 temp = 0x3F;
+ SFORMAT StateRegs[] =
+ {
+  SFVAR(old_select),
+  SFVAR(buttons),
+  SFVAR(count),
+  SFVAR(timeout),
+  SFVAR(compat_mode),
+  SFEND
+ };
+ int ret = 1;
+ char sname[64];
 
-    if(count <= 4 || count >= 8)
-    {
-        if(select)
-        {
-            temp = 0x3F;
-            if(buttons & INPUT_UP)    temp &= ~0x01;
-            if(buttons & INPUT_DOWN)  temp &= ~0x02;
-            if(buttons & INPUT_LEFT)  temp &= ~0x04;
-            if(buttons & INPUT_RIGHT) temp &= ~0x08;
-            if(buttons & INPUT_B)     temp &= ~0x10;
-            if(buttons & INPUT_C)     temp &= ~0x20;
-            return temp | 0x40;
-        }
-        else
-        {
-            temp = 0x33;
-            if(buttons & INPUT_UP)    temp &= ~0x01;
-            if(buttons & INPUT_DOWN)  temp &= ~0x02;
-            if(buttons & INPUT_A)     temp &= ~0x10;
-            if(buttons & INPUT_START) temp &= ~0x20;
-            return temp;
-        }
-    }
-    else
-    switch(count)
-    {
-        case 5:
-            temp = 0x30;
-            if(buttons & INPUT_A) temp &= ~0x10;
-            if(buttons & INPUT_START) temp &= ~0x20;
-            return temp;
+ trio_snprintf(sname, sizeof(sname), "%s-gp6", section_prefix);
 
-        case 6:
-            temp = 0x3F;
-            if(buttons & INPUT_Z)     temp &= ~0x01;
-            if(buttons & INPUT_Y)     temp &= ~0x02;
-            if(buttons & INPUT_X)     temp &= ~0x04;
-            if(buttons & INPUT_MODE)  temp &= ~0x08;
-            if(buttons & INPUT_B)     temp &= ~0x10;
-            if(buttons & INPUT_C)     temp &= ~0x20;
-            return temp | 0x40;
+ ret &= MDFNSS_StateAction(sm, load, data_only, StateRegs, sname);
 
-        case 7:
-            temp = 0x3F;
-            if(buttons & INPUT_A)     temp &= ~0x10;
-            if(buttons & INPUT_START) temp &= ~0x20;
-            return temp;
-    }
+ if(load)
+ {
 
-    return -1;
-}
+ }
 
-void Gamepad6::Update(const void *data)
-{
- buttons = ((uint8 *)data)[0] | (((uint8 *)data)[1] << 8);
+ return(ret);
 }
 
 
+void Gamepad6::Run(const int32 master_timestamp)
+{
+ const int32 clocks = master_timestamp - prev_timestamp;
+
+ //printf("%d\n", master_timestamp - prev_timestamp);
 #if 0
-/* Update the timeout counter for any Fighting Pad 6B devices */
-void gen_io_update(void)
-{
-    int i;
-    for(i = 0; i < PORT_MAX; i++)
-    {
-        if(port[i].device == DEVICE_MD6B)
-        {
-            device_md6b_t *p = &device_md6b[i];
-
-            /* After 24 scanlines, reset the state counter */
-            if(++timeout > 24)
-                count = 0;
-        }
-    }
-}
+ if(compat_mode_counter >= 0)
+ {
+  if(!(buttons & (1 << 11)))
+   compat_mode_counter = false;
+  else
+  {
+   compat_mode_counter -= clocks;
+   if(compat_mode_counter <= 0)
+    compat_mode = true;
+  }
+ }
 #endif
+
+ timeout += clocks;
+
+ if(timeout >= 8192 * 7)
+ {
+  timeout = 0;
+  count = 0;
+
+  //if(!select)
+  // count++;
+  //printf("TIMEOUT: %d\n", select);
+ }
+
+ prev_timestamp = master_timestamp;
+}
+
+void Gamepad6::BeginTimePeriod(const int32 timestamp_base)
+{
+ //printf("Begin: %d\n", timestamp_base);
+ prev_timestamp = timestamp_base;
+}
+
+void Gamepad6::EndTimePeriod(const int32 master_timestamp)
+{
+ //printf("End: %d\n", master_timestamp);
+ Run(master_timestamp);
+}
+
+/*
+ How it's implemented here(copy/pasted from Charles' doc, and rearranged a bit):
+
+ Count:
+
+ 0      TH = 0 : ?0SA00DU    3-button pad return value
+ 0      TH = 1 : ?1CBRLDU    3-button pad return value
+
+ 1      TH = 0 : ?0SA00DU    3-button pad return value
+ 1      TH = 1 : ?1CBRLDU    3-button pad return value
+
+ 2      TH = 0 : ?0SA00DU    3-button pad return value
+ 2      TH = 1 : ?1CBRLDU    3-button pad return value
+
+ 3      TH = 0 : ?0SA0000    D3-0 are forced to '0'
+ 3      TH = 1 : ?1CBMXYZ    Extra buttons returned in D3-0
+
+ 4      TH = 0 : ?0SA1111    D3-0 are forced to '1'
+ 4      TH = 1 : ?1CBRLDU    3-button pad return value
+
+ ...    TH = 0 : ?0SA00DU    3-button pad return value
+ ...    TH = 1 : ?1CBRLDU    3-button pad return value
+
+*/
+
+void Gamepad6::UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted)
+{
+ Run(master_timestamp);
+
+ const bool select = (bus >> 6) & 1;
+ uint8 temp = 0x3F;
+
+ // Only take action if TH changed.
+ if(select != old_select)
+ {
+  timeout = 0;
+  old_select = select;
+
+  if(!select && count < 5 && !compat_mode)	// If TH is going from 1->0, and we haven't reached the end yet, increment the counter.
+   count++;
+ }
+
+ switch(count)
+ {
+     case 5:
+     case 0:
+     case 1:
+     case 2:
+	if(select)
+	 temp = 0x3F & ~buttons;
+	else
+         temp = 0x33 & ~(buttons & 0x3) & ~((buttons >> 2) & 0x30);
+        break;
+
+     case 3:
+        if(select)
+         temp = (0x30 & ~buttons) | (0x0F & ~(buttons >> 8));
+	else
+	 temp = 0x30 & ~((buttons >> 2) & 0x30);
+	break;
+
+     case 4:
+	if(select)
+	 temp = 0x3F & ~buttons;
+	else
+	 temp = 0x3F & ~((buttons >> 2) & 0x30);
+	break;
+ }
+
+ //printf("Read: %d 0x%02x\n", (count << 1) | select, temp);
+ bus = (bus & ~0x3F) | temp;
+}
+
+void Gamepad6::UpdatePhysicalState(const void *data)
+{
+ //printf("Buttons: %04x\n", MDFN_de16lsb((uint8 *)data));
+ buttons = MDFN_de16lsb((uint8 *)data);
+}
 
 MD_Input_Device *MDInput_MakeMS2B(void)
 {

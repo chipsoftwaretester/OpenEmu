@@ -16,12 +16,13 @@ void MDCD_CDC_MainWrite16(uint32 A, uint16 V)
 uint8 MDCD_CDC_MainRead8(uint32 A)
 {
 
-
+ return 0;
 }
 
 uint16 MDCD_CDC_MainRead16(uint32 A)
 {
 
+ return 0;
 }
 
 
@@ -37,12 +38,12 @@ void MDCD_CDC_SubWrite16(uint32 A, uint16 V)
 
 uint8 MDCD_CDC_SubRead8(uint32 A)
 {
-
+ return 0;
 }
 
 uint16 MDCD_CDC_SubRead16(uint32 A)
 {
-
+ return 0;
 }
 
 
@@ -62,10 +63,12 @@ void MDCD_CDD_Write16(uint32 A, uint16 V)
 uint8 MDCD_CDD_Read8(uint32 A)
 {
 
+ return 0;
 }
 
 uint16 MDCD_CDD_Read16(uint32 A)
 {
 
+ return 0;
 }
 

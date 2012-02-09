@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include "mcgenjin.h"
 
 namespace MDFN_IEN_PCE
 {
@@ -35,7 +36,8 @@ static bool BRAM_Disabled;       // Cached at game load, don't remove this cachi
 
 ArcadeCard *arcade_card = NULL;
 
-
+extern Blip_Buffer huc_sbuf;
+static MCGenjin *mcg = NULL;
 static uint8 *HuCROM = NULL;
 static uint8 *ROMMap[0x100] = { NULL };
 
@@ -169,14 +171,28 @@ static DECLFW(HuCSF2Write)
   HuCSF2Latch = A & 0xF;
 }
 
+static DECLFR(MCG_ReadHandler)
+{
+ return mcg->Read(HuCPU->Timestamp(), A);
+}
+
+static DECLFW(MCG_WriteHandler)
+{
+ mcg->Write(HuCPU->Timestamp(), A, V);
+}
+
 int HuCLoad(const uint8 *data, uint32 len, uint32 crc32, bool DisableBRAM, SysCardType syscard)
 {
  const uint32 sf2_threshold = 2048 * 1024;
  uint32 m_len = (len + 8191) &~ 8191;
  bool sf2_mapper = FALSE;
+ bool mcg_mapper = FALSE;
  bool UseBRAM = FALSE;
 
- if(!syscard && m_len >= sf2_threshold)
+ if(len >= 8192 && !memcmp(data + 0x1FD0, "MCGENJIN", 8))
+  mcg_mapper = TRUE;
+
+ if(!syscard && m_len >= sf2_threshold && !mcg_mapper)
  {
   sf2_mapper = TRUE;
 
@@ -210,6 +226,41 @@ int HuCLoad(const uint8 *data, uint32 len, uint32 crc32, bool DisableBRAM, SysCa
   MDFN_printf(_("ROM:       %dKiB\n"), (len + 1023) / 1024);
   MDFN_printf(_("ROM CRC32: 0x%08x\n"), crc32);
   MDFN_printf(_("ROM MD5:   0x%s\n"), md5_context::asciistr(MDFNGameInfo->MD5, 0).c_str());
+ }
+
+ if(syscard != SYSCARD_NONE)
+ {
+  if(!(CDRAM = (uint8 *)MDFN_calloc(1, 8 * 8192, _("CD RAM"))))
+  {
+   Cleanup();
+   return(0);
+  }
+
+  for(int x = 0x80; x < 0x88; x++)
+  {
+   ROMMap[x] = &CDRAM[(x - 0x80) * 8192] - x * 8192;
+   HuCPU->SetFastRead(x, ROMMap[x] + x * 8192);
+
+   HuCPU->SetReadHandler(x, CDRAMRead);
+   HuCPU->SetWriteHandler(x, CDRAMWrite);
+  }
+  MDFNMP_AddRAM(8 * 8192, 0x80 * 8192, CDRAM);
+
+  UseBRAM = TRUE;
+ }
+
+ if(mcg_mapper)
+ {
+  mcg = new MCGenjin(&huc_sbuf, data, len);
+
+  for(unsigned i = 0; i < 128; i++)
+  {
+   HuCPU->SetFastRead(i, NULL);
+   HuCPU->SetReadHandler(i, MCG_ReadHandler);
+   HuCPU->SetWriteHandler(i, MCG_WriteHandler);
+  }
+
+  goto BRAM_Init; // SO EVIL YES EVVIIIIIL(FIXME)
  }
 
  if(!(HuCROM = (uint8 *)MDFN_malloc(m_len, _("HuCard ROM"))))
@@ -311,24 +362,6 @@ int HuCLoad(const uint8 *data, uint32 len, uint32 crc32, bool DisableBRAM, SysCa
     HuCPU->SetWriteHandler(x, AC_PhysWrite);
    }
   }
-
-  if(!(CDRAM = (uint8 *)MDFN_calloc(1, 8 * 8192, _("CD RAM"))))
-  {
-   Cleanup();
-   return(0);
-  }
-
-  for(int x = 0x80; x < 0x88; x++)
-  {
-   ROMMap[x] = &CDRAM[(x - 0x80) * 8192] - x * 8192;
-   HuCPU->SetFastRead(x, ROMMap[x] + x * 8192);
-
-   HuCPU->SetReadHandler(x, CDRAMRead);
-   HuCPU->SetWriteHandler(x, CDRAMWrite);
-  }
-  MDFNMP_AddRAM(8 * 8192, 0x80 * 8192, CDRAM);
-
-  UseBRAM = TRUE;
  }
  else
  {
@@ -407,6 +440,8 @@ int HuCLoad(const uint8 *data, uint32 len, uint32 crc32, bool DisableBRAM, SysCa
   }
  }	// end else to if(syscard)
 
+ BRAM_Init:
+
  BRAM_Disabled = DisableBRAM;
  if(BRAM_Disabled)
   UseBRAM = false;
@@ -448,7 +483,7 @@ bool IsBRAMUsed(void)
 
 int HuC_StateAction(StateMem *sm, int load, int data_only)
 {
- SFORMAT StateRegs[] = 
+ SFORMAT StateRegs[] =
  {
   SFARRAY(PopRAM, IsPopulous ? 32768 : 0),
   SFARRAY(TsushinRAM, IsTsushin ? 32768 : 0),
@@ -471,11 +506,39 @@ int HuC_StateAction(StateMem *sm, int load, int data_only)
 
   ret &= PCECD_StateAction(sm, load, data_only);
  }
+
+ if(mcg)
+  ret &= mcg->StateAction(sm, load, data_only);
+
  return(ret);
 }
 
 void HuCClose(void)
 {
+ if(mcg)
+ {
+  for(unsigned i = 0; i < mcg->GetNVPDC(); i++)
+  {
+   uint32 nvs = mcg->GetNVSize(i);
+
+   if(nvs)
+   {
+    char buf[32];
+    std::vector<uint8> tmp_buf;
+
+    tmp_buf.resize(nvs);
+
+    mcg->ReadNV(i, &tmp_buf[0], 0, tmp_buf.size());
+
+    trio_snprintf(buf, sizeof(buf), "mg%d", i);
+    MDFN_DumpToFile(MDFN_MakeFName(MDFNMKF_SAV, 0, buf).c_str(), 6, &tmp_buf[0], tmp_buf.size());
+   }
+  }
+
+  delete mcg;
+  mcg = NULL;
+ }
+
  if(IsPopulous)
  {
   if(PopRAM)
@@ -500,6 +563,13 @@ void HuCClose(void)
  Cleanup();
 }
 
+void HuC_EndFrame(int32 timestamp)
+{
+ if(mcg)
+  mcg->EndFrame(timestamp);
+}
+
+
 void HuC_Power(void)
 {
  if(CDRAM) 
@@ -512,6 +582,9 @@ void HuC_Power(void)
   arcade_card->Power();
 
  HuCSF2Latch = 0;
+
+ if(mcg)
+  mcg->Power();
 }
 
 

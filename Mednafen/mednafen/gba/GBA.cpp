@@ -43,6 +43,26 @@
 #include <trio/trio.h>
 #include <errno.h>
 
+#include "../PSFLoader.h"
+
+namespace MDFN_IEN_GBA
+{
+
+class GSFLoader : public PSFLoader
+{
+ public:
+
+ GSFLoader(MDFNFILE *fp);
+ virtual ~GSFLoader();
+
+ virtual void HandleEXE(const uint8 *data, uint32 len, bool ignore_pcsp = false);
+
+ PSFTags tags;
+};
+
+static GSFLoader *gsf_loader = NULL;
+
+
 static bool CPUInit(const std::string bios_fn);
 static void CPUReset(void);
 
@@ -556,12 +576,9 @@ void CPUCleanUp()
  }
 }
 
-#include "../psf.h"
-static PSFINFO *pi = NULL;
-
 static void CloseGame(void)
 {
- if(!pi)
+ if(!gsf_loader)
  {
   GBA_EEPROM_SaveFile(MDFN_MakeFName(MDFNMKF_SAV, 0, "eep").c_str());
   CPUWriteBatteryFile(MDFN_MakeFName(MDFNMKF_SAV, 0, "sav").c_str());
@@ -570,41 +587,57 @@ static void CloseGame(void)
  // Call CPUCleanUp() to deallocate memory AFTER the backup memory is saved.
  CPUCleanUp();
 
- if(pi)
-  MDFNPSF_Free(pi);
- pi = NULL;
+ if(gsf_loader)
+ {
+  delete gsf_loader;
+  gsf_loader = NULL;
+ }
 }
 
-static void gsf_load_func(void *data, uint32 len)
+GSFLoader::GSFLoader(MDFNFILE *fp)
 {
- uint32 *md = (uint32 *)data;
- uint32 entry_point, gsf_offset, size;
-
- entry_point = md[0];
- gsf_offset = md[1];
- size = md[2];
-
- gsf_offset &= 0x00FFFFFF;
-
- if(entry_point == 0x8000000)
- {
-  if((gsf_offset + size) > 0x2000000)
-  {
-   // TODO:  Error message about overflow
-  }
-  else
-   memcpy(rom + gsf_offset, &md[3], size);
- }
- else if(entry_point == 0x2000000)
- {
-  if((gsf_offset + size) > 0x40000)
-  {
-  }
-  else
-   memcpy(workRAM + gsf_offset, &md[3], size);
- }
- //printf("%d %08x %08x %08x\n", len, entry_point, gsf_offset, size);
+ tags = Load(0x22, 1024 * 1024 * 32 + 12, fp);
 }
+
+GSFLoader::~GSFLoader()
+{
+
+}
+
+void GSFLoader::HandleEXE(const uint8 *data, uint32 size, bool ignore_pcsp)
+{
+ uint32 entry_point, gsf_offset, copy_size;
+
+ if(size < 12)
+  throw(MDFN_Error(0, "GSF program section is too small."));
+
+ entry_point = MDFN_de32lsb(data + 0);
+ gsf_offset = MDFN_de32lsb(data + 4);
+ copy_size = MDFN_de32lsb(data + 8);
+
+ //printf("0x%08x\n", entry_point);
+
+ if(copy_size > (size - 12))
+  throw(MDFN_Error(0, "GSF program section size header specifies more data than is available."));
+
+ if(gsf_offset >= 0x8000000 && gsf_offset < (0x8000000 + 0x2000000)) // ROM region
+ {
+  if((gsf_offset + copy_size - 0x8000000) > 0x2000000)
+   throw(MDFN_Error(0, "GSF program section offset+size exceeds region bounds."));
+  else
+   memcpy(rom + gsf_offset - 0x8000000, data + 12, copy_size);
+ }
+ else if(gsf_offset >= 0x2000000 && gsf_offset < (0x2000000 + 0x40000)) // Multiboot/RAM region
+ {
+  if((gsf_offset + copy_size - 0x2000000) > 0x40000)
+   throw(MDFN_Error(0, "GSF program section offset+size exceeds region bounds."));
+  else
+   memcpy(workRAM + gsf_offset - 0x2000000, data + 12, copy_size);
+ }
+ else
+  throw(MDFN_Error(0, "GSF program section offset specifies an unknown/unsupported region."));
+}
+
 
 static void RedoColorMap(const MDFN_PixelFormat &format) //int rshift, int gshift, int bshift)
 {
@@ -669,17 +702,23 @@ static int Load(const char *name, MDFNFILE *fp)
 
   if(!memcmp(fp->data, "PSF\x22", 4))
   {
-   int t = MDFNPSF_Load(0x22, fp, &pi, gsf_load_func);
-   if(!t)
+   try
    {
-    MDFN_PrintError("GSF load error.");
+    gsf_loader = new GSFLoader(fp);
+
+    std::vector<std::string> SongNames;
+
+    SongNames.push_back(gsf_loader->tags.GetTag("title"));
+
+    Player_Init(1, gsf_loader->tags.GetTag("game"), gsf_loader->tags.GetTag("artist"), gsf_loader->tags.GetTag("copyright"), SongNames);
+   }
+   catch(std::exception &e)
+   {
+    MDFN_PrintError("%s\n", e.what());
     MDFN_free(workRAM);
     MDFN_free(rom);
     return(0);
    }
-   static UTF8 *sn;
-   sn = (UTF8*)pi->title;
-   Player_Init(1, (UTF8*)pi->game, (UTF8*)pi->artist, (UTF8*)pi->copyright, &sn);
   }
   else
   {
@@ -768,7 +807,7 @@ static int Load(const char *name, MDFNFILE *fp)
 
   MDFNGBASOUND_Init();
 
-  if(!pi)
+  if(!gsf_loader)
   {
    MDFNMP_Init(0x8000, (1 << 28) / 0x8000);
 
@@ -776,7 +815,7 @@ static int Load(const char *name, MDFNFILE *fp)
    MDFNMP_AddRAM(0x08000, 0x3 << 24, internalRAM);
   }
 
-  if(!CPUInit(MDFN_GetSettingS("gba.bios")))
+  if(!CPUInit(gsf_loader ? std::string("") : MDFN_GetSettingS("gba.bios")))
   {
    CPUCleanUp();
    return(0);
@@ -786,7 +825,7 @@ static int Load(const char *name, MDFNFILE *fp)
   GBA_Flash_Init();
   eepromInit();
 
-  if(!pi)
+  if(!gsf_loader)
   {
    // EEPROM might be loaded from within CPUReadBatteryFile for support for Mednafen < 0.8.2, so call before GBA_EEPROM_LoadFile(), which
    // is more specific...kinda.
@@ -2513,7 +2552,7 @@ static bool CPUInit(const std::string bios_fn)
 
   MDFNFILE bios_fp;
 
-  if(!bios_fp.Open(bios_fn, KnownBIOSExtensions, _("GBA BIOS")))
+  if(!bios_fp.Open(MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, bios_fn.c_str()), KnownBIOSExtensions, _("GBA BIOS")))
   {
    return(0);
   }
@@ -3243,19 +3282,23 @@ static void Emulate(EmulateSpecStruct *espec)
 
  HelloSkipper = espec->skip;
 
- if(pi) HelloSkipper = 1;
+ if(gsf_loader)
+  HelloSkipper = 1;
 
- if(!pi)
+ if(!gsf_loader)
   MDFNMP_ApplyPeriodicCheats();
 
  while(!frameready && (soundTS < 300000))
   CPULoop(espec->surface, 300000);
 
+ if(GBA_RTC)
+  GBA_RTC->AddTime(soundTS);
+
  espec->MasterCycles = soundTS;
 
  espec->SoundBufSize = MDFNGBASOUND_Flush(espec->SoundBuf, espec->SoundBufMaxSize);
 
- if(pi)
+ if(gsf_loader)
   Player_Draw(espec->surface, &espec->DisplayRect, 0, espec->SoundBuf, espec->SoundBufSize);
 }
 
@@ -3334,11 +3377,17 @@ static InputInfoStruct InputInfo =
 
 static const FileExtensionSpecStruct KnownExtensions[] =
 {
+ { ".gsf", gettext_noop("GSF Rip") },
+ { ".minigsf", gettext_noop("MiniGSF Rip") },
  { ".gba", gettext_noop("GameBoy Advance ROM Image") },
  { ".agb", gettext_noop("GameBoy Advance ROM Image") },
  { ".bin", gettext_noop("GameBoy Advance ROM Image") },
  { NULL, NULL }
 };
+
+}
+
+using namespace MDFN_IEN_GBA;
 
 MDFNGI EmulatedGBA =
 {

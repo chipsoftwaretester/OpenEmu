@@ -4,7 +4,7 @@ DEFS = -DLOCALEDIR=\"$(datadir)/locale\" @DEFS@ @MATH_OPTIMIZER_FLAGS@
 DEFAULT_INCLUDES = -I$(top_builddir)/include -I$(top_builddir)/include/blip -I$(top_srcdir)/intl -I$(top_srcdir)
 
 bin_PROGRAMS	=	mednafen
-mednafen_SOURCES 	= 	cputest.cpp debug.cpp error.cpp mempatcher.cpp settings.cpp endian.cpp mednafen.cpp file.cpp general.cpp md5.cpp memory.cpp netplay.cpp state.cpp movie.cpp player.cpp psf.cpp tests.cpp qtrecord.cpp cdplay.cpp okiadpcm.cpp math_ops.cpp FileWrapper.cpp
+mednafen_SOURCES 	= 	debug.cpp error.cpp mempatcher.cpp settings.cpp endian.cpp mednafen.cpp file.cpp general.cpp md5.cpp memory.cpp netplay.cpp state.cpp movie.cpp player.cpp PSFLoader.cpp tests.cpp qtrecord.cpp cdplay.cpp okiadpcm.cpp math_ops.cpp FileWrapper.cpp Stream.cpp
 mednafen_LDADD 		= 	trio/libtrio.a drivers/libmdfnsdl.a sexyal/libsexyal.a @SDL_LIBS@
 mednafen_DEPENDENCIES	=	trio/libtrio.a drivers/libmdfnsdl.a sexyal/libsexyal.a
 
@@ -72,6 +72,13 @@ mednafen_LDADD          +=      pcfx/libpcfx.a
 mednafen_DEPENDENCIES   +=      pcfx/libpcfx.a
 endif
 
+if WANT_PSX_EMU
+SUBDIRS += psx
+mednafen_LDADD          +=      psx/libpsx.a
+mednafen_DEPENDENCIES   +=      psx/libpsx.a
+endif
+
+
 if WANT_SMS_EMU
 SUBDIRS += sms
 mednafen_LDADD          +=      sms/libsms.a
@@ -131,7 +138,8 @@ mednafen_DEPENDENCIES	+=	sound/libmdfnsound.a
 include compress/Makefile.am.inc
 include string/Makefile.am.inc
 include video/Makefile.am.inc
-
+include resampler/Makefile.am.inc
+include cputest/Makefile.am.inc
 
 mednafen_LDADD		+= 	@LIBINTL@ @LIBICONV@
 

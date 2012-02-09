@@ -140,7 +140,7 @@ bool FXTIMER_GetRegister(const std::string &name, uint32 &value, std::string *sp
   if(special)
   {
    char buf[256];
-   trio_snprintf(buf, 256, "Counting Enabled: %d, IRQ Enabled: %d, One-shot Enabled: %d", (int)(bool)(control & 2), (int)(bool)(control & 1), (int)(bool)(control & 4));
+   trio_snprintf(buf, 256, "Counting Enabled: %d, IRQ Enabled: %d, IRQ Asserted: %d", (int)(bool)(control & 2), (int)(bool)(control & 1), (int)(bool)(control & 4));
    *special = std::string(buf);
   }
   return(TRUE);

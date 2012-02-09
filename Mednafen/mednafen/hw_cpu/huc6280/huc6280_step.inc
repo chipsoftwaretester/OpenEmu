@@ -1,4 +1,4 @@
-         if(CPUHook)
+         if(DebugMode && CPUHook)
          {
           TimerSync();
           CalcNextEvent();
@@ -21,6 +21,10 @@
 	   REDOPIMCACHE();
            IRQSample &= ~IQRESET;
            IRQlow &= ~IQRESET;
+
+	   if(DebugMode && ADDBT)
+	    ADDBT(old_PC, PC, 0xFFFE);
+
 	   continue;
 	  }
 	  else
@@ -67,6 +71,9 @@
 	    PC|=RdMem(tmpa + 1) << 8; // Fect vector PCH
 
 	    LASTCYCLE;	// Cycle 8(internal operation?)
+
+            if(DebugMode && ADDBT)
+             ADDBT(old_PC, PC, tmpa);
 
 	    continue;
            }

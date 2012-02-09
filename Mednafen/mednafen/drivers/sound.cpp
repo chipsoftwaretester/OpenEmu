@@ -112,7 +112,7 @@ static bool RunSexyALTest(SexyAL *interface, SexyAL_buffering *buffering, const 
  // TODO: byte order format conversion.
  // TODO: source format.
  const int rate = 48000;
- const int numframes = (rate * 2 + 1) &~ 1;
+ const int numframes = (rate / 2 + 1) &~ 1;
 
  for(int src_channels = 1; src_channels <= 2; src_channels++)
  {
@@ -134,6 +134,10 @@ static bool RunSexyALTest(SexyAL *interface, SexyAL_buffering *buffering, const 
      format.channels = dest_channels;
      format.revbyteorder = 0;
      format.rate = rate;
+
+     buffering->buffer_size = 0;
+     buffering->period_size = 0;
+     buffering->latency = 0;
 
      if(!(Output=Interface->Open(Interface, device, &format, buffering, driver_type)))
      {
@@ -256,12 +260,14 @@ bool InitSound(MDFNGI *gi)
   return(FALSE);
  }
 
- MDFNI_printf(_("Using \"%s\" audio driver with device \"%s\":"),DriverTypes[CurDriverIndex].name, zedevice.c_str());
+ if(!strcasecmp(zedevice.c_str(), "default"))
+  MDFNI_printf(_("Using \"%s\" audio driver with SexyAL's default device selection."), DriverTypes[CurDriverIndex].name);
+ else
+  MDFNI_printf(_("Using \"%s\" audio driver with device \"%s\":"), DriverTypes[CurDriverIndex].name, zedevice.c_str());
  MDFN_indent(1);
 
  //RunSexyALTest(Interface, &buffering, zedevice.c_str(), DriverTypes[CurDriverIndex].type);
  //exit(1);
-
  if(!(Output=Interface->Open(Interface, zedevice.c_str(), &format, &buffering, DriverTypes[CurDriverIndex].type)))
  {
   MDFND_PrintError(_("Error opening a sound device."));
@@ -271,9 +277,9 @@ bool InitSound(MDFNGI *gi)
   return(FALSE);
  }
 
- if(format.rate<8192 || format.rate > 48000)
+ if(format.rate < 22050 || format.rate > 1048576)
  {
-  MDFND_PrintError(_("Set rate is out of range [8192-48000]"));
+  MDFND_PrintError(_("Set rate is out of range [22050-1048576]"));
   KillSound();
   MDFN_indent(-2);
   return(FALSE);

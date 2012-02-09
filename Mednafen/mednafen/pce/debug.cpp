@@ -45,7 +45,20 @@ static PCE_PSG *psg = NULL;
 static bool IsSGX;
 
 static int BTIndex = 0;
-static uint32 BTEntries[32];
+
+#define NUMBT 64 //24
+
+//static uint32 BTEntries[32];
+
+struct BTEntry
+{
+ uint32 from;
+ uint32 to;
+ uint32 vector;
+ uint32 branch_count;
+};
+
+static BTEntry BTEntries[NUMBT];
 
 typedef struct __PCE_BPOINT 
 {
@@ -72,26 +85,66 @@ static void (*LogFunc)(const char *, const char *);
 bool PCE_LoggingOn = FALSE;
 static uint16 LastPC = 0xBEEF;
 
-static void AddBranchTrace(uint32 PC)
+static void AddBranchTrace(uint32 from, uint32 to, uint32 vector)
 {
- PC &= 0xFFFF;
+ BTEntry *prevbt = &BTEntries[(BTIndex + NUMBT - 1) % NUMBT];
 
- if(BTEntries[(BTIndex - 1) & 0x1F] == PC) return;
+ from &= 0xFFFF;
+ to &= 0xFFFF;
 
- BTEntries[BTIndex] = PC;
- BTIndex = (BTIndex + 1) & 0x1F;
+ //if(BTEntries[(BTIndex - 1) & 0xF] == PC) return;
+
+ if(prevbt->from == from && prevbt->to == to && prevbt->vector == vector && prevbt->branch_count < 0xFFFFFFFF)
+  prevbt->branch_count++;
+ else
+ {
+  BTEntries[BTIndex].from = from;
+  BTEntries[BTIndex].to = to;
+  BTEntries[BTIndex].vector = vector;
+  BTEntries[BTIndex].branch_count = 1;
+
+  BTIndex = (BTIndex + 1) % NUMBT;
+ }
 }
 
 
-std::vector<std::string> PCEDBG_GetBranchTrace(void)
+static std::vector<BranchTraceResult> GetBranchTrace(void)
 {
- std::vector<std::string> ret;
+ BranchTraceResult tmp;
+ std::vector<BranchTraceResult> ret;
 
- for(int x = 0; x < 32; x++)
+ for(int x = 0; x < NUMBT; x++)
  {
-  char *tmps = trio_aprintf("%04X", BTEntries[(x + BTIndex) & 0x1F]);
-  ret.push_back(std::string(tmps));
-  free(tmps);
+  const BTEntry *bt = &BTEntries[(x + BTIndex) % NUMBT];
+
+  tmp.count = bt->branch_count;
+  trio_snprintf(tmp.from, sizeof(tmp.from), "%04X", bt->from);
+  trio_snprintf(tmp.to, sizeof(tmp.to), "%04X", bt->to);
+
+  tmp.code[1] = 0;
+  switch(bt->vector)
+  {
+   default: tmp.code[0] = 0;
+	    break;
+
+   case 0xFFFE:
+	tmp.code[0] = 'R';	// RESET
+        break;
+
+   case 0xFFFA:
+	tmp.code[0] = 'T';	// TIMER
+        break;
+
+   case 0xFFF8:
+	tmp.code[0] = '1';	// IRQ1
+        break;
+
+   case 0xFFF6:
+	tmp.code[0] = '2';	// IRQ2
+        break;
+  }
+
+  ret.push_back(tmp);
  }
  return(ret);
 }
@@ -253,6 +306,8 @@ static void TestRWBP(void)
 
 static void CPUHandler(uint32 PC)
 {
+ //PCECD_Run(HuCPU->Timestamp());
+
  PCE_InDebug++;
 
  FoundBPoint = TestPCBP(PC) | TestOpBP(HuCPU->PeekLogical(PC));
@@ -1005,7 +1060,7 @@ DebuggerInfoStruct PCEDBGInfo =
  PCEDBG_AddBreakPoint,
  PCEDBG_SetCPUCallback,
  PCEDBG_SetBPCallback,
- PCEDBG_GetBranchTrace,
+ GetBranchTrace,
  SetGraphicsDecode,
  PCEDBG_SetLogFunc,
 };

@@ -11,6 +11,13 @@
 namespace MDFN
 {
 
+class LEPacker;
+class LEPackable
+{
+ public:
+ virtual void pack(LEPacker &lep) = 0;
+};
+
 class LEPacker : public std::vector<uint8>
 {
  public:
@@ -29,6 +36,11 @@ class LEPacker : public std::vector<uint8>
  inline void reset_read_pos(void)
  {
   read_pos = 0;
+ }
+
+ void operator^(LEPackable &o)
+ {
+  o.pack(*this);
  }
 
  template<typename T> void operator^(T &val)

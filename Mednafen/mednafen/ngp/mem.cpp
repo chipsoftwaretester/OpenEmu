@@ -51,6 +51,9 @@ static uint8 *FastReadMap[256], *FastReadMapReal[256];
 
 void SetFRM(void) // Call this function after rom is loaded
 {
+ for(unsigned int x = 0; x < 256; x++)
+  FastReadMapReal[x] = NULL;
+
  for(unsigned int x = 0x20; x <= 0x3f; x++)
  {
   if(ngpc_rom.length > (x * 65536 + 65535 - 0x20000))

@@ -99,7 +99,7 @@ static uint16 Results[0x10];
 
 static void CheckIRQ(void)
 {
- uint16 MaskedResults = InterruptStatus & InterruptMask;
+ //uint16 MaskedResults = InterruptStatus & InterruptMask;
 
 
 
@@ -144,6 +144,7 @@ static void StoreInFIFO(uint16 V)
 uint8 HuC6273_Read8(uint32 A)
 {
  puts("73 Read8");
+ return(0);
 }
 
 uint16 HuC6273_Read16(uint32 A)

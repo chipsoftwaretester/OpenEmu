@@ -364,10 +364,57 @@ static const ButtConfig CDPlayInputConfig[] =
 
 static const ButtConfig MDPad3Config[2][8] =
 {
- { MK(w), MK(s), MK(d), MK(a), MK(KP1), MK(KP2), MK(KP3), MK(RETURN) },
+ { MK(w), MK(s), MK(a), MK(d), MK(KP1), MK(KP2), MK(KP3), MK(RETURN) },
  { MKZ(), MKZ(), MKZ(), MKZ(), MKZ(),   MKZ(),   MKZ(),   MKZ() },
 
 };
+
+/*
+ { "select", "SELECT", 4, IDIT_BUTTON, NULL },
+ { NULL, "empty", 0, IDIT_BUTTON },
+ { NULL, "empty", 0, IDIT_BUTTON },
+ { "start", "START", 5, IDIT_BUTTON, NULL },
+ { "up", "UP ↑", 0, IDIT_BUTTON, "down" },
+ { "right", "RIGHT →", 3, IDIT_BUTTON, "left" },
+ { "down", "DOWN ↓", 1, IDIT_BUTTON, "up" },
+ { "left", "LEFT ←", 2, IDIT_BUTTON, "right" },
+
+ { "l2", "L2 (rear left shoulder)", 11, IDIT_BUTTON, NULL },
+ { "r2", "R2 (rear right shoulder)", 13, IDIT_BUTTON, NULL },
+ { "l1", "L1 (front left shoulder)", 10, IDIT_BUTTON, NULL },
+ { "r1", "R1 (front right shoulder)", 12, IDIT_BUTTON, NULL },
+
+ { "triangle", "△ (upper)", 6, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "circle", "○ (right)", 9, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "cross", "x (lower)", 7, IDIT_BUTTON_CAN_RAPID, NULL },
+ { "square", "□ (left)", 8, IDIT_BUTTON_CAN_RAPID, NULL },
+*/
+static const ButtConfig PSXPadConfig[14] =
+{
+ MK(TAB),
+ MK(RETURN),
+ MK(w),
+ MK(d),
+ MK(s),
+ MK(a),
+
+ MK(KP7),
+ MK(KP9),
+ MK(KP1),
+ MK(KP3),
+
+ MK(KP8),
+ MK(KP6),
+ MK(KP2),
+ MK(KP4),
+};
+
+static ButtConfig PSXMouseConfig[2] =
+{
+ { BUTTC_MOUSE, 0, 2, 0 },
+ { BUTTC_MOUSE, 0, 0, 0 },
+};
+
 
 typedef struct
 {
@@ -453,6 +500,18 @@ static DefaultSettingsMeow defset[] =
  { "md.input.port6.gamepad", MDPad3Config[1], sizeof(MDPad3Config[1]) / sizeof(ButtConfig) },
  { "md.input.port7.gamepad", MDPad3Config[1], sizeof(MDPad3Config[1]) / sizeof(ButtConfig) },
  { "md.input.port8.gamepad", MDPad3Config[1], sizeof(MDPad3Config[1]) / sizeof(ButtConfig) },
+
+
+ { "psx.input.port1.gamepad", PSXPadConfig, sizeof(PSXPadConfig) / sizeof(ButtConfig) },
+
+ { "psx.input.port1.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port2.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port3.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port4.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port5.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port6.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port7.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
+ { "psx.input.port8.mouse", PSXMouseConfig, sizeof(PSXMouseConfig) / sizeof(ButtConfig) },
 
  { "mmplay.input.builtin.controller", MMPlayInputConfig, sizeof(MMPlayInputConfig) / sizeof(ButtConfig) },
  { "cdplay.input.builtin.controller", CDPlayInputConfig, sizeof(CDPlayInputConfig) / sizeof(ButtConfig) },

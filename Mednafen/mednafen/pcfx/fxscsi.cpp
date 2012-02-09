@@ -21,7 +21,7 @@
 bool FXSCSI_Init(void)
 {
 
-
+ return true;
 }
 
 uint8 FXSCSI_CtrlRead(uint32 A)

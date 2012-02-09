@@ -153,7 +153,7 @@ int PCE_HESLoad(const uint8 *buf, uint32 size)
  *IBP_WR++ = 0x80;               // BRA
  *IBP_WR++ = 0xFD;               //  -3
 
- Player_Init(TotalSongs, NULL, NULL, NULL, NULL); //UTF8 **snames);
+ Player_Init(TotalSongs, "", "", ""); //NULL, NULL, NULL, NULL); //UTF8 **snames);
 
  for(int x = 0; x < 0x80; x++)
  {
@@ -229,10 +229,18 @@ void HES_Draw(MDFN_Surface *surface, MDFN_Rect *DisplayRect, int16 *SoundBuf, in
 
 void HES_Close(void)
 {
+ PCECD_Close();
+
  if(rom)
  {
   MDFN_free(rom);
   rom = NULL;
+ }
+
+ if(rom_backup)
+ {
+  MDFN_free(rom_backup);
+  rom_backup = NULL;
  }
 }
 

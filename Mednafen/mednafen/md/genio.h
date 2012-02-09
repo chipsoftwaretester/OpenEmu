@@ -12,6 +12,9 @@ extern int gen_io_r(int offset);
 extern void gen_io_update(void);
 extern void gen_io_set_device(int which, int type);
 
+void MDIO_BeginTimePeriod(const int32 timestamp_base);
+void MDIO_EndTimePeriod(const int32 master_timestamp);
+
 void MDIO_Init(bool overseas, bool PAL, bool overseas_reported, bool PAL_reported);
 
 void MDINPUT_Frame(void);
@@ -24,21 +27,17 @@ class MD_Input_Device
 	public:
 	MD_Input_Device();
 	virtual ~MD_Input_Device();
-        virtual void Write(uint8 data);
-        virtual uint8 Read();
-        virtual void Update(const void *data);
-	virtual int StateAction(StateMem *sm, int load, int data_only, const char *section_name);
-};
 
-#if 0
-typedef struct
-{
-        void (*Write)(void *pirate, uint8 data);
-        uint8 (*Read)(void *pirate);
-        void (*Update)(void *pirate, const void *data);
-        void *pirate;
-} MD_Input_Device;
-#endif
+	virtual void Power(void);
+
+	// genesis_asserted is intended for more accurately emulating a device that has pull-up or pull-down resistors
+	// on one or more data lines.
+	virtual void UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted);	// genesis_asserted should
+        virtual void UpdatePhysicalState(const void *data);
+	virtual void BeginTimePeriod(const int32 timestamp_base);
+	virtual void EndTimePeriod(const int32 master_timestamp);
+	virtual int StateAction(StateMem *sm, int load, int data_only, const char *section_prefix);
+};
 
 int MDINPUT_StateAction(StateMem *sm, int load, int data_only);
 

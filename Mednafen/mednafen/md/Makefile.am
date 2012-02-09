@@ -7,7 +7,8 @@ noinst_LIBRARIES	=	libmd.a
 
 libmd_a_SOURCES         =	vdp.cpp genesis.cpp genio.cpp header.cpp mem68k.cpp membnk.cpp memvdp.cpp memz80.cpp sound.cpp system.cpp
 
-libmd_a_SOURCES 	+= 	cart/cart.cpp cart/map_eeprom.cpp cart/map_realtec.cpp cart/map_ssf2.cpp cart/map_ff.cpp cart/map_rom.cpp cart/map_sbb.cpp cart/map_yase.cpp cart/map_rmx3.cpp cart/map_sram.cpp
+libmd_a_SOURCES 	+= 	cart/cart.cpp cart/map_eeprom.cpp cart/map_realtec.cpp cart/map_ssf2.cpp cart/map_ff.cpp cart/map_rom.cpp cart/map_sbb.cpp cart/map_yase.cpp cart/map_rmx3.cpp cart/map_sram.cpp cart/map_svp.cpp
+# cart/ssp16.c
 
 libmd_a_SOURCES		+=	input/mouse.cpp input/gamepad.cpp
 

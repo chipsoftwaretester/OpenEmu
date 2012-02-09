@@ -84,6 +84,9 @@ typedef void GLAPIENTRY (*glPixelZoom_Func)(GLfloat, GLfloat);
 typedef void GLAPIENTRY (*glGetTexLevelParameteriv_Func)(GLenum target, GLint level, GLenum pname, GLint *params);
 typedef void GLAPIENTRY (*glAccum_Func)(GLenum, GLfloat);
 typedef void GLAPIENTRY (*glClearAccum_Func)(GLfloat, GLfloat, GLfloat, GLfloat);
+typedef void GLAPIENTRY (*glPushMatrix_Func)(void);
+typedef void GLAPIENTRY (*glPopMatrix_Func)(void);
+typedef void GLAPIENTRY (*glRotated_Func)(GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
 
 #if MDFN_WANT_OPENGL_SHADERS
 typedef GLhandleARB GLAPIENTRY (*glCreateShaderObjectARB_Func)(GLenum);
@@ -142,6 +145,9 @@ extern glTexGend_Func p_glTexGend;
 extern glGetTexLevelParameteriv_Func p_glGetTexLevelParameteriv;
 extern glAccum_Func p_glAccum;
 extern glClearAccum_Func p_glClearAccum;
+extern glPushMatrix_Func p_glPushMatrix;
+extern glPopMatrix_Func p_glPopMatrix;
+extern glRotated_Func p_glRotated;
 
 #if MDFN_WANT_OPENGL_SHADERS
 extern glCreateShaderObjectARB_Func p_glCreateShaderObjectARB;
@@ -166,12 +172,12 @@ extern glDetachObjectARB_Func p_glDetachObjectARB;
 extern glGetObjectParameterivARB_Func p_glGetObjectParameterivARB;
 #endif
 
-#include <string>
+#include "shader.h"
 
 void BlitOpenGLRaw(SDL_Surface *surface, const SDL_Rect *rect, const SDL_Rect *dest_rect);
 void BlitOpenGL(SDL_Surface *src_surface, const SDL_Rect *src_rect, const SDL_Rect *dest_rect, const SDL_Rect *original_src_rect, bool alpha_blend);
 void KillOpenGL(void);
-int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *screen, int *rs, int *gs, int *bs, int *as);
+int InitOpenGL(int ipolate, int scanlines, ShaderType pixshader, SDL_Surface *screen, int *rs, int *gs, int *bs, int *as);
 void ClearBackBufferOpenGL(SDL_Surface *screen);
 void FlipOpenGL(void);
 

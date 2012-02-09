@@ -20,7 +20,11 @@
 #endif
 #include "main.h"
 #include <stdarg.h>
+
+#ifdef HAVE_SDL_NET
 #include <SDL_net.h>
+#endif
+
 #include <string.h>
 #include <math.h>
 #include "netplay.h"
@@ -79,8 +83,8 @@ static CommandEntry ConsoleCommands[]   =
 };
 
 static const int PopupTime = 3500;
-static volatile int inputable = 0;
-static volatile int viewable = 0;
+static int volatile inputable = 0;
+static int volatile viewable = 0;
 static int64 LastTextTime = -1;
 
 int MDFNDnetplay = 0;  // Only write/read this global variable in the game thread.
@@ -201,7 +205,9 @@ bool NetplayConsole::TextHook(UTF8 *text)
          return(1);
 }
 
+#ifdef HAVE_SDL_NET
 static TCPsocket Socket = NULL;
+#endif
 
 static void PrintNetStatus(const char *s)
 {
@@ -226,6 +232,7 @@ static void PrintNetError(const char *format, ...)
 // Called from game thread
 int MDFND_NetworkConnect(void)
 {
+#ifdef HAVE_SDL_NET
  IPaddress IPa;
 
  if(Socket) // Disconnect if we're already connected.  TODO:  Refactor this.
@@ -268,20 +275,28 @@ int MDFND_NetworkConnect(void)
  PrintNetStatus(_("*** Connection established."));
 
  return(1);
+#else
+ return(0);
+#endif
 }
 
 // Called from game thread
 int MDFND_SendData(const void *data, uint32 len)
 {
+#ifdef HAVE_SDL_NET
  SDLNet_TCP_Send(Socket, (void *)data, len); // Stupid non-constness!
  return(1);
+#else
+ return(0);
+#endif
 }
 
 // Called from game thread
 int MDFND_RecvData(void *data, uint32 len)
 {
+#ifdef HAVE_SDL_NET
   NoWaiting&=~2;
-   
+
   SDLNet_SocketSet funfun;
 
   funfun = SDLNet_AllocSocketSet(1);
@@ -321,11 +336,15 @@ int MDFND_RecvData(void *data, uint32 len)
   }
   printf("RecvData Failed: %d\n", len);
   return 0;
+#else
+ return(0);
+#endif
 }
 
 // Called from the game thread
 void MDFND_NetworkClose(void)
 {
+#ifdef HAVE_SDL_NET
  if(Socket)
   SDLNet_TCP_Close(Socket);
  Socket = NULL;
@@ -334,6 +353,7 @@ void MDFND_NetworkClose(void)
   MDFNI_NetplayStop();
  MDFNDnetplay = 0;
  NoWaiting&=~2;
+#endif
 }
 
 // Called from the game thread

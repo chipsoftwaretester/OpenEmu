@@ -227,7 +227,7 @@ static int LoadCommon(const char *name, MDFNFILE *fp)
 
  sms_init();
  pio_init();
- vdp_init();
+ vdp_init(IS_SMS && sms.territory == TERRITORY_DOMESTIC);
  render_init();
 
  MDFNGameInfo->GameSetMD5Valid = FALSE;
@@ -453,7 +453,7 @@ MDFNGI EmulatedSMS =
 MDFNGI EmulatedGG =
 {
  "gg",
- "Game Gear",
+ "Sega Game Gear",
  GGKnownExtensions,
  MODPRIO_INTERNAL_HIGH,
  NULL,

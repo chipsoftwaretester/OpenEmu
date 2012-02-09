@@ -152,9 +152,6 @@ void render_reset(void)
 {
     int i;
 
-    /* Clear display bitmap */
-    memset(bitmap.data, 0, bitmap.pitch * bitmap.height);
-
     /* Clear palette */
     for(i = 0; i < PALETTE_SIZE; i++)
     {
@@ -250,7 +247,7 @@ void render_bg_sms(int line)
     int hscroll = ((vdp.reg[0] & 0x40) && (line < 0x10)) ? 0 : (0x100 - vdp.reg[8]);
     int column = 0;
     uint16 attr;
-    uint8 *nt = &vdp.vram[vdp.ntab + ((v_line >> 3) << 6)];
+    uint8 *nt = &vdp.vram[vdp.ntab + (((v_line >> 3) << 6) & ((((vdp.reg[2] & 1) | vdp.quirk_disabled) << 10) | (~0U ^ (1 << 10)) ) )];
     int nt_scroll = (hscroll >> 3);
     int shift = (hscroll & 7);
     uint8 atex_mask;

@@ -76,8 +76,8 @@ void system_assign_device(int port, int type)
 
 void ioctrl_w(uint8 data)
 {
-    sms.ioctrl = data;
-    io_current = &io_lut[sms.territory][data];
+ sms.ioctrl = data;
+ io_current = &io_lut[sms.territory][data];
 }
 
 uint8 device_r(int offset)

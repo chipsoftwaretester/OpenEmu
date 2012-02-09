@@ -74,5 +74,5 @@ typedef int64_t sbits64;
 | a compiler does not support explicit inlining, this macro should be defined
 | to be `static'.
 *----------------------------------------------------------------------------*/
-#define INLINE extern inline
-
+//#define INLINE extern inline
+#define INLINE static inline

@@ -16,11 +16,13 @@
  */
 
 #include "main.h"
-
+#include <math.h>
 #include <string.h>
+#include <trio/trio.h>
 
 #include "video.h"
 #include "opengl.h"
+#include "shader.h"
 #include "nongl.h"
 #include "overlay.h"
 
@@ -49,7 +51,7 @@ typedef struct
         int stretch;
         int special;
         int scanlines;
-	std::string pixshader;
+	ShaderType pixshader;
 } CommonVS;
 
 static CommonVS _video;
@@ -92,6 +94,8 @@ static ScalerDefinition Scalers[] =
 
 static MDFNGI *VideoGI;
 
+static int best_xres = 0, best_yres = 0;
+
 static int cur_xres, cur_yres, cur_flags;
 
 static ScalerDefinition *CurrentScaler = NULL;
@@ -120,7 +124,6 @@ static SDL_Rect SMRect, SMDRect;
 static int curbpp;
 
 static double exs,eys;
-static int exres, eyres;
 static int evideoip;
 
 static int NeedClear = 0;
@@ -200,52 +203,83 @@ static void GenerateDestRect(void)
 {
  if(_video.stretch && _fullscreen)
  {
-  if (_video.stretch == 2)	// Aspect-preserve stretch
+  int nom_width, nom_height;
+
+  if(VideoGI->rotated)
   {
+   nom_width = VideoGI->nominal_height;
+   nom_height = VideoGI->nominal_width;
+  }
+  else
+  {
+   nom_width = VideoGI->nominal_width;
+   nom_height = VideoGI->nominal_height;
+  }
+
+  if (_video.stretch == 2 || _video.stretch == 3 || _video.stretch == 4)	// Aspect-preserve stretch
+  {
+   exs = (double)cur_xres / nom_width;
+   eys = (double)cur_yres / nom_height;
+
+   if(_video.stretch == 3 || _video.stretch == 4)	// Round down to nearest int.
+   {
+    exs = floor(exs);
+    eys = floor(eys);
+
+    if(_video.stretch == 4)	// Round down to nearest multiple of 2.
+    {
+     exs = (int)exs & ~1;
+     eys = (int)eys & ~1;
+
+     if(!exs) exs = 1;
+     if(!eys) eys = 1;
+    }
+   }
+
    // Check if we are constrained horizontally or vertically
-   exs = (double)exres / VideoGI->nominal_width;
-   eys = (double)eyres / VideoGI->nominal_height;
-   if (exs > eys) {
+   if (exs > eys)
+   {
     // Too tall for screen, fill vertically
     exs = eys;
-    screen_dest_rect.y = 0;
-    screen_dest_rect.h = eyres;
-
-    // ...and letter box the sides
-    screen_dest_rect.w = (int)(exs*VideoGI->nominal_width + 0.5); // +0.5 for rounding
-    int nx = (int)((exres - screen_dest_rect.w) / 2);
-    if(nx < 0) nx = 0;
-    screen_dest_rect.x = nx;
    }
    else
    {
     // Too wide for screen, fill horizontally
     eys = exs;
-    screen_dest_rect.x = 0;
-    screen_dest_rect.w = exres;
-
-    // ...and letter box the top/bottom
-    screen_dest_rect.h = (int)(eys*VideoGI->nominal_height + 0.5); // +0.5 for rounding
-    int ny = (int)((eyres - screen_dest_rect.h) / 2);
-    if(ny < 0) ny = 0;
-    screen_dest_rect.y = ny;
    }
+
+   //printf("%f %f\n", exs, eys);
+
+   screen_dest_rect.w = (int)(exs*nom_width + 0.5); // +0.5 for rounding
+   screen_dest_rect.h = (int)(eys*nom_height + 0.5); // +0.5 for rounding
+
+   // Centering:
+   int nx = (int)((cur_xres - screen_dest_rect.w) / 2);
+   if(nx < 0) nx = 0;
+   screen_dest_rect.x = nx;
+
+   int ny = (int)((cur_yres - screen_dest_rect.h) / 2);
+   if(ny < 0) ny = 0;
+   screen_dest_rect.y = ny;
   }
   else 	// Full-stretch
   {
    screen_dest_rect.x = 0;
-   screen_dest_rect.w = exres;
+   screen_dest_rect.w = cur_xres;
 
    screen_dest_rect.y = 0;
-   screen_dest_rect.h = eyres;
+   screen_dest_rect.h = cur_yres;
+
+   exs = (double)cur_xres / nom_width;
+   eys = (double)cur_yres / nom_height;
   }
  }
  else
  {
   if(VideoGI->rotated)
   {
-   int ny = (int)((eyres - VideoGI->nominal_width * exs) / 2);
-   int nx = (int)((exres - VideoGI->nominal_height * eys) / 2);
+   int ny = (int)((cur_yres - VideoGI->nominal_width * exs) / 2);
+   int nx = (int)((cur_xres - VideoGI->nominal_height * eys) / 2);
 
    if(ny < 0) ny = 0;
    if(nx < 0) nx = 0;
@@ -257,8 +291,8 @@ static void GenerateDestRect(void)
   }
   else
   {
-   int nx = (int)((exres - VideoGI->nominal_width * exs) / 2);
-   int ny = (int)((eyres - VideoGI->nominal_height * eys) / 2);
+   int nx = (int)((cur_xres - VideoGI->nominal_width * exs) / 2);
+   int ny = (int)((cur_yres - VideoGI->nominal_height * eys) / 2);
 
    // Don't check to see if the coordinates go off screen here, offscreen coordinates are valid(though weird that the user would want them...)
    // in OpenGL mode, and are clipped to valid coordinates in SDL blit mode code.
@@ -283,10 +317,33 @@ static void GenerateDestRect(void)
  //printf("%d %d\n", screen_dest_rect.x & 1, screen_dest_rect.y & 1);
 }
 
+// Argh, lots of thread safety and crashy problems with this, need to re-engineer code elsewhere.
+#if 0
 int VideoResize(int nw, int nh)
 {
- return(1);
+ double xs, ys;
+ char buf[256];
+
+ if(VideoGI && !_fullscreen)
+ {
+  std::string sn = std::string(VideoGI->shortname);
+
+  xs = (double)nw / VideoGI->nominal_width;
+  ys = (double)nh / VideoGI->nominal_height;
+
+  trio_snprintf(buf, 256, "%.30f", xs);
+//  MDFNI_SetSetting(std::string(sn + "." + std::string("xscale")).c_str(), buf);
+
+  trio_snprintf(buf, 256, "%.30f", ys);
+//  MDFNI_SetSetting(std::string(sn + "." + std::string("yscale")).c_str(), buf);
+
+  printf("%s, %d %d, %f %f\n", std::string(sn + "." + std::string("xscale")).c_str(), nw, nh, xs, ys);
+  return(1);
+ }
+
+ return(0);
 }
+#endif
 
 int GetSpecialScalerID(const std::string &special_string)
 {
@@ -321,7 +378,7 @@ static uint32 real_rs, real_gs, real_bs, real_as;
 int InitVideo(MDFNGI *gi)
 {
  const SDL_VideoInfo *vinf;
- int flags=0;
+ int flags = 0; //SDL_RESIZABLE;
  int desbpp;
 
  VideoGI = gi;
@@ -343,21 +400,34 @@ int InitVideo(MDFNGI *gi)
  _video.yscale = MDFN_GetSettingF(std::string(sn + "." + std::string("yscale")).c_str());
  _video.xscalefs = MDFN_GetSettingF(std::string(sn + "." + std::string("xscalefs")).c_str());
  _video.yscalefs = MDFN_GetSettingF(std::string(sn + "." + std::string("yscalefs")).c_str());
- _video.videoip = MDFN_GetSettingB(std::string(sn + "." + std::string("videoip")).c_str());
+ _video.videoip = MDFN_GetSettingI(std::string(sn + "." + std::string("videoip")).c_str());
  _video.stretch = MDFN_GetSettingUI(std::string(sn + "." + std::string("stretch")).c_str());
  _video.scanlines = MDFN_GetSettingUI(std::string(sn + "." + std::string("scanlines")).c_str());
 
  _video.special = GetSpecialScalerID(special_string);
 
  #ifdef MDFN_WANT_OPENGL_SHADERS
- _video.pixshader = MDFN_GetSettingS(std::string(sn + "." + std::string("pixshader")).c_str());
+ _video.pixshader = (ShaderType)MDFN_GetSettingI(std::string(sn + "." + std::string("pixshader")).c_str());
  #else
- _video.pixshader = "none";
+ _video.pixshader = SHADER_NONE;
  #endif
 
  CurrentScaler = _video.special ? &Scalers[_video.special - 1] : NULL;
 
  vinf=SDL_GetVideoInfo();
+
+ if(!best_xres)
+ {
+  best_xres = vinf->current_w;
+  best_yres = vinf->current_h;
+
+  if(!best_xres || !best_yres)
+  {
+   best_xres = 640;
+   best_yres = 480;
+  }
+ }
+
 
  if(vinf->hw_available)
   flags|=SDL_HWSURFACE;
@@ -388,12 +458,9 @@ int InitVideo(MDFNGI *gi)
 
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1 );
 
-  if(MDFN_GetSettingB("video.glvsync"))
-  {
-   #if SDL_VERSION_ATLEAST(1, 2, 10)
-   SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 1);
-   #endif
-  }
+  #if SDL_VERSION_ATLEAST(1, 2, 10)
+  SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, MDFN_GetSettingB("video.glvsync"));
+  #endif
  }
  else if(vdriver == VDRIVER_SOFTSDL)
   flags |= SDL_DOUBLEBUF;
@@ -402,8 +469,6 @@ int InitVideo(MDFNGI *gi)
   //flags |= SDL_
  }
 
- exres = _video.xres;
- eyres = _video.yres;
  exs = _fullscreen ? _video.xscalefs : _video.xscale;
  eys = _fullscreen ? _video.yscalefs : _video.yscale;
  evideoip = _video.videoip;
@@ -429,18 +494,15 @@ int InitVideo(MDFNGI *gi)
 
  if(_fullscreen)
  {
-  if(!screen || cur_xres != exres || cur_yres != eyres || cur_flags != flags || curbpp != desbpp)
+  if(!screen || cur_xres != _video.xres || cur_yres != _video.yres || cur_flags != flags || curbpp != desbpp)
   {
-   //MDFNI_DispMessage("%d %d %d %d %d %d",cur_xres, _xres, cur_yres, _yres, curbpp, desbpp);
-   if(!(screen = SDL_SetVideoMode(exres, eyres, desbpp, flags)))
+   if(!(screen = SDL_SetVideoMode(_video.xres ? _video.xres : best_xres, _video.yres ? _video.yres : best_yres, desbpp, flags)))
    {
     MDFND_PrintError(SDL_GetError()); 
     MDFN_indent(-1);
     return(0);
    }
   }
-  cur_xres = exres;
-  cur_yres = eyres;
  }
  else
  {
@@ -453,12 +515,14 @@ int InitVideo(MDFNGI *gi)
     return(0);
    }
   }
-  cur_xres = screen_dest_rect.w;
-  cur_yres = screen_dest_rect.h;
  }
 
+ cur_xres = screen->w;
+ cur_yres = screen->h;
  cur_flags = flags;
  curbpp = screen->format->BitsPerPixel;
+
+ GenerateDestRect();
 
  MDFN_printf(_("Video Driver: %s\n"), (cur_flags & SDL_OPENGL) ? _("OpenGL") : (vdriver == VDRIVER_OVERLAY ? _("Overlay") :_("Software SDL") ) );
 
@@ -476,7 +540,7 @@ int InitVideo(MDFNGI *gi)
  if(cur_flags & SDL_OPENGL)
  {
   MDFN_indent(1);
-  MDFN_printf(_("Pixel shader: %s\n"), _video.pixshader.c_str());
+  MDFN_printf(_("Pixel shader: %s\n"), MDFN_GetSettingS(std::string(sn + "." + std::string("pixshader")).c_str()).c_str());
   MDFN_indent(-1);
  }
 
@@ -653,6 +717,13 @@ void VideoShowMessage(UTF8 *text)
   howlong = MDFND_GetTime() + 2500;
  else
   howlong = 0;
+
+ if(CurrentMessage)
+ {
+  free(CurrentMessage);
+  CurrentMessage = NULL;
+ }
+
  CurrentMessage = text;
 }
 
@@ -671,7 +742,13 @@ void BlitRaw(SDL_Surface *src, const SDL_Rect *src_rect, const SDL_Rect *dest_re
 
   //SDL_BlitSurface(src, src_rect, screen, dest_rect);
  }
- NeedClear = 2;
+
+ //if((dest_rect->x < screen_dest_rect.x) || (dest_rect->y < screen_dest_rect.y) ||
+ //	((dest_rect->x + dest_rect->w) > (screen_dest_rect.x + screen_dest_rect.w)) || ((dest_rect->y + dest_rect->h) > (screen_dest_rect.y + screen_dest_rect.h)) )
+ {
+  //puts("Need clear");
+  NeedClear = 2;
+ }
 }
 
 static bool IsInternalMessageActive(void)
@@ -720,7 +797,7 @@ static void SubBlit(const bool alpha_blend, const SDL_Rect &src_rect, const SDL_
 
  if(!(src_rect.w > 0 && src_rect.w <= 32767) || !(src_rect.h > 0 && src_rect.h <= 32767))
  {
-  fprintf(stderr, "BUG: Source rect out of range; w=%d, h=%d\n", src_rect.w, src_rect.h);
+  //fprintf(stderr, "BUG: Source rect out of range; w=%d, h=%d\n", src_rect.w, src_rect.h);
   return;
  }
 //#if 0
@@ -945,12 +1022,6 @@ void BlitScreen(MDFN_Surface *msurface, const MDFN_Rect *DisplayRect, const MDFN
  src_rect.y = DisplayRect->y;
  src_rect.h = DisplayRect->h;
 
- if(_video.stretch && _fullscreen)
- {
-  exs = (double)exres / DisplayRect->w;
-  eys = (double)eyres / DisplayRect->h;
- }
-
  source_surface->pixels = msurface->pixels;
  source_surface->pitch = msurface->pitch32 * sizeof(uint32);
 
@@ -1005,12 +1076,20 @@ void BlitScreen(MDFN_Surface *msurface, const MDFN_Rect *DisplayRect, const MDFN
     sub_dest_rect.y = screen_dest_rect.y + (last_y - src_rect.y) * screen_dest_rect.h / src_rect.h;
     sub_dest_rect.h = sub_src_rect.h * screen_dest_rect.h / src_rect.h;
 
+    if(!sub_dest_rect.h) // May occur with small yscale values in certain cases, so prevent triggering an assert()
+     sub_dest_rect.h = 1;
+
     // Blit here!
     SubBlit(0, sub_src_rect, sub_dest_rect);
 
     last_y = y;
-    last_width = LineWidths[y].w;
-    last_x =  LineWidths[y].x;
+
+    if(y != (src_rect.y + src_rect.h))
+    {
+     last_width = LineWidths[y].w;
+     last_x =  LineWidths[y].x;
+    }
+
    }
   }
  }
@@ -1080,28 +1159,15 @@ void BlitScreen(MDFN_Surface *msurface, const MDFN_Rect *DisplayRect, const MDFN
  {
   if(!HelpSurface)
   {
-   HelpRect.w = screen->w;
-   HelpRect.h = screen->h;
+   HelpRect.w = std::min<int>(512, screen->w);
+   HelpRect.h = std::min<int>(384, screen->h);
 
-   if(HelpRect.w >= 512)
-   {
-    HelpRect.w /= (HelpRect.w / 512);
-    if(HelpRect.w > 512)
-     HelpRect.w = 512;
-   }
-
-   if(HelpRect.h >= 384)
-   {
-    HelpRect.h /= (HelpRect.h / 384);
-    if(HelpRect.h > 384)
-     HelpRect.h = 384;
-   }
-
-   HelpSurface = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, HelpRect.w, HelpRect.h, 32, 0xFF << real_rs, 0xFF << real_gs, 0xFF << real_bs, 0xFF << real_as);
+   HelpSurface = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, 512, 384, 32, 0xFF << real_rs, 0xFF << real_gs, 0xFF << real_bs, 0xFF << real_as);
    SDL_SetColorKey(HelpSurface, SDL_SRCCOLORKEY, 0);
    SDL_SetAlpha(HelpSurface, SDL_SRCALPHA, 0);
    Help_Draw(HelpSurface, &HelpRect);
   }
+
   SDL_Rect zederect;
 
   zederect.w = HelpRect.w * (screen->w / HelpRect.w);
@@ -1178,6 +1244,24 @@ void BlitScreen(MDFN_Surface *msurface, const MDFN_Rect *DisplayRect, const MDFN
 
 void PtoV(int *x, int *y)
 {
- *y=(int)((double)*y/eys);
- *x=(int)((double)*x/exs);
+ assert(VideoGI);
+ if(VideoGI->rotated)
+ {
+  int old_x = *x;
+
+  // Swap X and Y
+  *x=(int)((double)(*y - screen_dest_rect.y) / eys);
+  *y=(int)((double)(old_x - screen_dest_rect.x) / exs);
+
+  // Correct position(and movement)
+  if(VideoGI->rotated == MDFN_ROTATE90)
+   *x = VideoGI->nominal_width - 1 - *x;
+  else if(VideoGI->rotated == MDFN_ROTATE270)
+   *y = VideoGI->nominal_height - 1 - *y;
+ }
+ else
+ {
+  *y=(int)((double)(*y - screen_dest_rect.y) / eys);
+  *x=(int)((double)(*x - screen_dest_rect.x) / exs);
+ }
 }

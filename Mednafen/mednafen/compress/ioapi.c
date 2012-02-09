@@ -11,6 +11,9 @@
 #include <string.h>
 
 #include "zlib.h"
+#ifndef OF
+#define OF(a) a
+#endif
 #include "ioapi.h"
 
 

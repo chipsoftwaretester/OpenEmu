@@ -96,7 +96,7 @@ FileWrapper::FileWrapper(FileWrapper &original) : OpenedMode(original.OpenedMode
 }
 #endif
 
-FileWrapper::FileWrapper(const char *path, const int mode) : OpenedMode(mode)
+FileWrapper::FileWrapper(const char *path, const int mode, const char *purpose) : OpenedMode(mode)
 {
  path_save = std::string(path);
 
@@ -123,7 +123,10 @@ FileWrapper::FileWrapper(const char *path, const int mode) : OpenedMode(mode)
   {
    ErrnoHolder ene(errno);
 
-   throw(MDFN_Error(ene.Errno(), _("Error opening file \"%s\": %s"), path_save.c_str(), ene.StrError()));
+   if(purpose)
+    throw(MDFN_Error(ene.Errno(), _("Error opening file \"%s\" for \"%s\": %s"), path_save.c_str(), purpose, ene.StrError()));
+   else
+    throw(MDFN_Error(ene.Errno(), _("Error opening file \"%s\": %s"), path_save.c_str(), ene.StrError()));
   }
   fp = fdopen(tmpfd, "wb");
  }
@@ -132,16 +135,39 @@ FileWrapper::FileWrapper(const char *path, const int mode) : OpenedMode(mode)
  {
   ErrnoHolder ene(errno);
 
-  throw(MDFN_Error(ene.Errno(), _("Error opening file \"%s\": %s"), path_save.c_str(), ene.StrError()));
+  if(purpose)
+   throw(MDFN_Error(ene.Errno(), _("Error opening file \"%s\" for \"%s\": %s"), path_save.c_str(), purpose, ene.StrError()));
+  else
+   throw(MDFN_Error(ene.Errno(), _("Error opening file \"%s\": %s"), path_save.c_str(), ene.StrError()));
  }
 }
 
 FileWrapper::~FileWrapper()
 {
- if(fp)	// Needed for bare-constructor base
+ try
  {
-  fclose(fp);
+  close();
+ }
+ catch(std::exception &e)
+ {
+  MDFND_PrintError(e.what());
+ }
+}
+
+void FileWrapper::close(void)
+{
+ if(fp)
+ {
+  FILE *tmp = fp;
+
   fp = NULL;
+
+  if(fclose(tmp) == EOF)
+  {
+   ErrnoHolder ene(errno);
+
+   throw(MDFN_Error(ene.Errno(), _("Error closing opened file \"%s\": %s"), path_save.c_str(), ene.StrError()));
+  }
  }
 }
 
@@ -253,6 +279,21 @@ void FileWrapper::put_string(const char *str)
 void FileWrapper::put_string(const std::string &str)
 {
  write(str.data(), str.size());
+}
+
+char *FileWrapper::get_line(char *buf_s, int buf_size)
+{
+ char *ret;
+
+ clearerr(fp);
+ ret = ::fgets(buf_s, buf_size, fp);
+ if(ferror(fp))
+ {
+  ErrnoHolder ene(errno);
+
+  throw(MDFN_Error(ene.Errno(), _("Error reading line in opened file \"%s\": %s"), path_save.c_str(), ene.StrError()));
+ }
+ return(ret);
 }
 
 

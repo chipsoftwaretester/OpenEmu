@@ -22,6 +22,9 @@
 #include "gbGlobals.h"
 #include "gb.h"
 
+namespace MDFN_IEN_GB
+{
+
 static const uint8 gbInvertTab[256] = 
 {
   0x00,0x80,0x40,0xc0,0x20,0xa0,0x60,0xe0,
@@ -473,3 +476,4 @@ void gbDrawSprites()
   }
 }
 
+}

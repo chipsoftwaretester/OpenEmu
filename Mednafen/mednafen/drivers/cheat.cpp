@@ -24,7 +24,7 @@
 static SDL_Thread *CheatThread = NULL;
 static SDL_mutex *CheatMutex = NULL;
 static bool isactive = 0;
-static char *pending_text = NULL;
+static char * volatile pending_text = NULL;
 
 class CheatConsoleT : public MDFNConsole
 {

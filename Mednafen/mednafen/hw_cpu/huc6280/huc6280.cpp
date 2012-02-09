@@ -92,7 +92,8 @@ INLINE void HuC6280::X_ZNT(const uint8 zort)
  P |= ZNTable[zort];
 }
 
-INLINE void HuC6280::JR(const bool cond)
+template<bool DebugMode>
+INLINE void HuC6280::JR(const bool cond, const bool BBRS)
 {
  if(cond)
  {
@@ -101,25 +102,28 @@ INLINE void HuC6280::JR(const bool cond)
   PC++;
   ADDCYC(3);
   PC+=disp;
+
+  if(DebugMode && ADDBT)
+   ADDBT(PC - disp - 2 - (BBRS ? 1 : 0), PC, 0);
  }
  else
  {
   ADDCYC(1);
   PC++;
  }
- if(ADDBT)
-  ADDBT(PC);
  LASTCYCLE;
 }
 
+template<bool DebugMode>
 INLINE void HuC6280::BBRi(const uint8 val, const unsigned int bitto)
 {
- JR(!(val & (1 << bitto)));
+ JR<DebugMode>(!(val & (1 << bitto)), true);
 }
 
+template<bool DebugMode>
 INLINE void HuC6280::BBSi(const uint8 val, const unsigned int bitto)
 {
- JR(val & (1 << bitto));
+ JR<DebugMode>(val & (1 << bitto), true);
 }
 
 // Total cycles for ST0/ST1/ST2 is effectively 5(4 here, +1 stealcycle in the PC Engine memory handler logic)
@@ -546,12 +550,13 @@ void HuC6280::HappySync(void)
  CalcNextEvent();
 }
 
-void HuC6280::Run(bool StepMode)
+template<bool DebugMode>
+void HuC6280::RunSub(void)
 {
-	if(StepMode)
-	 runrunrun = -1;	// Needed so a BMT isn't interrupted.
-	else
-	 runrunrun = 1;
+	uint32 old_PC;
+
+	if(DebugMode)
+	 old_PC = PC;
 
         if(in_block_move)
         {
@@ -568,8 +573,24 @@ void HuC6280::Run(bool StepMode)
 
 	do
         {
+         if(DebugMode)
+          old_PC = PC;
+
 	 #include "huc6280_step.inc"
 	} while(runrunrun > 0);
+}
+
+void HuC6280::Run(bool StepMode)
+{
+ if(StepMode)
+  runrunrun = -1;        // Needed so a BMT isn't interrupted.
+ else
+  runrunrun = 1;
+
+ if(CPUHook || ADDBT)
+  RunSub<true>();
+ else
+  RunSub<false>();
 }
 
 uint8 HuC6280::TimerRead(unsigned int address, bool peek)

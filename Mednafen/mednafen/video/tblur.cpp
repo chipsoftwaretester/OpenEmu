@@ -36,12 +36,12 @@ void TBlur_Init(void)
          AccumBlurAmount = (uint32)(16384 * MDFN_GetSettingF(std::string(sn + "." + std::string("tblur.accum.amount")).c_str()) / 100);
          if(MDFN_GetSettingB(std::string(sn + "." + std::string("tblur.accum")).c_str()))
          {
-          AccumBlurBuf = (HQPixelEntry *)calloc(sizeof(HQPixelEntry), MDFNGameInfo->fb_width * 256);
+          AccumBlurBuf = (HQPixelEntry *)calloc(sizeof(HQPixelEntry), MDFNGameInfo->fb_width * MDFNGameInfo->fb_height);
           MDFN_printf(_("Video temporal frame blur enabled with accumulation: %f.\n"), (double)AccumBlurAmount * 100 / 16384);
          }
          else
          {
-          BlurBuf = (uint32 *)calloc(4, MDFNGameInfo->fb_width * 256);
+          BlurBuf = (uint32 *)calloc(4, MDFNGameInfo->fb_width * MDFNGameInfo->fb_height);
           MDFN_printf(_("Video temporal frame blur enabled.\n"));
          }
         }

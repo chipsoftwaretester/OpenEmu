@@ -72,6 +72,7 @@
    {
     status |= 0x0004; // Set h-blank flag
 
+    //vdp_cycle_counter += divider * (hcell_mode ? 56 : 46);
     vdp_cycle_counter += divider * (hcell_mode ? (56 + 5) : 46);
 
     if(hcell_mode)
@@ -104,7 +105,8 @@
    }
    else if(vdp_line_phase == VDPLP_HRETRACE_1)
    {
-    vdp_hcounter_start_ts = md_timestamp + vdp_cycle_counter;
+    //printf("%d\n", md_timestamp - vdp_hcounter_start_ts);
+    //vdp_hcounter_start_ts = md_timestamp + vdp_cycle_counter;
     vdp_cycle_counter += divider * (hcell_mode ? 16 : 13);
    }
    else if(vdp_line_phase == VDPLP_VISIBLE_0)
@@ -140,6 +142,7 @@
    }
    else if(vdp_line_phase == VDPLP_VISIBLE_1)
    {
+    vdp_hcounter_start_ts = md_timestamp + vdp_cycle_counter;
     vdp_cycle_counter += divider * (hcell_mode ? 320 : 256);
    }
    else if(vdp_line_phase == VDPLP_VISIBLE_2)
@@ -153,8 +156,19 @@
 
     if(scanline == lines_per_frame - 1)
     {
+     rect->y = is_pal ? 0 : 8;
+     rect->h = is_pal ? 240 : 224;
+
      if(im2_flag)
+     {
       status ^= 0x0010;
+      espec->InterlaceOn = true;
+      espec->InterlaceField = (bool)(status & 0x10);
+
+      // Double-vertical-resolution interlaced mode
+      rect->y *= 2;
+      rect->h *= 2;
+     }
      else
       status &= ~0x0010;
 

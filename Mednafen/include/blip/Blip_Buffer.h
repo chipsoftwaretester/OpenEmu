@@ -1,26 +1,24 @@
 // Band-limited sound synthesis buffer
+// Various changes and hacks for use in Mednafen.
 
-// Mednafen hack:
 #ifdef __GNUC__
  #define blip_inline inline __attribute__((always_inline))
 #else
  #define blip_inline inline
 #endif
 
+#include <limits.h>
+#include <inttypes.h>
 
 // Blip_Buffer 0.4.1
 #ifndef BLIP_BUFFER_H
 #define BLIP_BUFFER_H
 
-	// internal
-	#include <limits.h>
-	#if INT_MAX >= 0x7FFFFFFF
-		typedef int blip_long;
-		typedef unsigned blip_ulong;
-	#else
-		typedef long blip_long;
-		typedef unsigned long blip_ulong;
-	#endif
+// Internal
+typedef int32_t blip_long;
+typedef uint32_t blip_ulong;
+typedef int64_t blip_s64;
+typedef uint64_t blip_u64;
 
 // Time unit at source clock rate
 typedef blip_long blip_time_t;
@@ -95,7 +93,7 @@ public:
 	// not documented yet
 	void set_modified() { modified_ = 1; }
 	int clear_modified() { int b = modified_; modified_ = 0; return b; }
-	typedef blip_ulong blip_resampled_time_t;
+	typedef blip_u64 blip_resampled_time_t;
 	void remove_silence( long count );
 	blip_resampled_time_t resampled_duration( int t ) const     { return t * factor_; }
 	blip_resampled_time_t resampled_time( blip_time_t t ) const { return t * factor_ + offset_; }
@@ -114,7 +112,7 @@ private:
 	Blip_Buffer& operator = ( const Blip_Buffer& );
 public:
 	typedef blip_time_t buf_t_;
-	blip_ulong factor_;
+	blip_u64 factor_;
 	blip_resampled_time_t offset_;
 	buf_t_* buffer_;
 	blip_long buffer_size_;
@@ -133,25 +131,28 @@ private:
 	#include "config.h"
 #endif
 
+#define BLIP_BUFFER_ACCURACY 32
+#define BLIP_PHASE_BITS 8
+
 // Number of bits in resample ratio fraction. Higher values give a more accurate ratio
 // but reduce maximum buffer size.
-#ifndef BLIP_BUFFER_ACCURACY
-	#define BLIP_BUFFER_ACCURACY 16
-#endif
+//#ifndef BLIP_BUFFER_ACCURACY
+//	#define BLIP_BUFFER_ACCURACY 16
+//#endif
 
 // Number bits in phase offset. Fewer than 6 bits (64 phase offsets) results in
 // noticeable broadband noise when synthesizing high frequency square waves.
 // Affects size of Blip_Synth objects since they store the waveform directly.
-#ifndef BLIP_PHASE_BITS
-	#if BLIP_BUFFER_FAST
-		#define BLIP_PHASE_BITS 8
-	#else
-		#define BLIP_PHASE_BITS 6
-	#endif
-#endif
+//#ifndef BLIP_PHASE_BITS
+//	#if BLIP_BUFFER_FAST
+//		#define BLIP_PHASE_BITS 8
+//	#else
+//		#define BLIP_PHASE_BITS 6
+//	#endif
+//#endif
 
 	// Internal
-	typedef blip_ulong blip_resampled_time_t;
+	typedef blip_u64 blip_resampled_time_t;
 	int const blip_widest_impulse_ = 16;
 	int const blip_buffer_extra_ = blip_widest_impulse_ + 2;
 	int const blip_res = 1 << BLIP_PHASE_BITS;

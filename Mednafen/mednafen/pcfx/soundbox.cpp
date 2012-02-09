@@ -176,13 +176,58 @@ static uint32 SBoxDBG_GetRegister(const unsigned int id, char *special, const ui
  return(value);
 }
 
+static void SBoxDBG_SetRegister(const unsigned int id, uint32 value)
+{
+ if(id < _PSG_GSREG_COUNT)
+  pce_psg->SetRegister(id, value);
+ else switch(id)
+ {
+  case GSREG_ADPCM_CTRL:
+	psg.ADPCMControl = value & 0xFFFF;
+	break;
+
+  case GSREG_ADPCM0_LVOL:
+        psg.ADPCMVolume[0][0] = value & 0x3F;
+        break;
+
+  case GSREG_ADPCM0_RVOL:
+        psg.ADPCMVolume[0][1] = value & 0x3F;
+        break;
+
+  case GSREG_ADPCM1_LVOL:
+        psg.ADPCMVolume[1][0] = value & 0x3F;
+        break;
+
+  case GSREG_ADPCM1_RVOL:
+        psg.ADPCMVolume[1][1] = value & 0x3F;
+        break;
+
+  case GSREG_CDDA_LVOL:
+        psg.CDDAVolume[0] = value & 0x3F;
+	SCSICD_SetCDDAVolume(0.50f * psg.CDDAVolume[0] / 63, 0.50f * psg.CDDAVolume[1] / 63);
+        break;
+
+  case GSREG_CDDA_RVOL:
+        psg.CDDAVolume[1] = value & 0x3F;
+	SCSICD_SetCDDAVolume(0.50f * psg.CDDAVolume[0] / 63, 0.50f * psg.CDDAVolume[1] / 63);
+        break;
+
+  case GSREG_ADPCM0_CUR:
+        psg.ADPCMPredictor[0] = ((int32)value & 0x7FFF) - 0x4000;
+        break;
+
+  case GSREG_ADPCM1_CUR:
+        psg.ADPCMPredictor[1] = ((int32)value & 0x7FFF) - 0x4000;
+        break;
+ }
+}
 
 static RegGroupType SBoxRegsGroup =
 {
  "SndBox",
  SBoxRegs,
  SBoxDBG_GetRegister,
- NULL
+ SBoxDBG_SetRegister
 };
 
 

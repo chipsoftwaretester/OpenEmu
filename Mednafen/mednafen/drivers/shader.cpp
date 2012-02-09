@@ -17,20 +17,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-/*
-Original HQ pixel shader scaling code:
-Copyright (c) 2004 Jaewon Jung
-
-This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
-
-Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
-
-    1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
-
-    2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
-
-    3. This notice may not be removed or altered from any source distribution.
-*/
 
 #include "main.h"
 #include "opengl.h"
@@ -40,117 +26,119 @@ Permission is granted to anyone to use this software for any purpose, including 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <math.h>
 
 #if MDFN_WANT_OPENGL_SHADERS
 
 static ShaderType OurType;
-static const int zlutSize = 256; //32;
 
-static GLuint slut_texture, zlut_texture;
-static GLhandleARB v, f, p;
-static bool v_valid = false, f_valid = false, p_valid = false;
+struct CompiledShader
+{
+ GLhandleARB v, f, p;
+ bool v_valid, f_valid, p_valid;
+};
+
+#define CSP_COUNT 8
+static CompiledShader CSP[CSP_COUNT] = { { 0, 0, 0, false, false, false }, { 0, 0, 0, false, false, false }, { 0, 0, 0, false, false, false }, { 0, 0, 0, false, false, false },
+					 { 0, 0, 0, false, false, false }, { 0, 0, 0, false, false, false }, { 0, 0, 0, false, false, false }, { 0, 0, 0, false, false, false } };
 static const char *vertexProg = "void main(void)\n{\ngl_Position = ftransform();\ngl_TexCoord[0] = gl_MultiTexCoord0;\n}";
-static const char *fragProgIpolateSharper = 
-"uniform sampler2D Tex0;\n\
-uniform vec2 TexSize;\n\
-uniform vec2 TexSizeInverse;\n\
-void main(void)\n\
-{\n\
-        vec2 texelIndex = vec2(gl_TexCoord[0]) * TexSize;\n\
-        vec2 texelFract = fract(texelIndex);\n\
-        texelIndex -= texelFract;\n\
-        texelIndex *= TexSizeInverse;\n\
-        vec3 texel[4];\n\
-        texel[0] = texture2D(Tex0, texelIndex).rgb;\n\
-        texel[1] = texture2D(Tex0, texelIndex + vec2(0, TexSizeInverse.t)).rgb;\n\
-        texel[2] = texture2D(Tex0, texelIndex + TexSizeInverse).rgb;\n\
-        texel[3] = texture2D(Tex0, texelIndex + vec2(TexSizeInverse.s, 0)).rgb;\n\
-        float w0 = (texelFract.s * float(2));\n\
-        float w1 = (texelFract.t * float(2));\n\
-        w0 = w0 * w0 / float(4);\n\
-        w1 = w1 * w1 / float(4);\n\
-        gl_FragColor = vec4( (texel[0] * (1.0 - w0) + texel[3] * w0) * (1.0 - w1) + (texel[1] * (1.0 - w0) + texel[2] * w0) * w1, 1);\n\
-}";
 
-static const char *fragProgIpolateXNotY =
-"uniform sampler2D Tex0;\n\
-uniform vec2 TexSize;\n\
-uniform vec2 TexSizeInverse;\n\
-void main(void)\n\
-{\n\
-        vec2 texelIndex = vec2(gl_TexCoord[0]) * TexSize;\n\
-        vec2 texelFract = fract(texelIndex);\n\
-        texelIndex -= texelFract;\n\
-        texelIndex *= TexSizeInverse;\n\
-        vec3 texel[4];\n\
-        texel[0] = texture2D(Tex0, texelIndex).rgb;\n\
-        texel[1] = texture2D(Tex0, texelIndex + vec2(0, TexSizeInverse.t)).rgb;\n\
-        texel[2] = texture2D(Tex0, texelIndex + TexSizeInverse).rgb;\n\
-        texel[3] = texture2D(Tex0, texelIndex + vec2(TexSizeInverse.s, 0)).rgb;\n\
-        float w0 = texelFract.s;\n\
-        gl_FragColor = vec4( (texel[0] * (1.0 - w0) + texel[3] * w0), 1.0);\n\
-}";
+static std::string MakeProgIpolate(unsigned ipolate_axis)	// X & 1, Y & 2, sharp & 4
+{
+ std::string ret;
 
-static const char *fragProgIpolateXNotYSharper =
-"uniform sampler2D Tex0;\n\
-uniform vec2 TexSize;\n\
-uniform vec2 TexSizeInverse;\n\
-void main(void)\n\
-{\n\
-        vec2 texelIndex = vec2(gl_TexCoord[0]) * TexSize;\n\
-        vec2 texelFract = fract(texelIndex);\n\
-        texelIndex -= texelFract;\n\
-        texelIndex *= TexSizeInverse;\n\
-        vec3 texel[4];\n\
-        texel[0] = texture2D(Tex0, texelIndex).rgb;\n\
-        texel[1] = texture2D(Tex0, texelIndex + vec2(0, TexSizeInverse.t)).rgb;\n\
-        texel[2] = texture2D(Tex0, texelIndex + TexSizeInverse).rgb;\n\
-        texel[3] = texture2D(Tex0, texelIndex + vec2(TexSizeInverse.s, 0)).rgb;\n\
-        float w0 = (texelFract.s * float(2));\n\
-        w0 = w0 * w0 / float(4);\n\
-        gl_FragColor = vec4( (texel[0] * (1.0 - w0) + texel[3] * w0), 1.0);\n\
-}";
+ ret = std::string("\n\
+	uniform sampler2D Tex0;\n\
+	uniform vec2 TexSize;\n\
+	uniform vec2 TexSizeInverse;\n\
+	uniform float XSharp;\n\
+	uniform float YSharp;\n\
+	void main(void)\n\
+	{\n\
+	        vec2 texelIndex = vec2(gl_TexCoord[0]) * TexSize - float(0.5);\n\
+	        vec2 texelFract = fract(texelIndex);\n\
+	        texelIndex -= texelFract;\n\
+		texelIndex += float(0.5);\n\
+	        texelIndex *= TexSizeInverse;\n\
+	        vec3 texel[4];\n\
+		texel[0] = texture2D(Tex0, texelIndex).rgb;\n\
+	        texel[1] = texture2D(Tex0, texelIndex + vec2(0, TexSizeInverse.t)).rgb;\n\
+	        texel[2] = texture2D(Tex0, texelIndex + TexSizeInverse).rgb;\n\
+	        texel[3] = texture2D(Tex0, texelIndex + vec2(TexSizeInverse.s, 0)).rgb;\n\
+	");
 
+ switch(ipolate_axis & 3)
+ {
+  case 0:
+	ret += std::string("gl_FragColor = texture2D(Tex0, gl_TexCoord[0]);\n");
+	break;
 
-static const char *fragProgIpolateYNotX =
-"uniform sampler2D Tex0;\n\
-uniform vec2 TexSize;\n\
-uniform vec2 TexSizeInverse;\n\
-void main(void)\n\
-{\n\
-        vec2 texelIndex = vec2(gl_TexCoord[0]) * TexSize;\n\
-        vec2 texelFract = fract(texelIndex);\n\
-        texelIndex -= texelFract;\n\
-        texelIndex *= TexSizeInverse;\n\
-        vec3 texel[4];\n\
-        texel[0] = texture2D(Tex0, texelIndex).rgb;\n\
-        texel[1] = texture2D(Tex0, texelIndex + vec2(0, TexSizeInverse.t)).rgb;\n\
-        texel[2] = texture2D(Tex0, texelIndex + TexSizeInverse).rgb;\n\
-        texel[3] = texture2D(Tex0, texelIndex + vec2(TexSizeInverse.s, 0)).rgb;\n\
-        float w1 = texelFract.t;\n\
-        gl_FragColor = vec4( texel[0] * (1.0 - w1) + texel[1] * w1, 1.0);\n\
-}";
+  case 1:
+	if(ipolate_axis & 4)
+	{
+	 ret += std::string("\n\
+	        float w0 = (texelFract.s - float(0.5)) * XSharp + float(0.5);\n\
+	        w0 = clamp(w0, float(0), float(1.0));\n\
+		gl_FragColor = vec4( (texel[0] * (1.0 - w0) + texel[3] * w0), 1.0);\n\
+		");
+	}
+	else
+	{
+	 ret += std::string("\n\
+		gl_FragColor = vec4( (texel[0] * (1.0 - texelFract.s) + texel[3] * texelFract.s), 1.0);\n\
+		");
+	}
+	break;
 
-static const char *fragProgIpolateYNotXSharper =
-"uniform sampler2D Tex0;\n\
-uniform vec2 TexSize;\n\
-uniform vec2 TexSizeInverse;\n\
-void main(void)\n\
-{\n\
-        vec2 texelIndex = vec2(gl_TexCoord[0]) * TexSize;\n\
-        vec2 texelFract = fract(texelIndex);\n\
-        texelIndex -= texelFract;\n\
-        texelIndex *= TexSizeInverse;\n\
-        vec3 texel[4];\n\
-        texel[0] = texture2D(Tex0, texelIndex).rgb;\n\
-        texel[1] = texture2D(Tex0, texelIndex + vec2(0, TexSizeInverse.t)).rgb;\n\
-        texel[2] = texture2D(Tex0, texelIndex + TexSizeInverse).rgb;\n\
-        texel[3] = texture2D(Tex0, texelIndex + vec2(TexSizeInverse.s, 0)).rgb;\n\
-        float w1 = (texelFract.t * float(2));\n\
-	w1 = w1 * w1 / float(4);\n\
-        gl_FragColor = vec4( texel[0] * (1.0 - w1) + texel[1] * w1, 1.0);\n\
-}";
+  case 2:
+	if(ipolate_axis & 4)
+	{
+	 ret += std::string("\n\
+	        float w1 = (texelFract.t - float(0.5)) * YSharp + float(0.5);\n\
+		w1 = clamp(w1, float(0), float(1.0));\n\
+		gl_FragColor = vec4( texel[0] * (1.0 - w1) + texel[1] * w1, 1.0);\n\
+		");
+	}
+	else
+	{
+	 ret += std::string("\n\
+		gl_FragColor = vec4( texel[0] * (1.0 - texelFract.t) + texel[1] * texelFract.t, 1.0);\n\
+		");
+	}
+	break;
 
+  case 3:
+	if(ipolate_axis & 4)
+	{
+	 ret += std::string("\n\
+	        float w0 = (texelFract.s - float(0.5)) * XSharp + float(0.5);\n\
+	        float w1 = (texelFract.t - float(0.5)) * YSharp + float(0.5);\n\
+	        w0 = clamp(w0, float(0), float(1.0));\n\
+		w1 = clamp(w1, float(0), float(1.0));\n\
+		");
+	}
+	else
+	{
+	 ret += std::string("\n\
+	        float w0 = texelFract.s;\n\
+	        float w1 = texelFract.t;\n\
+		");
+	}
+
+	ret += std::string("\n\
+        	gl_FragColor = vec4( (texel[0] * (1.0 - w0) + texel[3] * w0) * (1.0 - w1) + (texel[1] * (1.0 - w0) + texel[2] * w0) * w1, 1);\n\
+	       ");
+	break;
+
+ }
+
+ ret += std::string("}");
+
+ //if(ipolate_axis == 2)
+ // puts(ret.c_str());
+
+ return ret;
+}
 
 static const char *fragScale2X =
 "uniform vec2 TexSize;\n\
@@ -177,7 +165,7 @@ void main()\n\
 }";
 
 
-static void SLP(GLenum moe)
+static void SLP(GLhandleARB moe)
 {
  char buf[1000];
  GLsizei buflen = 0;
@@ -189,95 +177,67 @@ static void SLP(GLenum moe)
   MDFN_PrintError("%s\n", buf);
 }
 
-static void InitSLUT(void);
-static void InitZLUT(void);
+static void CompileShader(CompiledShader &s, const char *vertex_prog, const char *frag_prog)
+{
+	 int opi;
+
+         p_glEnable(GL_FRAGMENT_PROGRAM_ARB);
+
+         MDFN_GL_TRY(s.v = p_glCreateShaderObjectARB(GL_VERTEX_SHADER_ARB));
+	 s.v_valid = true;
+
+         MDFN_GL_TRY(s.f = p_glCreateShaderObjectARB(GL_FRAGMENT_SHADER_ARB));
+	 s.f_valid = true;
+
+         MDFN_GL_TRY(p_glShaderSourceARB(s.v, 1, &vertex_prog, NULL), SLP(s.v));
+         MDFN_GL_TRY(p_glShaderSourceARB(s.f, 1, &frag_prog, NULL), SLP(s.f));
+
+         MDFN_GL_TRY(p_glCompileShaderARB(s.v), SLP(s.v));
+	 MDFN_GL_TRY(p_glGetObjectParameterivARB(s.v, GL_OBJECT_COMPILE_STATUS_ARB, &opi));
+	 if(GL_FALSE == opi)
+	 {
+	  SLP(s.v);
+	  throw((void *)NULL);
+	 }
+
+         MDFN_GL_TRY(p_glCompileShaderARB(s.f), SLP(s.f));
+         MDFN_GL_TRY(p_glGetObjectParameterivARB(s.f, GL_OBJECT_COMPILE_STATUS_ARB, &opi));
+         if(GL_FALSE == opi)
+	 {
+	  SLP(s.f);
+          throw((void *)NULL);
+	 }
+
+         MDFN_GL_TRY(s.p = p_glCreateProgramObjectARB(), SLP(s.p));
+	 s.p_valid = true;
+
+         MDFN_GL_TRY(p_glAttachObjectARB(s.p, s.v));
+         MDFN_GL_TRY(p_glAttachObjectARB(s.p, s.f));
+
+         MDFN_GL_TRY(p_glLinkProgramARB(s.p), SLP(s.p));
+
+         MDFN_GL_TRY(p_glDisable(GL_FRAGMENT_PROGRAM_ARB));
+}
 
 bool InitShader(ShaderType shader_type)
 {
 	OurType = shader_type;
 
-	if(OurType == SHADER_HQXX)
-	{
-         p_glGenTextures(1, &slut_texture);
-         p_glGenTextures(1, &zlut_texture);
-         InitSLUT();
-         InitZLUT();
-	}
-
-        p_glEnable(GL_FRAGMENT_PROGRAM_ARB);
-
-	const char *vv = vertexProg;
-	const char *ff;
-
-	if(OurType == SHADER_HQXX)
-	{
-
-	}
-	else if(OurType == SHADER_SCALE2X)
-	{
-	 ff = fragScale2X;
-	}
-	else if(OurType == SHADER_IPSHARPER)
-	{
-	 ff = fragProgIpolateSharper;
-	}
-	else if(OurType == SHADER_IPXNOTY)
-	{
-	 ff = fragProgIpolateXNotY;
-	}
-        else if(OurType == SHADER_IPXNOTYSHARPER)
-        {
-         ff = fragProgIpolateXNotYSharper;
-        }
-	else if(OurType == SHADER_IPYNOTX)
-	{
-	 ff = fragProgIpolateYNotX;
-	}
-        else if(OurType == SHADER_IPYNOTXSHARPER)
-        {
-         ff = fragProgIpolateYNotXSharper;
-        }
-	else
-	 return(0);
-
 	try
 	{
-	 int opi;
-
-         MDFN_GL_TRY(v = p_glCreateShaderObjectARB(GL_VERTEX_SHADER_ARB));
-	 v_valid = true;
-
-         MDFN_GL_TRY(f = p_glCreateShaderObjectARB(GL_FRAGMENT_SHADER_ARB));
-	 f_valid = true;
-
-         MDFN_GL_TRY(p_glShaderSourceARB(v, 1, &vv, NULL), SLP(v));
-         MDFN_GL_TRY(p_glShaderSourceARB(f, 1, &ff, NULL), SLP(f));
-
-         MDFN_GL_TRY(p_glCompileShaderARB(v), SLP(v));
-	 MDFN_GL_TRY(p_glGetObjectParameterivARB(v, GL_OBJECT_COMPILE_STATUS_ARB, &opi));
-	 if(GL_FALSE == opi)
+	 switch(OurType)
 	 {
-	  SLP(v);
-	  throw((void *)NULL);
+	  case SHADER_SCALE2X:
+		CompileShader(CSP[0], vertexProg, fragScale2X);
+		break;
+
+	  default:
+		for(unsigned i = 0; i < 8; i++)
+		{
+		 CompileShader(CSP[i], vertexProg, MakeProgIpolate(i).c_str());
+		}
+		break;
 	 }
-
-         MDFN_GL_TRY(p_glCompileShaderARB(f), SLP(f));
-         MDFN_GL_TRY(p_glGetObjectParameterivARB(f, GL_OBJECT_COMPILE_STATUS_ARB, &opi));
-         if(GL_FALSE == opi)
-	 {
-	  SLP(f);
-          throw((void *)NULL);
-	 }
-
-         MDFN_GL_TRY(p = p_glCreateProgramObjectARB(), SLP(p));
-	 p_valid = true;
-
-         MDFN_GL_TRY(p_glAttachObjectARB(p, v));
-         MDFN_GL_TRY(p_glAttachObjectARB(p, f));
-
-         MDFN_GL_TRY(p_glLinkProgramARB(p), SLP(p));
-
-         MDFN_GL_TRY(p_glDisable(GL_FRAGMENT_PROGRAM_ARB));
 	}
 	catch(GLenum errcode)
 	{
@@ -293,223 +253,108 @@ bool InitShader(ShaderType shader_type)
 	return(1);
 }
 
-const float ColThreshold = 0.02f;
-
-float var4(unsigned int texel[])
+bool ShaderBegin(SDL_Surface *surface, const SDL_Rect *rect, const SDL_Rect *dest_rect, int tw, int th)
 {
-        float var=0.0f;
-        float aveX, aveY, aveZ;
-        float difX[4], difY[4], difZ[4];
-        float x[4], y[4], z[4];
-
-        for(int i=0; i<4; ++i)
-        {
-                x[i] = float(texel[i] & 0x000000ff)/255.0f;
-                y[i] = float((texel[i] >> 8) & 0x000000ff)/255.0f;
-                z[i] = float((texel[i] >> 16) & 0x000000ff)/255.0f;
-        }
-
-        aveX = 0.25f*(x[0]+x[1]+x[2]+x[3]);
-        aveY = 0.25f*(y[0]+y[1]+y[2]+y[3]);
-        aveZ = 0.25f*(z[0]+z[1]+z[2]+z[3]);
-
-        for(int i=0; i<4; ++i)
-        {
-                difX[i] = x[i] - aveX;
-                difY[i] = y[i] - aveY;
-                difZ[i] = z[i] - aveZ;
-        }
-
-        for(int i=0; i<4; ++i)
-        {
-                var += (difX[i]*difX[i]+difY[i]*difY[i]+difZ[i]*difZ[i]);
-        }
-
-        var *= 0.25f;
-
-        return var;
-}
-
-float var3(unsigned int texel0, unsigned int texel1, unsigned int texel2)
-{
-        float var=0.0f;
-        float aveX, aveY, aveZ;
-        float difX[3], difY[3], difZ[3];
-        float x[3], y[3], z[3];
-
-        x[0] = float(texel0 & 0x000000ff)/255.0f;
-        y[0] = float((texel0 >> 8) & 0x000000ff)/255.0f;
-        z[0] = float((texel0 >> 16) & 0x000000ff)/255.0f;
-
-        x[1] = float(texel1 & 0x000000ff)/255.0f;
-        y[1] = float((texel1 >> 8) & 0x000000ff)/255.0f;
-        z[1] = float((texel1 >> 16) & 0x000000ff)/255.0f;
-
-        x[2] = float(texel2 & 0x000000ff)/255.0f;
-        y[2] = float((texel2 >> 8) & 0x000000ff)/255.0f;
-        z[2] = float((texel2 >> 16) & 0x000000ff)/255.0f;
-
-        aveX = 0.333f*(x[0]+x[1]+x[2]);
-        aveY = 0.333f*(y[0]+y[1]+y[2]);
-        aveZ = 0.333f*(z[0]+z[1]+z[2]);
-
-        for(int i=0; i<3; ++i)
-        {
-                difX[i] = x[i] - aveX;
-                difY[i] = y[i] - aveY;
-                difZ[i] = z[i] - aveZ;
-        }
-
-        for(int i=0; i<3; ++i)
-        {
-                var += (difX[i]*difX[i]+difY[i]*difY[i]+difZ[i]*difZ[i]);
-        }
-
-        var *= 0.333f;
-
-        return var;
-}
-
-float var2(unsigned int texel0, unsigned int texel1)
-{
-        float var=0.0f;
-        float difX, difY, difZ;
-        float x[2], y[2], z[2];
-
-        x[0] = float(texel0 & 0x000000ff)/255.0f;
-        y[0] = float((texel0 >> 8) & 0x000000ff)/255.0f;
-        z[0] = float((texel0 >> 16) & 0x000000ff)/255.0f;
-
-        x[1] = float(texel1 & 0x000000ff)/255.0f;
-        y[1] = float((texel1 >> 8) & 0x000000ff)/255.0f;
-        z[1] = float((texel1 >> 16) & 0x000000ff)/255.0f;
-
-        difX = x[0] - x[1];
-        difY = y[0] - y[1];
-        difZ = z[0] - z[1];
-
-        var = (difX*difX+difY*difY+difZ*difZ) * 0.25f;
-
-        return var;
-}
-
-static void CalcKernels(SDL_Surface *surface, const SDL_Rect *rect)
-{
-	int w = rect->w;
-	int h = rect->h;
-	uint32 *pData = (uint32 *)surface->pixels + rect->x + rect->y * (surface->pitch >> 2);
-
-        // for each pixel, compute the kernel index & output the result as alpha.
-        for(int i=0; i<h; ++i)
-        {
-                for(int j=0; j<w; ++j)
-                {
-                        // get 4 neighbor texels.
-                        unsigned int texel[4];
-                        int i_1 = (i+1)%h;
-                        int j_1 = (j+1)%w;
-                        texel[0] = pData[i*w+j];
-                        texel[1] = pData[i_1*w+j];
-                        texel[2] = pData[i_1*w+j_1];
-                        texel[3] = pData[i*w+j_1];
-
-                        int index;
-                        // determine a filtering kernel(0~13).
-                        // 4
-                        if(var4(texel) < ColThreshold)
-                        {
-                                index = 0;
-                        }
-                        // 3-1
-                        else if(var3(texel[0], texel[1], texel[3]) < ColThreshold)
-                        {
-                                index = 3;
-                        }
-                        else if(var3(texel[0], texel[2], texel[3]) < ColThreshold)
-                        {
-                                index = 4;
-                        }
-                        else if(var3(texel[1], texel[2], texel[3]) < ColThreshold)
-                        {
-                                index = 5;
-                        }
-                        else if(var3(texel[0], texel[1], texel[2]) < ColThreshold)
-                        {
-                                index = 6;
-                        }
-                        // 2-2
-                        else if(var2(texel[0], texel[3]) < ColThreshold &&
-                                        var2(texel[1], texel[2]) < ColThreshold)
-                        {
-                                index = 1;
-                        }
-                        else if(var2(texel[0], texel[1]) < ColThreshold &&
-                                        var2(texel[2], texel[3]) < ColThreshold)
-                        {
-                                index = 2;
-                        }
-                        // 2-1-1
-                        else if(var2(texel[1], texel[2]) < ColThreshold)
-                        {
-                                index = 7;
-                        }
-                        else if(var2(texel[0], texel[3]) < ColThreshold)
-                        {
-                                index = 8;
-                        }
-                        else if(var2(texel[2], texel[3]) < ColThreshold)
-                        {
-                                index = 9;
-                        }
-                        else if(var2(texel[0], texel[1]) < ColThreshold)
-                        {
-                                index = 10;
-                        }
-                        // 1-2-1
-                        else if(var2(texel[0], texel[2]) < ColThreshold &&
-                                        var2(texel[1], texel[3]) < ColThreshold)
-                        {
-                                index = 14;
-                        }
-                        else if(var2(texel[0], texel[2]) < ColThreshold)
-                        {
-                                index = 11;
-                        }
-                        else if(var2(texel[1], texel[3]) < ColThreshold)
-                        {
-                                index = 12;
-                        }
-                        // 1-1-1-1
-                        else
-                        {
-                                index = 13;
-                       }
-
-                        // output as alpha.
-                        pData[i*w+j] = (pData[i*w+j] & 0x00ffffff) + ((256 * index / 16) << 24);
-                }
-	}
-}
-
-bool ShaderBegin(SDL_Surface *surface, const SDL_Rect *rect, int tw, int th)
-{
-	if(OurType == SHADER_HQXX)
-	 CalcKernels(surface, rect);
-
         p_glEnable(GL_FRAGMENT_PROGRAM_ARB);
-	p_glUseProgramObjectARB(p);
 
-        p_glUniform1iARB(p_glGetUniformLocationARB(p, "Tex0"), 0);
-
-	if(OurType == SHADER_HQXX)
+	//printf("%f\n", (double)dest_rect->w / rect->w);
+        //printf("%f\n", (double)dest_rect->h / rect->h);
+	if(OurType == SHADER_SCALE2X)
 	{
-         p_glUniform1iARB(p_glGetUniformLocationARB(p, "Slut"), 1);
-         p_glUniform1iARB(p_glGetUniformLocationARB(p, "Zlut"), 2);
+ 	 p_glUseProgramObjectARB(CSP[0].p);
+
+         p_glUniform1iARB(p_glGetUniformLocationARB(CSP[0].p, "Tex0"), 0);
+         p_glUniform2fARB(p_glGetUniformLocationARB(CSP[0].p, "TexSize"), tw, th);
+         p_glUniform2fARB(p_glGetUniformLocationARB(CSP[0].p, "TexSizeInverse"), (float)1 / tw, (float) 1 / th);
 	}
+	else
+	{
+	 unsigned csi;
+	 float sharpness = 2.0;
+	 float xsh;
+	 float ysh;
+	 unsigned ip_x;
+	 unsigned ip_y;
 
-        p_glUniform2fARB(p_glGetUniformLocationARB(p, "TexSize"), tw, th);
-        p_glUniform2fARB(p_glGetUniformLocationARB(p, "TexSizeInverse"), (float)1 / tw, (float) 1 / th);
+	 ip_x = 1;
+	 ip_y = 1;
 
+	 if(OurType == SHADER_AUTOIP)
+	 {
+	  xsh = 1;
+	  ysh = 1;
+	 }
+	 else
+	 {
+	  xsh = (float)dest_rect->w / rect->w / sharpness;
+	  ysh = (float)dest_rect->h / rect->h / sharpness;
+	 }
+
+	 if(OurType == SHADER_IPXNOTY || OurType == SHADER_IPXNOTYSHARPER)
+	 {
+	  if(OurType == SHADER_IPXNOTY)
+	  {
+	   xsh = 0;
+	  }
+	  ysh = 0;
+	  ip_x = 1;
+	  ip_y = 0;
+	 }
+	 else if(OurType == SHADER_IPYNOTX || OurType == SHADER_IPYNOTXSHARPER)
+	 {
+	  if(OurType == SHADER_IPYNOTX)
+	  {
+	   ysh = 0;
+	  }
+	  xsh = 0;
+ 	  ip_x = 0;
+	  ip_y = 1;
+	 }
+	 else if(OurType == SHADER_IPSHARPER)
+	 {
+	  ip_x = true;
+	  ip_y = true;
+	 }
+	 else
+	 {
+	  // Scaling X by an integer?
+	  if(floor((double)dest_rect->w / rect->w) == (double)dest_rect->w / rect->w)
+	  {
+	   xsh = 0;
+	   ip_x = 0;
+	  }
+
+	  // Scaling Y by an integer?
+	  if(floor((double)dest_rect->h / rect->h) == (double)dest_rect->h / rect->h)
+	  {
+	   ysh = 0;
+	   ip_y = 0;
+	  }
+	 }
+
+	 if(xsh < 1)
+	  xsh = 1;
+
+	 if(ysh < 1)
+	  ysh = 1;
+
+	 csi = (ip_y << 1) | ip_x;
+	 if(xsh > 1 && ip_x)
+	  csi |= 4;
+	 if(ysh > 1 && ip_y)
+	  csi |= 4;
+
+ 	 p_glUseProgramObjectARB(CSP[csi].p);
+
+//	printf("%d:%d, %d\n", ip_x, ip_y, csi);
+
+         p_glUniform1iARB(p_glGetUniformLocationARB(CSP[csi].p, "Tex0"), 0);
+         p_glUniform2fARB(p_glGetUniformLocationARB(CSP[csi].p, "TexSize"), tw, th);
+         p_glUniform2fARB(p_glGetUniformLocationARB(CSP[csi].p, "TexSizeInverse"), (float)1 / tw, (float) 1 / th);
+
+         p_glUniform1fARB(p_glGetUniformLocationARB(CSP[csi].p, "XSharp"), xsh);
+         p_glUniform1fARB(p_glGetUniformLocationARB(CSP[csi].p, "YSharp"), ysh);
+	}
 	return(1);
 }
 
@@ -524,378 +369,28 @@ bool KillShader(void)
 {
         p_glUseProgramObjectARB(0);
 
-	if(p_valid)
+	for(unsigned i = 0; i < CSP_COUNT; i++)
 	{
-	 if(f_valid)
-	  p_glDetachObjectARB(p, f);
-	 if(v_valid)
-  	  p_glDetachObjectARB(p, v);
+	 if(CSP[i].p_valid)
+	 {
+	  if(CSP[i].f_valid)
+	   p_glDetachObjectARB(CSP[i].p, CSP[i].f);
+	  if(CSP[i].v_valid)
+  	   p_glDetachObjectARB(CSP[i].p, CSP[i].v);
+	 }
+	 if(CSP[i].f_valid)
+	  p_glDeleteObjectARB(CSP[i].f);
+	 if(CSP[i].v_valid)
+	  p_glDeleteObjectARB(CSP[i].v);
+	 if(CSP[i].p_valid)
+	  p_glDeleteObjectARB(CSP[i].p);
+
+	 CSP[i].f_valid = CSP[i].v_valid = CSP[i].p_valid = false;
 	}
-	if(f_valid)
-	 p_glDeleteObjectARB(f);
-	if(v_valid)
-	 p_glDeleteObjectARB(v);
-	if(p_valid)
-	 p_glDeleteObjectARB(p);
 
         p_glDisable(GL_FRAGMENT_PROGRAM_ARB);
 
-	f_valid = v_valid = p_valid = false;
-
 	return(1);
-}
-
-#define RGBA(r,g,b,a) (((a)<<24) | ((b)<<16) | ((g)<<8) | (r))
-
-static void InitSLUT(void)
-{
-	const int w = 8;
-	const int h = 16;
-	uint32 pData[w * h * 4];
-
-	memset(pData, 0x00, sizeof(pData));
-
-	// overall layout
-	// R-----------A
-	// | 0 / | \ 3 |
-	// | / 4 | 7 \ |
-	// |-----|-----|
-	// | \ 5 | 6 / |
-	// | 1 \ | / 2 |
-	// G-----------B
-	//
-
-	// 0
-	// *-------*
-	// |       |
-	// |       |
-	// |       |
-	// *-------*
-	//
-	pData[w*0+0] = RGBA(255,255,255,255);
-	pData[w*0+1] = RGBA(255,255,255,255);
-	pData[w*0+2] = RGBA(255,255,255,255);
-	pData[w*0+3] = RGBA(255,255,255,255);
-	pData[w*0+4] = RGBA(255,255,255,255);
-	pData[w*0+5] = RGBA(255,255,255,255);
-	pData[w*0+6] = RGBA(255,255,255,255);
-	pData[w*0+7] = RGBA(255,255,255,255);
-
-	// 1
-	// *-------*
-	// |       |
-	// |-------|
-	// |       |
-	// *-------*
-	//
-	pData[w*1+0] = RGBA(255,0,0,255);
-	pData[w*1+1] = RGBA(0,255,255,0);
-	pData[w*1+2] = RGBA(0,255,255,0);
-	pData[w*1+3] = RGBA(255,0,0,255);
-	pData[w*1+4] = RGBA(255,0,0,255);
-	pData[w*1+5] = RGBA(0,255,255,0);
-	pData[w*1+6] = RGBA(0,255,255,0);
-	pData[w*1+7] = RGBA(255,0,0,255);
-
-	// 2
-	// *-------*
-	// |   |   |
-	// |   |   |
-	// |   |   |
-	// *-------*
-	//
-	pData[w*2+0] = RGBA(255,255,0,0);
-	pData[w*2+1] = RGBA(255,255,0,0);
-	pData[w*2+2] = RGBA(0,0,255,255);
-	pData[w*2+3] = RGBA(0,0,255,255);
-	pData[w*2+4] = RGBA(255,255,0,0);
-	pData[w*2+5] = RGBA(255,255,0,0);
-	pData[w*2+6] = RGBA(0,0,255,255);
-	pData[w*2+7] = RGBA(0,0,255,255);
-
-	// 3
-	// *-------*
-	// |       |
-	// |      /|
-	// |    /  |
-	// *-------*
-	//
-	pData[w*3+0] = RGBA(255,255,0,255);
-	pData[w*3+1] = RGBA(255,255,0,255);
-	pData[w*3+2] = RGBA(0,0,255,0);
-	pData[w*3+3] = RGBA(255,255,0,255);
-	pData[w*3+4] = RGBA(255,255,0,255);
-	pData[w*3+5] = RGBA(255,255,0,255);
-	pData[w*3+6] = RGBA(255,255,0,255);
-	pData[w*3+7] = RGBA(255,255,0,255);
-
-        // 4
-        // *-------*
-        // |       |
-        // |\      |
-        // |  \    |
-        // *-------*
-        //
-	pData[w*4+0] = RGBA(255,0,255,255);
-	pData[w*4+1] = RGBA(0,255,0,0);
-	pData[w*4+2] = RGBA(255,0,255,255);
-	pData[w*4+3] = RGBA(255,0,255,255);
-	pData[w*4+4] = RGBA(255,0,255,255);
-	pData[w*4+5] = RGBA(255,0,255,255);
-	pData[w*4+6] = RGBA(255,0,255,255);
-	pData[w*4+7] = RGBA(255,0,255,255);
-
-	// 5
-	// *-------*
-	// |  /    |
-	// |/      |
-	// |       |
-	// *-------*
-	//
-	pData[w*5+0] = RGBA(255,0,0,0);
-	pData[w*5+1] = RGBA(0,255,255,255);
-	pData[w*5+2] = RGBA(0,255,255,255);
-	pData[w*5+3] = RGBA(0,255,255,255);
-	pData[w*5+4] = RGBA(0,255,255,255);
-	pData[w*5+5] = RGBA(0,255,255,255);
-	pData[w*5+6] = RGBA(0,255,255,255);
-	pData[w*5+7] = RGBA(0,255,255,255);
-
-	// 6
-	// *-------*
-	// |    \  |
-	// |      \|
-	// |       |
-	// *-------*
-	//
-	pData[w*6+0] = RGBA(255,255,255,0);
-	pData[w*6+1] = RGBA(255,255,255,0);
-	pData[w*6+2] = RGBA(255,255,255,0);
-	pData[w*6+3] = RGBA(0,0,0,255);
-	pData[w*6+4] = RGBA(255,255,255,0);
-	pData[w*6+5] = RGBA(255,255,255,0);
-	pData[w*6+6] = RGBA(255,255,255,0);
-	pData[w*6+7] = RGBA(255,255,255,0);
-
-	// 7
-	// *-------*
-	// |   |   |
-	// |-------|
-	// |       |
-	// *-------*
-	//
-	pData[w*7+0] = RGBA(255,0,0,0);
-	pData[w*7+1] = RGBA(0,255,255,0);
-	pData[w*7+2] = RGBA(0,255,255,0);
-	pData[w*7+3] = RGBA(0,0,0,255);
-	pData[w*7+4] = RGBA(255,0,0,0);
-	pData[w*7+5] = RGBA(0,255,255,0);
-	pData[w*7+6] = RGBA(0,255,255,0);
-	pData[w*7+7] = RGBA(0,0,0,255);
-	
-	// 8
-	// *-------*
-	// |       |
-	// |-------|
-	// |   |   |
-	// *-------*
-	//
-	pData[w*8+0] = RGBA(255,0,0,255);
-	pData[w*8+1] = RGBA(0,255,0,0);
-	pData[w*8+2] = RGBA(0,0,255,0);
-	pData[w*8+3] = RGBA(255,0,0,255);
-	pData[w*8+4] = RGBA(255,0,0,255);
-	pData[w*8+5] = RGBA(0,255,0,0);
-	pData[w*8+6] = RGBA(0,0,255,0);
-	pData[w*8+7] = RGBA(255,0,0,255);
-
-	// 9
-	// *-------*
-	// |   |   |
-	// |---|   |
-	// |   |   |
-	// *-------*
-	//
-	pData[w*9+0] = RGBA(255,0,0,0);
-	pData[w*9+1] = RGBA(0,255,0,0);
-	pData[w*9+2] = RGBA(0,0,255,255);
-	pData[w*9+3] = RGBA(0,0,255,255);
-	pData[w*9+4] = RGBA(255,0,0,0);
-	pData[w*9+5] = RGBA(0,255,0,0);
-	pData[w*9+6] = RGBA(0,0,255,255);
-	pData[w*9+7] = RGBA(0,0,255,255);
-
-	// 10
-	// *-------*
-	// |   |   |
-	// |   |---|
-	// |   |   |
-	// *-------*
-	//
-	pData[w*10+0] = RGBA(255,255,0,0);
-	pData[w*10+1] = RGBA(255,255,0,0);
-	pData[w*10+2] = RGBA(0,0,255,0);
-	pData[w*10+3] = RGBA(0,0,0,255);
-	pData[w*10+4] = RGBA(255,255,0,0);
-	pData[w*10+5] = RGBA(255,255,0,0);
-	pData[w*10+6] = RGBA(0,0,255,0);
-	pData[w*10+7] = RGBA(0,0,0,255);
-
-	// 11
-	// *-------*
-	// |    \  |
-	// |\     \|
-	// |  \    |
-	// *-------*
-	//
-	pData[w*11+0] = RGBA(255,0,255,0);
-	pData[w*11+1] = RGBA(0,255,0,0);
-	pData[w*11+2] = RGBA(255,0,255,0);
-	pData[w*11+3] = RGBA(0,0,0,255);
-	pData[w*11+4] = RGBA(255,0,255,0);
-	pData[w*11+5] = RGBA(255,0,255,0);
-	pData[w*11+6] = RGBA(255,0,255,0);
-	pData[w*11+7] = RGBA(255,0,255,0);
-
-	// 12
-	// *-------*
-	// |  /    |
-	// |/     /|
-	// |    /  |
-	// *-------*
-	//
-	pData[w*12+0] = RGBA(255,0,0,0);
-	pData[w*12+1] = RGBA(0,255,0,255);
-	pData[w*12+2] = RGBA(0,0,255,0);
-	pData[w*12+3] = RGBA(0,255,0,255);
-	pData[w*12+4] = RGBA(0,255,0,255);
-	pData[w*12+5] = RGBA(0,255,0,255);
-	pData[w*12+6] = RGBA(0,255,0,255);
-	pData[w*12+7] = RGBA(0,255,0,255);
-
-	// 13
-	// *-------*
-	// |   |   |
-	// |---|---|
-	// |   |   |
-	// *-------*
-	//
-	pData[w*13+0] = RGBA(255,0,0,0);
-	pData[w*13+1] = RGBA(0,255,0,0);
-	pData[w*13+2] = RGBA(0,0,255,0);
-	pData[w*13+3] = RGBA(0,0,0,255);
-	pData[w*13+4] = RGBA(255,0,0,0);
-	pData[w*13+5] = RGBA(0,255,0,0);
-	pData[w*13+6] = RGBA(0,0,255,0);
-	pData[w*13+7] = RGBA(0,0,0,255);
-
-	// 14
-	// *-------*
-	// |  / \  |
-	// |/     /|
-	// | \  /  |
-	// *-------*
-	// R == B && G == A 
-	//
-	pData[w*14+0] = RGBA(255,0,255,0);
-	pData[w*14+1] = RGBA(0,255,0,255);
-	pData[w*14+2] = RGBA(255,0,255,0);
-	pData[w*14+3] = RGBA(255,255,255,255);
-	pData[w*14+4] = RGBA(255,255,255,255);
-	pData[w*14+5] = RGBA(255,255,255,255);
-	pData[w*14+6] = RGBA(255,255,255,255);
-	pData[w*14+7] = RGBA(255,255,255,255);
-
-	p_glActiveTextureARB(GL_TEXTURE1_ARB);
-	p_glBindTexture(GL_TEXTURE_2D, slut_texture);
-
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
-
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-	p_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pData);
-}
-
-#define RGBAV(v) (((v)<<24) | ((v)<<16) | ((v)<<8) | (v))
-static void InitZLUT(void)
-{
-	uint32 pData[zlutSize * zlutSize * 4];
-
-        memset(pData, 0x00, sizeof(pData));
-
-	// zone layout
-	// *-----------*
-	// | 0 / | \ 3 |
-	// | / 4 | 7 \ |
-	// |-----|-----|
-	// | \ 5 | 6 / |
-	// | 1 \ | / 2 |
-	// *-----------*
-	//
-
-	for(int i=0; i<zlutSize; ++i)
-	{
-		for(int j=0; j<zlutSize; ++j)
-		{
-			// get uv.
-			float u = (float(j)+0.5f)/zlutSize;
-			float v_c = (float(i)+0.5f)/zlutSize;
-			
-			// compute the zone index.
-			int index;
-			float uu, vv;
-			if(u < 0.5f)
-			{
-				if(v_c < 0.5f)
-				{
-					index = 0;
-					uu = -u + 0.5f;
-					vv = v_c;
-					if(uu < vv) index += 4;
-				}
-				else
-				{
-					index = 1;
-					uu = -u;
-					vv = -v_c + 0.5f;
-					if(uu < vv) index += 4;
-				}
-			}
-			else
-			{
-				if(v_c < 0.5f)
-				{
-					index = 3;
-					uu = u - 0.5f;
-					vv = v_c;
-					if(uu < vv) index += 4;
-				}
-				else
-				{
-					index = 2;
-					uu = u - 1.0f;
-					vv = -v_c + 0.5f;
-					if(uu < vv) index += 4;
-				}
-			}
-			
-			// write the zone index.
-			unsigned int value = 256 * index / 8;
-			pData[i*zlutSize+j] = RGBAV(value);
-		}
-	}
-
-
-	p_glActiveTextureARB(GL_TEXTURE2_ARB);
-	p_glBindTexture(GL_TEXTURE_2D, zlut_texture);
-
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
-
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-	p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-	p_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zlutSize, zlutSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, pData);
 }
 
 #endif

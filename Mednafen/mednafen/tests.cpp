@@ -281,6 +281,45 @@ bool DoLEPackerTest(void)
  return(TRUE);
 }
 
+struct MathTestTSOEntry
+{
+ int32 a;
+ int32 b;
+};
+
+// Don't declare as static(though whopr might mess it up anyway)
+MathTestTSOEntry MathTestTSOTests[] =
+{
+ { 0x7FFFFFFF, 2 },
+ { 0x7FFFFFFE, 0x7FFFFFFF },
+ { 0x7FFFFFFF, 0x7FFFFFFF },
+ { 0x7FFFFFFE, 0x7FFFFFFE },
+};
+
+static void TestSignedOverflow(void)
+{
+ for(unsigned int i = 0; i < sizeof(MathTestTSOTests) / sizeof(MathTestTSOEntry); i++)
+ {
+  int32 a = MathTestTSOTests[i].a;
+  int32 b = MathTestTSOTests[i].b;
+
+  assert((a + b) < a && (a + b) < b);
+
+  assert((a + 0x7FFFFFFE) < a);
+  assert((b + 0x7FFFFFFE) < b);
+
+  assert((a + 0x7FFFFFFF) < a);
+  assert((b + 0x7FFFFFFF) < b);
+
+  assert((int32)(a + 0x80000000) < a);
+  assert((int32)(b + 0x80000000) < b);
+
+  assert((int32)(a ^ 0x80000000) < a);
+  assert((int32)(b ^ 0x80000000) < b);
+ }
+}
+
+
 static void DoAlignmentChecks(void)
 {
  uint8 padding0[3];
@@ -327,12 +366,21 @@ unsigned int mdfn_shifty_test[4] =
 };
 
 
+#include "general.h"
+
 bool MDFN_RunMathTests(void)
 {
  MathTestEntry *itoo = math_test_vals;
 
  if(!DoSizeofTests())
   return(0);
+
+ // Make sure the "char" type is signed(pass -fsigned-char to gcc).  New code in Mednafen shouldn't be written with the
+ // assumption that "char" is signed, but there likely is at least some code that does.
+ {
+  char tmp = 255;
+  assert(tmp < 0);
+ }
 
  #if 0
  // TODO(except for 32-bit >> 32 test)
@@ -454,7 +502,7 @@ bool MDFN_RunMathTests(void)
  }
 
  DoAlignmentChecks();
-
+ TestSignedOverflow();
 
  if(sign_9_to_s16(itoo->negative_one) != -1 || sign_9_to_s16(itoo->mostneg) != itoo->mostnegresult)
   FATALME;
@@ -553,6 +601,38 @@ bool MDFN_RunMathTests(void)
 
  if(!DoLEPackerTest())
   return(0);
+
+ assert(uilog2(0) == 0);
+ assert(uilog2(1) == 0);
+ assert(uilog2(3) == 1);
+ assert(uilog2(4095) == 11);
+ assert(uilog2(0xFFFFFFFF) == 31);
+
+#if 0
+// Not really a math test.
+ const char *test_paths[] = { "/meow", "/meow/cow", "\\meow", "\\meow\\cow", "\\\\meow", "\\\\meow\\cow",
+			      "/meow.", "/me.ow/cow.", "\\meow.", "\\me.ow\\cow.", "\\\\meow.", "\\\\meow\\cow.",
+			      "/meow.txt", "/me.ow/cow.txt", "\\meow.txt", "\\me.ow\\cow.txt", "\\\\meow.txt", "\\\\meow\\cow.txt"
+
+			      "/meow", "/meow\\cow", "\\meow", "\\meow/cow", "\\\\meow", "\\\\meow/cow",
+			      "/meow.", "\\me.ow/cow.", "\\meow.", "/me.ow\\cow.", "\\\\meow.", "\\\\meow/cow.",
+			      "/meow.txt", "/me.ow\\cow.txt", "\\meow.txt", "\\me.ow/cow.txt", "\\\\meow.txt", "\\\\meow/cow.txt",
+			      "/bark///dog", "\\bark\\\\\\dog" };
+
+ for(unsigned i = 0; i < sizeof(test_paths) / sizeof(const char *); i++)
+ {
+  std::string file_path = std::string(test_paths[i]);
+  std::string dir_path;
+  std::string file_base;
+  std::string file_ext;
+
+  MDFN_GetFilePathComponents(file_path, &dir_path, &file_base, &file_ext);
+
+  printf("%s ------ dir=%s --- base=%s --- ext=%s\n", file_path.c_str(), dir_path.c_str(), file_base.c_str(), file_ext.c_str());
+
+ }
+#endif
+
 
  return(1);
 }

@@ -24,70 +24,77 @@
 #include "video.h"
 #include "joystick.h"
 
-int DTestButton(std::vector<ButtConfig> &bc, const char *KeyState, const uint32 *MouseData)
+static bool DTestButtonMouse(const ButtConfig &bc, const uint32 *MouseData)
 {
- unsigned int x;
+ if(bc.ButtonNum & 0x8000)
+ {
+  if(bc.ButtonNum&1) // Y
+  {
+   if(bc.ButtonNum & 0x4000)
+   {
+    if(MouseData[1] < 128)
+     return(true);
+   }
+   else
+   {
+    if(MouseData[1] >= 128)
+     return(true);
+   }
+  }
+  else			// X
+  {
+   if(bc.ButtonNum & 0x4000)
+   {
+    if(MouseData[0] < 128)
+     return(true);
+   }
+   else
+   {
+    if(MouseData[0] >= 128)
+     return(true);
+   }
+  }   
+ }
+ else 
+ {
+  if(MouseData[2] & (1 << SDL_BUTTON(bc.ButtonNum)))
+   return(true);
+ }
+ return(false);
+}
 
- for(x=0; x<bc.size(); x++)
+int DTestButton(std::vector<ButtConfig> &bc, const char *KeyState, const uint32 *MouseData, bool analog)
+{
+ const int maxv = analog ? 32767 : 1;
+
+ for(unsigned int x = 0; x < bc.size(); x++)
  {
   if(bc[x].ButtType==BUTTC_KEYBOARD)
   {
    if(KeyState[bc[x].ButtonNum])
-    return(1);
+    return(maxv);
   }
   else if(bc[x].ButtType==BUTTC_JOYSTICK)
   {
+   if(analog)
+    return DTestAnalogButtonJoy(bc[x]);
    if(DTestButtonJoy(bc[x]))
-    return(1);
+    return(maxv);
   }
   else if(bc[x].ButtType == BUTTC_MOUSE)
   {
-   if(bc[x].ButtonNum & 0x8000)
-   {
-    if(bc[x].ButtonNum&1) // Y
-    {
-     if(bc[x].ButtonNum & 0x4000)
-     {
-      if(MouseData[1] < 128)
-       return(1);
-     }
-     else
-     {
-      if(MouseData[1] >= 128)
-       return(1);
-     }
-    }
-    else			// X
-    {
-     if(bc[x].ButtonNum & 0x4000)
-     {
-      if(MouseData[0] < 128)
-       return(1);
-     }
-     else
-     {
-      if(MouseData[0] >= 128)
-       return(1);
-     }
-    }
-    
-   }
-   else 
-   {
-    if(MouseData[2] & (1 << SDL_BUTTON(bc[x].ButtonNum)))
-     return(1);
-   }
+   return(DTestButtonMouse(bc[x], MouseData) ? maxv : 0);
   }
  }
  return(0);
 }
 
-int DTestButton(ButtConfig &bc, const char *KeyState, const uint32 *MouseData)
+int DTestButton(ButtConfig &bc, const char *KeyState, const uint32 *MouseData, bool analog)
 {
  std::vector<ButtConfig> neobc;
  neobc.push_back(bc);
 
- return(DTestButton(neobc, KeyState, MouseData));
+ return(DTestButton(neobc, KeyState, MouseData, analog));
 }
 
 
@@ -96,7 +103,7 @@ int DTestButton(ButtConfig &bc, const char *KeyState, const uint32 *MouseData)
 #define ICSS_CTRL	4
 
 /* Used for command keys */
-int DTestButtonCombo(std::vector<ButtConfig> &bc, const char *KeyState)
+int DTestButtonCombo(std::vector<ButtConfig> &bc, const char *KeyState, const uint32 *MouseData)
 {
  unsigned int x;
  unsigned int ss = 0;
@@ -119,23 +126,27 @@ int DTestButtonCombo(std::vector<ButtConfig> &bc, const char *KeyState)
    if(DTestButtonJoy(bc[x]))
     return(1);
   }
+  else if(bc[x].ButtType == BUTTC_MOUSE)
+  {
+   return(DTestButtonMouse(bc[x], MouseData) ? 1 : 0);
+  }
  }
  return(0);
 }
 
-int DTestButtonCombo(ButtConfig &bc, const char *KeyState)
+int DTestButtonCombo(ButtConfig &bc, const char *KeyState, const uint32 *MouseData)
 {
  std::vector<ButtConfig> neobc;
  neobc.push_back(bc);
 
- return(DTestButtonCombo(neobc, KeyState));
-
+ return(DTestButtonCombo(neobc, KeyState, MouseData));
 }
 
 
 static ButtConfig efbc;
-static volatile int efbcdone;
-static volatile int efck;
+static int volatile efbcdone;
+static int volatile efck;
+static unsigned int JoyFilter;
 static int32 LastAx[64][64];
 static int LastMouseX;
 static int LastMouseY;
@@ -144,8 +155,9 @@ static int EventFilter(const SDL_Event *event)
 {
  if(efbcdone)
   return(1);
-  switch(event->type)
-  {
+
+ switch(event->type)
+ {
    case SDL_KEYDOWN:    if(!efck || (event->key.keysym.sym != MKK(LALT) && event->key.keysym.sym != MKK(RALT) &&
                          event->key.keysym.sym != MKK(LSHIFT) && event->key.keysym.sym != MKK(RSHIFT)))
                         {
@@ -158,22 +170,30 @@ static int EventFilter(const SDL_Event *event)
                                 return(1);
                         }
                         break;
-   case SDL_MOUSEBUTTONDOWN:efbc.ButtType = BUTTC_MOUSE;
+
+  case SDL_MOUSEBUTTONDOWN: efbc.ButtType = BUTTC_MOUSE;
 			    efbc.DeviceNum = 0;
 			    efbc.ButtonNum = event->button.button - SDL_BUTTON_LEFT;
   		   	    efbcdone = 1;
-			    printf("%d\n", efbc.ButtonNum);
 			    return(1);
 
-  case SDL_JOYBUTTONDOWN:efbc.ButtType = BUTTC_JOYSTICK;
-                          efbc.DeviceNum = event->jbutton.which;
-                          efbc.ButtonNum = event->jbutton.button;
-			  efbc.DeviceID = GetJoystickUniqueID(event->jbutton.which);
-			  efbcdone = 1;
-                          return(1);
+  case SDL_JOYBUTTONDOWN: 
+			  if(JoyFilter & ICJF_DIGITAL_BUTTON)
+			  {
+			   efbc.ButtType = BUTTC_JOYSTICK;
+                           efbc.DeviceNum = event->jbutton.which;
+                           efbc.ButtonNum = event->jbutton.button;
+			   efbc.DeviceID = GetJoystickUniqueID(event->jbutton.which);
+			   efbcdone = 1;
+                           return(1);
+			  }
+			  break;
+
    case SDL_JOYHATMOTION:                         
 			//printf("Raw: %d\n", SDL_JoystickGetHat(Joysticks[event->jhat.which], 0xFF)); //(bc->ButtonNum[x]>>8)&0x1F) & (bc->ButtonNum[x]&0xFF)));
-			if(event->jhat.value != SDL_HAT_CENTERED && event->jhat.value != SDL_HAT_RIGHTUP && event->jhat.value != SDL_HAT_RIGHTDOWN &&
+			if(JoyFilter & ICJF_HAT)
+			{
+			 if(event->jhat.value != SDL_HAT_CENTERED && event->jhat.value != SDL_HAT_RIGHTUP && event->jhat.value != SDL_HAT_RIGHTDOWN &&
 				event->jhat.value != SDL_HAT_LEFTUP && event->jhat.value != SDL_HAT_LEFTDOWN)
                          {
 				//printf("Real: %d\n",event->jhat.value);
@@ -185,37 +205,44 @@ static int EventFilter(const SDL_Event *event)
 			  efbcdone = 1;
                           return(1);
                          }
-                         break;
+			}
+                        break;
+
    case SDL_JOYAXISMOTION:
 	//printf("%d %d %d\n", event->jaxis.which, event->jaxis.axis, event->jaxis.value);
-        if(LastAx[event->jaxis.which][event->jaxis.axis]==0x100000)
-        {
-         if(abs(event->jaxis.value)<1000)
-          LastAx[event->jaxis.which][event->jaxis.axis]=event->jaxis.value;
-        }
-        else
-        {
-         if(abs(LastAx[event->jaxis.which][event->jaxis.axis]-event->jaxis.value)>=24000)
+	if(JoyFilter & ICJF_AXIS)
+	{
+         if(LastAx[event->jaxis.which][event->jaxis.axis]==0x100000)
          {
-          efbc.ButtType = BUTTC_JOYSTICK;
-          efbc.DeviceNum = event->jaxis.which;
-          efbc.ButtonNum = 0x8000|(event->jaxis.axis)|((event->jaxis.value<0)?0x4000:0);
-	  efbc.DeviceID = GetJoystickUniqueID(event->jaxis.which);
-	  efbcdone = 1;
-
-	  //puts("axis");
-	  return(1);
+          if(abs(event->jaxis.value)<1000)
+           LastAx[event->jaxis.which][event->jaxis.axis]=event->jaxis.value;
          }
-        }
+         else
+         {
+          if(abs(LastAx[event->jaxis.which][event->jaxis.axis]-event->jaxis.value)>=24000)
+          {
+           efbc.ButtType = BUTTC_JOYSTICK;
+           efbc.DeviceNum = event->jaxis.which;
+           efbc.ButtonNum = 0x8000|(event->jaxis.axis)|((event->jaxis.value<0)?0x4000:0);
+	   efbc.DeviceID = GetJoystickUniqueID(event->jaxis.which);
+	   efbcdone = 1;
+
+	   //puts("axis");
+	   return(1);
+          }
+         }
+	}
         break;
-  }
+ }
 
  return(1);
 }
 
 
-int DTryButtonBegin(ButtConfig *bc, int commandkey)
+int DTryButtonBegin(ButtConfig *bc, int commandkey, unsigned int jf)
 {
+ JoyFilter = jf;
+
  memcpy(&efbc, bc, sizeof(ButtConfig));
  efck = commandkey;
  efbcdone = 0;

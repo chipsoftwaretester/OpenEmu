@@ -22,7 +22,8 @@
 #include "video.h"
 #include "player.h"
 
-static UTF8 *AlbumName, *Artist, *Copyright, **SongNames;
+static std::string AlbumName, Artist, Copyright;
+static std::vector<std::string> SongNames;
 static int TotalSongs;
 
 static INLINE void DrawLine(MDFN_Surface *surface, uint32 color, uint32 bmatch, uint32 breplace, int x1, int y1, int x2, int y2)
@@ -86,7 +87,7 @@ static INLINE void DrawLine(MDFN_Surface *surface, uint32 color, uint32 bmatch, 
  }
 }
 
-int Player_Init(int tsongs, UTF8 *album, UTF8 *artist, UTF8 *copyright, UTF8 **snames)
+int Player_Init(int tsongs, const std::string &album, const std::string &artist, const std::string &copyright, const std::vector<std::string> &snames)
 {
  AlbumName = album;
  Artist = artist;
@@ -107,6 +108,19 @@ int Player_Init(int tsongs, UTF8 *album, UTF8 *artist, UTF8 *copyright, UTF8 **s
  MDFNGameInfo->GameType = GMT_PLAYER;
 
  return(1);
+}
+
+int Player_Init(int tsongs, const std::string &album, const std::string &artist, const std::string &copyright, char **snames)
+{
+ std::vector<std::string> tmpvec;
+
+ if(snames)
+ {
+  for(int i = 0; i < tsongs; i++)
+   tmpvec.push_back(snames[i] ? snames[i] : "");
+ }
+
+ return Player_Init(tsongs, album, artist, copyright, tmpvec);
 }
 
 void Player_Draw(MDFN_Surface *surface, MDFN_Rect *dr, int CurrentSong, int16 *samples, int32 sampcount)
@@ -158,7 +172,12 @@ void Player_Draw(MDFN_Surface *surface, MDFN_Rect *dr, int CurrentSong, int16 *s
     int ypos;
 
     ypos = (dr->h / 2) + (int)(y_scale * samp);
-    if(ypos < 0 || ypos >= dr->h) ypos = dr->h / 2;
+
+    if(ypos >= dr->h)
+     ypos = dr->h - 1;
+
+    if(ypos < 0)
+     ypos = 0;
 
     if(lastX >= 0) 
      DrawLine(surface, color, wc ? left_color : ~0, center_color, lastX, lastY, x, ypos);
@@ -169,31 +188,32 @@ void Player_Draw(MDFN_Surface *surface, MDFN_Rect *dr, int CurrentSong, int16 *s
  }
 
  // Quick warning:  DrawTextTransShadow() has the possibility of drawing past the visible display area by 1 pixel on each axis.  This should only be a cosmetic issue
- // if 1-pixel line overflowing occurs onto the next line(most likely with NES, where width == pitch).  Fixme in the future?
+ // if 1-pixel line overflowing occurs onto the next line.  Fixme in the future?
 
  XBuf += 2 * surface->pitch32;
- if(AlbumName)
-  DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, AlbumName, text_color, text_shadow_color, 1);
+ DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, AlbumName, text_color, text_shadow_color, 1);
 
  XBuf += (13 + 2) * surface->pitch32;
- if(Artist)
-  DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, Artist, text_color, text_shadow_color, 1);
+ DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, Artist, text_color, text_shadow_color, 1);
 
  XBuf += (13 + 2) * surface->pitch32;
- if(Copyright)
-  DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, Copyright, text_color, text_shadow_color, 1);
+ DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, Copyright, text_color, text_shadow_color, 1);
 
  XBuf += (13 * 2) * surface->pitch32;
- 
+
  // If each song has an individual name, show this song's name.
- UTF8 *tmpsong = SongNames?SongNames[CurrentSong] : 0;
+ {
+  std::string tmpsong = "";
 
- if(!tmpsong && TotalSongs > 1)
-  tmpsong = (UTF8 *)_("Song:");
+  if((unsigned int)CurrentSong < SongNames.size())
+   tmpsong = SongNames[CurrentSong];
 
- if(tmpsong)
+  if(tmpsong == "" && TotalSongs > 1)
+   tmpsong = std::string(_("Song:"));
+
   DrawTextTransShadow(XBuf, surface->pitch32 * sizeof(uint32), dr->w, tmpsong, text_color, text_shadow_color, 1);
- 
+ }
+
  XBuf += (13 + 2) * surface->pitch32;
  if(TotalSongs > 1)
  {

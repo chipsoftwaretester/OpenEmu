@@ -20,6 +20,9 @@
 #include <memory.h>
 #include "eeprom.h"
 
+namespace MDFN_IEN_GBA
+{
+
 extern int cpuDmaCount;
 
 int eepromMode = EEPROM_IDLE;
@@ -216,4 +219,5 @@ void eepromWrite(uint32 /* address */, uint8 value)
     break;
   }
 }
-  
+
+}

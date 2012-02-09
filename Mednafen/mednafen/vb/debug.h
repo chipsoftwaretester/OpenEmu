@@ -15,7 +15,7 @@ void VBDBG_SetRegister(const std::string &name, uint32 value);
 void VBDBG_SetCPUCallback(void (*callb)(uint32 PC));
 void VBDBG_SetBPCallback(void (*callb)(uint32 PC));
 
-std::vector<std::string> VBDBG_GetBranchTrace(void);
+std::vector<BranchTraceResult> VBDBG_GetBranchTrace(void);
 
 void VBDBG_CheckBP(int type, uint32 address, unsigned int len);
 

@@ -45,13 +45,13 @@ AudioReader::~AudioReader()
 
 }
 
-int64 AudioReader::Read(int16 *buffer, int64 frames)
+int64 AudioReader::Read_(int16 *buffer, int64 frames)
 {
  abort();
  return(false);
 }
 
-bool AudioReader::Seek(int64 frame_offset)
+bool AudioReader::Seek_(int64 frame_offset)
 {
  abort();
  return(false);
@@ -80,7 +80,7 @@ class OggVorbisReader : public AudioReader
   ov_clear(&ovfile);
  }
 
- int64 Read(int16 *buffer, int64 frames)
+ int64 Read_(int16 *buffer, int64 frames)
  {
   uint8 *tw_buf = (uint8 *)buffer;
   int cursection = 0;
@@ -100,7 +100,7 @@ class OggVorbisReader : public AudioReader
   return(frames - toread / sizeof(int16) / 2);
  }
 
- bool Seek(int64 frame_offset)
+ bool Seek_(int64 frame_offset)
  {
   ov_pcm_seek(&ovfile, frame_offset);
   return(true);
@@ -139,8 +139,7 @@ class MPCReader : public AudioReader
         mpc_decoder_setup(&MPCDecoder, &MPCReaderFile.reader);
         if(!mpc_decoder_initialize(&MPCDecoder, &MPCStreamInfo))
         {
-         MDFN_printf(_("Error initializing MusePack decoder!\n"));
-         throw(0);
+         throw(MDFN_Error(0, _("Error initializing MusePack decoder!\n")));
         }
  }
 
@@ -149,7 +148,7 @@ class MPCReader : public AudioReader
   // TODO
  }
 
- int64 Read(int16 *buffer, int64 frames)
+ int64 Read_(int16 *buffer, int64 frames)
  {
       //  MPC_SAMPLE_FORMAT MPCBuffer[MPC_DECODER_BUFFER_LENGTH];
       //MPC_SAMPLE_FORMAT sample_buffer[MPC_DECODER_BUFFER_LENGTH];
@@ -194,7 +193,7 @@ class MPCReader : public AudioReader
   return(frames - toread / 2);
  }
 
- bool Seek(int64 frame_offset)
+ bool Seek_(int64 frame_offset)
  {
   mpc_decoder_seek_sample(&MPCDecoder, frame_offset);
 
@@ -236,12 +235,12 @@ class SFReader : public AudioReader
   sf_close(sf);
  }
 
- int64 Read(int16 *buffer, int64 frames)
+ int64 Read_(int16 *buffer, int64 frames)
  {
   return(sf_read_short(sf, (short*)buffer, frames * 2) / 2);
  }
 
- bool Seek(int64 frame_offset)
+ bool Seek_(int64 frame_offset)
  {
   // FIXME error condition
   if(sf_seek(sf, frame_offset, SEEK_SET) != frame_offset)

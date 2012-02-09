@@ -18,6 +18,7 @@
 #include "main.h"
 #include <trio/trio.h>
 #include <time.h>
+#include <map>
 #include "gfxdebugger.h"
 #include "memdebugger.h"
 #include "logdebugger.h"
@@ -39,6 +40,20 @@ static std::string ReadBreakpoints, IOReadBreakpoints, AuxReadBreakpoints;
 static std::string WriteBreakpoints, IOWriteBreakpoints, AuxWriteBreakpoints;
 static std::string OpBreakpoints;
 static int DebuggerOpacity;
+
+typedef std::vector<std::string> DisComment;
+
+static std::map<uint64, DisComment> Comments; // Lower 32 bits == address, upper 32 bits == 4 bytes data match
+
+static uint32 GetPC(void)
+{
+ RegGroupType *rg = (*CurGame->Debugger->RegGroups)[0];
+
+ if(rg->GetRegister)
+  return rg->GetRegister(rg->Regs[0].id, NULL, 0); // FIXME
+ else
+  return rg->OLDGetRegister(rg->Regs[0].name, NULL); // FIXME
+}
 
 static void MemPoke(uint32 A, uint32 V, uint32 Size, bool hl, bool logical)
 {
@@ -233,13 +248,14 @@ static void TogglePCBreakPoint(uint32 A)
 
 static uint32 WatchAddr = 0x0000, WatchAddrPhys = 0x0000;
 static uint32 DisAddr = 0x0000;
+static uint32 DisCOffs = 0xFFFFFFFF;
 static int NeedDisAddrChange = 0;
 
 static bool NeedPCBPToggle = 0;
-static volatile int NeedStep = 0;
-static volatile int NeedRun = 0;
+static int volatile NeedStep = 0;
+static int volatile NeedRun = 0;
 static bool NeedBreak = 0;
-volatile bool InSteppingMode = 0; // R/W in game thread, read in main thread(only when GameMutex is held!)
+bool volatile InSteppingMode = 0; // R/W in game thread, read in main thread(only when GameMutex is held!)
 
 static std::string CurRegLongName;
 static std::string CurRegDetails;
@@ -419,6 +435,8 @@ class DebuggerPrompt : public HappyPrompt
                   {
                    trio_sscanf(tmp_c_str, "%08X", &DisAddr);
                    DisAddr &= ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
+	           DisAddr &= ~(CurGame->Debugger->InstructionAlignment - 1);
+		   DisCOffs = 0xFFFFFFFF;
                   }
                   else if(InPrompt == ReadBPS)
                   {
@@ -602,6 +620,15 @@ class DebuggerPrompt : public HappyPrompt
 	}
 };
 
+struct DisasmEntry
+{
+ std::string text;
+ uint32 A;
+ uint32 COffs;
+ bool ForcedResync;
+};
+
+
 static DebuggerPrompt *myprompt = NULL;
 
 // Call this function from the main thread
@@ -649,98 +676,189 @@ void Debugger_Draw(SDL_Surface *surface, SDL_Rect *rect, const SDL_Rect *screen_
  // that we have enough disassembled datums for displayaling and
  // worshipping cactus mules.
 
- 
+
  int PreBytes = CurGame->Debugger->MaxInstructionSize * (DIS_ENTRIES / 2) * 2;
  int DisBytes = CurGame->Debugger->MaxInstructionSize * (DIS_ENTRIES / 2) * 3;
 
  uint32 A = (DisAddr - PreBytes) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
 
- std::vector<std::string> DisBliss;
- std::vector<uint32> DisBlissA;
- int indexcow = 0;
+ std::vector<DisasmEntry> DisBuffer;
+ int indexcow = -1;
+ const uint32 PC = GetPC();
 
  while(DisBytes > 0)
  {
+  DisasmEntry NewEntry;
   uint32 lastA = A;
   char dis_text_buf[256];
+  uint32 ResyncAddr;
+
+  // Handling resynch address ->0 wrapping is a bit more complex...
+  {
+   const uint32 da_distance = (DisAddr - A - 1) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
+   const uint32 pc_distance = (PC - A - 1) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
+   uint32 distance;
+
+   distance = da_distance;
+   ResyncAddr = DisAddr;
+
+   if(pc_distance < distance)
+   {
+    distance = pc_distance;
+    ResyncAddr = PC;
+   }
+
+   // Handle comment forced resynchronizations
+   {
+    std::map<uint64, DisComment>::const_iterator it;
+
+    for(it = Comments.begin(); it != Comments.end(); it++)
+    {
+     uint32 comment_distance = ((uint32)it->first - A - 1) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
+
+     if(comment_distance < distance)
+     {
+      // FIXME: data byte validation
+
+      distance = comment_distance;
+      ResyncAddr = (uint32)it->first;
+     }
+    }
+   }
+
+  }
 
   //printf("%08x %08x\n", A, DisAddr);
-  if(A == DisAddr)
-   indexcow = DisBliss.size();
+  CurGame->Debugger->Disassemble(A, ResyncAddr, dis_text_buf); // A is passed by reference to Disassemble()
 
-  DisBlissA.push_back(A);
+  const uint64 compare_A = (A < lastA) ? ((1ULL << CurGame->Debugger->LogAddrBits) + A) : A;
 
-  CurGame->Debugger->Disassemble(A, DisAddr, dis_text_buf); // A is passed by reference to Disassemble()
+  NewEntry.A = lastA;
+  NewEntry.text = std::string(dis_text_buf);
+  NewEntry.COffs = 0xFFFFFFFF;
 
-  DisBliss.push_back(std::string(dis_text_buf));
-
-  if(A > DisAddr && lastA < DisAddr) // Err, oops, resynch to DisAddr if necessary
+  if(compare_A > ResyncAddr && lastA < ResyncAddr) // Err, oops, resynch if necessary
   {
-   A = DisAddr;
+   A = ResyncAddr;
+   NewEntry.ForcedResync = true;
+  }
+  else
+   NewEntry.ForcedResync = false;
+
+  DisBytes -= compare_A - lastA;
+
+
+  {
+   std::map<uint64, DisComment>::const_iterator it = Comments.find(lastA);
+
+   if(it != Comments.end())
+   {
+    //const std::string &rawstring = it->second;
+    const DisComment &zec = it->second;
+    DisasmEntry CommentEntry;
+
+    CommentEntry.A = lastA;
+    CommentEntry.ForcedResync = false;
+
+    for(uint32 i = 0; i < zec.size(); i++)
+    {
+     CommentEntry.COffs = i;
+     CommentEntry.text = zec[i];
+
+     if(CommentEntry.A == DisAddr && CommentEntry.COffs == DisCOffs)
+      indexcow = DisBuffer.size();
+
+     DisBuffer.push_back(CommentEntry);
+    }
+   }
   }
 
-  int64 consumed = (int64)A - lastA;  
-  if(consumed < 0)
-  {
-   // Fixme
-   consumed += 1ULL << CurGame->Debugger->LogAddrBits;
-  }
-  DisBytes -= consumed;
+  if(NewEntry.A == DisAddr && (NewEntry.COffs == DisCOffs || indexcow == -1))	// Also handles case where comments disappear out from underneath us.
+   indexcow = DisBuffer.size();
+
+  DisBuffer.push_back(NewEntry);
  }
 
  char addr_text_fs[64];	 // Format string.
 
- trio_snprintf(addr_text_fs, 64, " %%0%0dX: ", (CurGame->Debugger->LogAddrBits + 3) / 4);
+ trio_snprintf(addr_text_fs, 64, " %%0%0dX%%s", (CurGame->Debugger->LogAddrBits + 3) / 4);
 
  for(int x = 0; x < DIS_ENTRIES; x++)
  {
   int32 dbi = indexcow - (DIS_ENTRIES / 2) + x;
 
-  if(dbi < 0 || dbi >= (int32)DisBliss.size())
+  if(dbi < 0 || dbi >= (int32)DisBuffer.size())
   {
    puts("Disassembly error!");
    break;
   }
 
-  std::string dis_str = DisBliss[dbi];
-  uint32 dis_A = DisBlissA[dbi];
-
-  char addr_text[64];
-  uint32 color = MK_COLOR_A(0xFF, 0xFF, 0xFF, 0xFF);
-  uint32 addr_color = MK_COLOR_A(0xa0, 0xa0, 0xFF, 0xFF);
-
-  trio_snprintf(addr_text, 256, addr_text_fs, dis_A);
-  
-  if(dis_A == DisAddr)
+  if(DisBuffer[dbi].COffs != 0xFFFFFFFF)	// Comment
   {
-   addr_text[0] = '>';
-   if(!InRegs)
-    addr_color = color = MK_COLOR_A(0xFF, 0x00, 0x00, 0xFF);
+   uint32 color = MK_COLOR_A(0xFF, 0xA5, 0x00, 0xFF);
+   uint32 cursor_color = MK_COLOR_A(0xFF, 0x80, 0xE0, 0xFF);
+   //char textbuf[256];
 
-   if(NeedPCBPToggle)
-   {
-    TogglePCBreakPoint(dis_A);
-    NeedPCBPToggle = 0;
-   }
+   //trio_snprintf(textbuf, sizeof(textbuf), "// %s", DisBuffer[dbi].text.c_str());
+
+   if(DisBuffer[dbi].A == DisAddr && DisBuffer[dbi].COffs == DisCOffs)
+    DrawTextTrans(pixels + x * DisFontHeight * pitch32, surface->pitch, rect->w, (UTF8*)">", cursor_color, 0, DisFont);
+
+   DrawTextTrans(pixels + 5 + x * DisFontHeight * pitch32, surface->pitch, rect->w, (UTF8*)DisBuffer[dbi].text.c_str(), color, 0, DisFont);
   }
-  if(IsPCBreakPoint(dis_A))
-   addr_text[0] = addr_text[0] == '>' ? '#' : '*';
+  else						// Disassembly
+  {
+   std::string dis_str = DisBuffer[dbi].text;
+   uint32 dis_A = DisBuffer[dbi].A;
 
-  int addrpixlen;
+   char addr_text[64];
+   uint32 color = MK_COLOR_A(0xFF, 0xFF, 0xFF, 0xFF);
+   uint32 addr_color = MK_COLOR_A(0xa0, 0xa0, 0xFF, 0xFF);
 
-  addrpixlen = DrawTextTrans(pixels + x * DisFontHeight * pitch32, surface->pitch, rect->w, (UTF8*)addr_text, addr_color, 0, DisFont);
-  DrawTextTrans(pixels + x * DisFontHeight * pitch32 + addrpixlen, surface->pitch, rect->w - strlen(addr_text) * 5, (UTF8*)dis_str.c_str(), color, 0, DisFont);
+   trio_snprintf(addr_text, 256, addr_text_fs, dis_A, (DisBuffer[dbi].ForcedResync ? "!!" : ": "));
+
+   if(dis_A == DisAddr && DisBuffer[dbi].COffs == DisCOffs)
+   {
+    addr_text[0] = '>';
+    if(!InRegs)
+    {
+     if(dis_A == PC)
+      addr_color = color = MK_COLOR_A(0xFF, 0x00, 0x00, 0xFF);
+     else
+      addr_color = color = MK_COLOR_A(0xFF, 0x80, 0xE0, 0xFF);
+    }
+
+    if(NeedPCBPToggle)
+    {
+     if(DisCOffs == 0xFFFFFFFF)
+      TogglePCBreakPoint(dis_A);
+     NeedPCBPToggle = 0;
+    }
+   }
+
+   if(dis_A == PC && (dis_A != DisAddr || InRegs))
+    addr_color = color = MK_COLOR_A(0x00, 0xFF, 0x00, 0xFF);
+
+   if(IsPCBreakPoint(dis_A))
+    addr_text[0] = addr_text[0] == '>' ? '#' : '*';
+
+   int addrpixlen;
+
+   addrpixlen = DrawTextTrans(pixels + x * DisFontHeight * pitch32, surface->pitch, rect->w, (UTF8*)addr_text, addr_color, 0, DisFont);
+   DrawTextTrans(pixels + x * DisFontHeight * pitch32 + addrpixlen, surface->pitch, rect->w - strlen(addr_text) * 5, (UTF8*)dis_str.c_str(), color, 0, DisFont);
+  }
  }
 
  if(NeedDisAddrChange)
  {
-  if((indexcow + NeedDisAddrChange) >= (int32)DisBlissA.size())
+  if((indexcow + NeedDisAddrChange) >= (int32)DisBuffer.size())
   {
    puts("Error, gack!");
   }
   else
   {
-   DisAddr = DisBlissA[indexcow + NeedDisAddrChange];
+   DisAddr = DisBuffer[indexcow + NeedDisAddrChange].A;
+   DisCOffs = DisBuffer[indexcow + NeedDisAddrChange].COffs;
    NeedDisAddrChange = 0;
   }
  }
@@ -766,33 +884,90 @@ void Debugger_Draw(SDL_Surface *surface, SDL_Rect *rect, const SDL_Rect *screen_
  }
  else if(CurGame->Debugger->GetBranchTrace)
  {
-  std::vector<std::string> btrace = CurGame->Debugger->GetBranchTrace();
-  uint32 *btpixels = pixels + (rect->h - (moo + 2) * 7) * pitch32;
-  char strbuf[256];
-  int strbuf_len = 0;
-  int btrace_rows = 2;
-  int btrace_index = 0;
+  const int btrace_rows = 4;
+  const int btrace_cols = 96;
+  std::vector<BranchTraceResult> btrace = CurGame->Debugger->GetBranchTrace();
+  uint32 *btpixels = pixels + (rect->h - (moo + 2) * 7) * pitch32 + 7; // + ((128 - btrace_cols) / 2) * 5;
+  int draw_position = btrace_rows * btrace_cols;
+  bool color_osc = false;
+  const uint32 hcolors[2] = { MK_COLOR_A(0x60, 0xb0, 0xfF, 0xFF), MK_COLOR_A(0xb0, 0x70, 0xfF, 0xFF) };
 
+  for(int i = (int)btrace.size() - 1; i >= 0; i--)
+  {
+   char strbuf[4][256];	// [0] = from, [1] = arrow/special, [2] = to, [3] = ...
+   int strbuf_len;
+   int new_draw_position;
+   int col, row;
+   uint32 *pix_tmp;
+
+   trio_snprintf(strbuf[0], 256, "%s", btrace[i].from);
+
+   if(btrace[i].code[0])
+    trio_snprintf(strbuf[1], 256, "[%s‣]", btrace[i].code);
+   else
+    trio_snprintf(strbuf[1], 256, "‣");
+
+   if(btrace[i].count > 1)
+    trio_snprintf(strbuf[2], 256, "%s(*%d)", btrace[i].to, btrace[i].count);
+   else
+    trio_snprintf(strbuf[2], 256, "%s", btrace[i].to);
+
+   if(i == ((int)btrace.size() - 1))
+    strbuf[3][0] = 0;
+   else
+    snprintf(strbuf[3], 256, "…");
+
+//trio_snprintf(tmp, sizeof(tmp), "%04X%s%04X(*%d)", bt->from, arrow, bt->to, bt->branch_count);
+
+   strbuf_len = (GetTextPixLength((UTF8*)strbuf[0], MDFN_FONT_5x7) +
+		 GetTextPixLength((UTF8*)strbuf[1], MDFN_FONT_5x7) +
+	         GetTextPixLength((UTF8*)strbuf[2], MDFN_FONT_5x7) + 5 + GetTextPixLength((UTF8*)strbuf[3], MDFN_FONT_5x7) + 4) / 5;
+   new_draw_position = draw_position - strbuf_len;
+
+   if(new_draw_position < 0)
+    break;
+
+   if(((draw_position - 1) / btrace_cols) > (new_draw_position / btrace_cols))
+    new_draw_position = ((new_draw_position / btrace_cols) + 1) * btrace_cols - strbuf_len;
+
+   col = new_draw_position % btrace_cols;
+   row = new_draw_position / btrace_cols;
+
+   pix_tmp = btpixels + col * 5 + row * 10 * pitch32;
+   pix_tmp += DrawTextTrans(pix_tmp, surface->pitch, rect->w, (UTF8*)strbuf[0], (btrace[i].count > 1) ? MK_COLOR_A(0xe0, 0xe0, 0x00, 0xFF) : hcolors[color_osc], false, MDFN_FONT_5x7);
+   pix_tmp += DrawTextTrans(pix_tmp, surface->pitch, rect->w, (UTF8*)strbuf[1], btrace[i].code[0] ? MK_COLOR_A(0xb0, 0xFF, 0xff, 0xFF) : MK_COLOR_A(0xb0, 0xb0, 0xff, 0xFF), false, MDFN_FONT_5x7);
+
+   color_osc = !color_osc;
+
+   pix_tmp += DrawTextTrans(pix_tmp, surface->pitch, rect->w, (UTF8*)strbuf[2], (btrace[i].count > 1) ? MK_COLOR_A(0xe0, 0xe0, 0x00, 0xFF) : hcolors[color_osc], false, MDFN_FONT_5x7);
+   pix_tmp += 2;
+   pix_tmp += DrawTextTrans(pix_tmp, surface->pitch, rect->w, (UTF8*)strbuf[3], MK_COLOR_A(0x60, 0x70, 0x80, 0xFF), false, MDFN_FONT_5x7);
+   pix_tmp += 3;
+   draw_position = new_draw_position;
+  }
+
+#if 0
   for(int bt_row = 0; bt_row < btrace_rows; bt_row++)
   {
+   strbuf[0] = 0;
    strbuf_len = 0;
-   for(unsigned int y = 0; y < btrace.size() / btrace_rows; y++)
+   for(unsigned int y = 0; y < (btrace.size() + btrace_rows - 1) / btrace_rows && btrace_index < btrace.size(); y++)
    {
-    strbuf_len += trio_sprintf(strbuf + strbuf_len, "%s→", btrace[btrace_index].c_str());
+    strbuf_len += trio_snprintf(strbuf + strbuf_len, 256 - strbuf_len, /*"%s→"*/ "%s ", btrace[btrace_index].c_str());
     btrace_index++;
    }
 
-   if(bt_row == (btrace_rows - 1))
-    strbuf[strbuf_len - 1] = 0; // Get rid of the trailing →
+   strbuf[strbuf_len - 1] = 0; // Get rid of the trailing space
 
-   DrawTextTrans(btpixels + bt_row * 7 * pitch32, surface->pitch, rect->w, (UTF8*)strbuf, MK_COLOR_A(0x60, 0xb0, 0xfF, 0xFF), TRUE, MDFN_FONT_5x7);
+   DrawTextTrans(btpixels + bt_row * 8 * pitch32, surface->pitch, rect->w, (UTF8*)strbuf, MK_COLOR_A(0x60, 0xb0, 0xfF, 0xFF), TRUE, MDFN_FONT_5x7);
   }
+#endif
  }
 
  // Draw memory watch section
  {
-  uint32 *watchpixels = pixels + (rect->h - moo * 7) * pitch32;
-  int mw_rows = 8;
+  uint32 *watchpixels = pixels + (rect->h - moo * 7 + (InRegs ? 0 : 4) * 7) * pitch32;
+  int mw_rows = InRegs ? 8 : 4;
   int bytes_per_row = 32;
 
   if(CompactMode) 
@@ -810,7 +985,7 @@ void Debugger_Draw(SDL_Surface *surface, SDL_Rect *rect, const SDL_Rect *screen_
    uint32 ewa_bits;
    uint32 ewa_mask;
 
-   asciistr[32] = 0;  
+   asciistr[32] = 0;
 
    if(WatchLogical)
    {
@@ -824,6 +999,9 @@ void Debugger_Draw(SDL_Surface *surface, SDL_Rect *rect, const SDL_Rect *screen_
    }
    
    ewa_mask = ((uint64)1 << ewa_bits) - 1;
+
+   if(InRegs)
+    ewa = (ewa - 0x80) & ewa_mask;
 
    if(ewa_bits <= 16)
     trio_snprintf(tbuf, 256, "%04X: ", (ewa + y * bytes_per_row) & ewa_mask);
@@ -875,6 +1053,7 @@ static void CPUCallback(uint32 PC)
  if((NeedStep == 2 && !InSteppingMode) || NeedBreak)
  {
   DisAddr = PC;
+  DisCOffs = 0xFFFFFFFF;
   NeedStep = 0;
   InSteppingMode = 1;
   NeedBreak = 0;
@@ -883,6 +1062,7 @@ static void CPUCallback(uint32 PC)
  if(NeedStep == 1)
  {
   DisAddr = PC;
+  DisCOffs = 0xFFFFFFFF;
   NeedStep = 0;
  }
 
@@ -987,6 +1167,23 @@ bool Debugger_Toggle(void)
     std::string des_disfont = MDFN_GetSettingS(std::string(std::string(CurGame->shortname) + "." + std::string("debugger.disfontsize")).c_str());
     DebuggerOpacity = 0xC0;
 
+    // Debug remove me
+#if 0
+    {
+     DisComment comment;
+
+     comment.push_back("// Hi!");
+     comment.push_back("// We welcome you to the wonderful world");
+     comment.push_back("// of tomorrow...TODAY!");
+     comment.push_back("//");
+     comment.push_back("// Warning: Beware of deathbots.");
+
+     Comments[0x8001] = comment;
+    }
+#endif
+    // End debug remove me
+ 
+
     //if(!strcasecmp(CurGame->shortname, "nes") || !strcasecmp(CurGame->shortname, "pce"))
     if(des_disfont == "xsmall")
     {
@@ -1016,10 +1213,12 @@ bool Debugger_Toggle(void)
     NeedInit = FALSE;
     WatchAddr = CurGame->Debugger->DefaultWatchAddr;
 
-    if((*CurGame->Debugger->RegGroups)[0]->GetRegister)
-     DisAddr = (*CurGame->Debugger->RegGroups)[0]->GetRegister(/*PC*/0, NULL, 0); // FIXME
-    else
-     DisAddr = (*CurGame->Debugger->RegGroups)[0]->OLDGetRegister("PC", NULL); // FIXME
+    DisAddr = GetPC();
+    DisCOffs = 0xFFFFFFFF;
+    //if((*CurGame->Debugger->RegGroups)[0]->GetRegister)
+    // DisAddr = (*CurGame->Debugger->RegGroups)[0]->GetRegister(/*PC*/0, NULL, 0); // FIXME
+    // else
+    //  DisAddr = (*CurGame->Debugger->RegGroups)[0]->OLDGetRegister("PC", NULL); // FIXME
 
     RegsCols = 0;
     RegsTotalWidth = 0;
@@ -1214,7 +1413,10 @@ void Debugger_Event(const SDL_Event *event)
 		  WatchAddrPhys = 0;
 		}
 		else
+		{
 		 DisAddr = 0x0000;
+		 DisCOffs = 0xFFFFFFFF;
+		}
 		break;
 	 case SDLK_END:
 		if(event->key.keysym.mod & KMOD_SHIFT)
@@ -1225,19 +1427,22 @@ void Debugger_Event(const SDL_Event *event)
                   WatchAddrPhys = (((uint64)1 << CurGame->Debugger->PhysAddrBits) - 1) & ~0x7F;
 		}
 		else
+		{
 		 DisAddr = ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
-
-		DisAddr &= ~1;
-		printf("Moo: %08x\n", DisAddr);
+		 DisAddr &= ~(CurGame->Debugger->InstructionAlignment - 1);
+		 DisCOffs = 0xFFFFFFFF;
+	        }
 		break;
 
          case SDLK_PAGEUP:
           if(event->key.keysym.mod & KMOD_SHIFT)
 	  {
+	   int change = 0x80; //InRegs ? 0x100 : 0x80;
+
 	   if(WatchLogical)
-            WatchAddr = (WatchAddr - 0x100) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
+            WatchAddr = (WatchAddr - change) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
 	   else
-	    WatchAddrPhys = (WatchAddrPhys - 0x100) & (((uint64)1 << CurGame->Debugger->PhysAddrBits) - 1);
+	    WatchAddrPhys = (WatchAddrPhys - change) & (((uint64)1 << CurGame->Debugger->PhysAddrBits) - 1);
 	  }
           else
 	   NeedDisAddrChange = -11;
@@ -1245,10 +1450,12 @@ void Debugger_Event(const SDL_Event *event)
 	 case SDLK_PAGEDOWN: 
           if(event->key.keysym.mod & KMOD_SHIFT) 
 	  {
+	   int change = 0x80; //InRegs ? 0x100 : 0x80;
+
 	   if(WatchLogical)
-            WatchAddr = (WatchAddr + 0x100) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
+            WatchAddr = (WatchAddr + change) & ((1ULL << CurGame->Debugger->LogAddrBits) - 1);
 	   else
-	    WatchAddrPhys = (WatchAddrPhys + 0x100) & (((uint64)1 << CurGame->Debugger->PhysAddrBits) - 1);
+	    WatchAddrPhys = (WatchAddrPhys + change) & (((uint64)1 << CurGame->Debugger->PhysAddrBits) - 1);
 	  }
           else  
 	   NeedDisAddrChange = 11;

@@ -1,6 +1,6 @@
 /* Mednafen - Multi-system Emulator
  *
- *  Copyright (C) 2007 EkeEke
+ *  Copyright (C) 2007, 2008, 2009 EkeEke
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 /*
- Genesis Plus GX EEPROM emulation modified 2008 for usage in Mednafen
+ Genesis Plus GX EEPROM emulation modified 2011 for usage in Mednafen
 */
 
 #include "../shared.h"
@@ -26,14 +26,14 @@
 
 typedef enum
 {
-        STAND_BY = 0,
-        WAIT_STOP,
-        GET_SLAVE_ADR,
-        GET_WORD_ADR_7BITS,
-        GET_WORD_ADR_HIGH,
-        GET_WORD_ADR_LOW,
-        WRITE_DATA,
-        READ_DATA,
+  STAND_BY = 0,
+  WAIT_STOP,
+  GET_SLAVE_ADR,
+  GET_WORD_ADR_7BITS,
+  GET_WORD_ADR_HIGH,
+  GET_WORD_ADR_LOW,
+  WRITE_DATA,
+  READ_DATA,
 
 } T_EEPROM_STATE;
 
@@ -55,15 +55,15 @@ typedef enum
 
 typedef struct
 {
-        uint8 address_bits;             /* number of bits needed to address memory: 7, 8 or 16 */
-        uint16 size_mask;               /* depends on the max size of the memory (in bytes) */
-        uint16 pagewrite_mask;  /* depends on the maximal number of bytes that can be written in a single write cycle */
-        uint32 sda_in_adr;              /* 68000 memory address mapped to SDA_IN */
-        uint32 sda_out_adr;             /* 68000 memory address mapped to SDA_OUT */
-        uint32 scl_adr;                 /* 68000 memory address mapped to SCL */
-        uint8 sda_in_bit;               /* bit offset for SDA_IN */
-        uint8 sda_out_bit;              /* bit offset for SDA_OUT */
-        uint8 scl_bit;                  /* bit offset for SCL */
+  uint8 address_bits;     /* number of bits needed to address memory: 7, 8 or 16 */
+  uint16 size_mask;       /* depends on the max size of the memory (in bytes) */
+  uint16 pagewrite_mask;  /* depends on the maximal number of bytes that can be written in a single write cycle */
+  uint32 sda_in_adr;      /* 68000 memory address mapped to SDA_IN */
+  uint32 sda_out_adr;     /* 68000 memory address mapped to SDA_OUT */
+  uint32 scl_adr;         /* 68000 memory address mapped to SCL */
+  uint8 sda_in_bit;       /* bit offset for SDA_IN */
+  uint8 sda_out_bit;      /* bit offset for SDA_OUT */
+  uint8 scl_bit;          /* bit offset for SCL */
 
 } T_EEPROM_TYPE;
 
@@ -77,10 +77,13 @@ static const EEPROM_Config database[EEP_TOTAL] =
 {
         /* ACCLAIM mappers */
         /* 24C02 (old mapper) */
-        { EEP_ACCLAIM_24C02_OLD,{8,  0xFF,   0xFF,   0x200000, 0x200000, 0x200000, 0, 1, 1}},
+        { EEP_ACCLAIM_24C02_OLD,{8,  0xFF,   0xFF,   0x200001, 0x200001, 0x200001, 0, 1, 1}},
 
         /* 24C02 */
         { EEP_ACCLAIM_24C02,    {8,  0xFF,   0xFF,   0x200001, 0x200001, 0x200000, 0, 0, 0}},
+
+        /* 24C04 */
+        { EEP_ACCLAIM_24C04,    {8,  0x1FF,  0x1FF,  0x200001, 0x200001, 0x200000, 0, 0, 0}},
 
         /* 24C16 */
         { EEP_ACCLAIM_24C16,    {8,  0x7FF,  0x7FF,  0x200001, 0x200001, 0x200000, 0, 0, 0}},
@@ -89,18 +92,15 @@ static const EEPROM_Config database[EEP_TOTAL] =
         {EEP_ACCLAIM_24C65,     {16, 0x1FFF, 0x1FFF, 0x200001, 0x200001, 0x200000, 0, 0, 0}},
         
         /* EA mapper (24C01 only) */
-        { EEP_EA_24C01,         {7,  0x7F,   0x7F,   0x200000, 0x200000, 0x200000, 7, 7, 6}},
+        { EEP_EA_24C01,         {7,  0x7F,   0x7F,   0x200001, 0x200001, 0x200001, 7, 7, 6}},
         
         /* SEGA mapper (24C01 only) */
         { EEP_SEGA_24C01,       {7,  0x7F,   0x7F,   0x200001, 0x200001, 0x200001, 0, 0, 1}},
-        { EEP_SEGA_24C01_ALT,   {7,  0x7F,   0x7F,   0x200000, 0x200000, 0x200000, 0, 0, 1}},
         
         /* CODEMASTERS mapper */
-        /* 24C01 */
-        { EEP_CM_24C01,         {7, 0x7F, 0x7F,   0x300000, 0x380001, 0x300000, 0, 7, 1}},
 
         /* 24C08 */
-        { EEP_CM_24C08,         {8, 0x3FF,  0x3FF,  0x300000, 0x380001, 0x300000, 0, 7, 1}},
+        { EEP_CM_24C08,         {8,  0x3FF,  0x3FF,  0x300000, 0x380001, 0x300000, 0, 7, 1}},
 
         /* 24C16 */
         { EEP_CM_24C16,         {8,  0x7FF,  0x7FF,  0x300000, 0x380001, 0x300000, 0, 7, 1}},
@@ -131,8 +131,8 @@ class MD_Cart_Type_EEPROM : public MD_Cart_Type
 
 	private:
 
-	void WriteEEPROM(unsigned int address, unsigned int value);
-	unsigned int ReadEEPROM(unsigned int address);
+	void WriteEEPROM(unsigned int address, unsigned int value, bool word_access);
+	unsigned int ReadEEPROM(unsigned int address, bool word_access);
 
 
 	const uint8 *rom;
@@ -154,8 +154,6 @@ class MD_Cart_Type_EEPROM : public MD_Cart_Type
 
         T_EEPROM_STATE state;   /* current operation state */
         T_EEPROM_TYPE type;             /* EEPROM characteristics for this game */
-
-	uint32 eeprom_start, eeprom_end;
 };
 
 
@@ -186,12 +184,6 @@ MD_Cart_Type_EEPROM::MD_Cart_Type_EEPROM(const md_game_info *ginfo, const uint8 
   throw(0);
 
  /* set SRAM start & end address */
- eeprom_start = eeprom_end = type.sda_in_adr;
- if(eeprom_end < type.sda_out_adr) eeprom_end = type.sda_out_adr;
- if(eeprom_end < type.scl_adr) eeprom_end = type.scl_adr;
- if(eeprom_start > type.sda_out_adr) eeprom_start = type.sda_out_adr;
- if(eeprom_start > type.scl_adr) eeprom_start = type.scl_adr;
-
  if(!(sram = (uint8 *)MDFN_malloc(type.size_mask + 1, _("Cart EEPROM"))))
  {
   // FIXME
@@ -199,8 +191,6 @@ MD_Cart_Type_EEPROM::MD_Cart_Type_EEPROM(const md_game_info *ginfo, const uint8 
  }
 
  memset(sram, 0xFF, type.size_mask + 1);
-
- printf("%08x %08x\n", eeprom_start, eeprom_end);
 }
 
 MD_Cart_Type_EEPROM::~MD_Cart_Type_EEPROM()
@@ -211,351 +201,372 @@ MD_Cart_Type_EEPROM::~MD_Cart_Type_EEPROM()
 
 INLINE void MD_Cart_Type_EEPROM::Detect_START()
 {
-        if (old_scl && scl)
-        {
-                if (old_sda && !sda)
-                {
-                        cycles = 0;
-                        slave_mask = 0;
-                        if (type.address_bits == 7)
-                        {
-                                word_address = 0;
-                                state = GET_WORD_ADR_7BITS;
-                        }
-                        else state = GET_SLAVE_ADR;
-                }
-        }
+  if (old_scl && scl)
+  {
+    if (old_sda && !sda)
+    {
+      cycles = 0;
+      slave_mask = 0;
+      if (type.address_bits == 7)
+      {
+        word_address = 0;
+        state = GET_WORD_ADR_7BITS;
+      }
+      else state = GET_SLAVE_ADR;
+    }
+  }
 }
 
 INLINE void MD_Cart_Type_EEPROM::Detect_STOP()
 {
-        if (old_scl && scl)
-        {
-                if (!old_sda && sda)
-                {
-                        state = STAND_BY;
-                }
-        }
+  if (old_scl && scl)
+  {
+    if (!old_sda && sda)
+    {
+      state = STAND_BY;
+    }
+  }
 }
 
 void MD_Cart_Type_EEPROM::Reset(void)
 {
-
+  sda = old_sda = 1;
+  scl = old_scl = 1;
+  state = STAND_BY;
+  cycles = 0;
+  rw = 0;
+  slave_mask = 0;
+  word_address = 0;
 }
 
-void MD_Cart_Type_EEPROM::WriteEEPROM(unsigned int address, unsigned int value)
+void MD_Cart_Type_EEPROM::WriteEEPROM(unsigned int address, unsigned int data, bool word_access)
 {
-        uint16 sram_address = 0;
+  /* decode SCL and SDA value */
+  if (word_access)
+  {
+    /* 16-bits access */
+    if (type.sda_in_adr == address) sda = (data >> (8 + type.sda_in_bit)) & 1;      /* MSB */
+    else if (type.sda_in_adr == (address | 1)) sda = (data >> type.sda_in_bit) & 1; /* LSB */
+    else sda = old_sda;
 
-	//printf("Write: %08x %08x\n", address, value);
+    if (type.scl_adr == address) scl = (data >> (8 + type.scl_bit)) & 1;      /* MSB */
+    else if (type.scl_adr == (address | 1)) scl = (data >> type.scl_bit) & 1; /* LSB */
+    else scl = old_scl;
+  }
+  else
+  {
+    if (type.sda_in_adr == address) sda = (data >> type.sda_in_bit) & 1;
+    else sda = old_sda;
 
-        /* decode SCL and SDA value */
-        if (type.sda_in_adr == address) sda = (value >> type.sda_in_bit) & 1;
-        else sda = old_sda;
-        if (type.scl_adr == address) scl = (value >> type.scl_bit) & 1;
-        else scl = old_scl;
-        
-        /* EEPROM current state */
-        switch (state)
+    if (type.scl_adr == address) scl = (data >> type.scl_bit) & 1;
+    else scl = old_scl;
+  }
+
+  /* EEPROM current state */
+  switch (state)
+  {
+    /* Standby Mode */
+    case STAND_BY:
+      Detect_START();
+      Detect_STOP();
+      break;
+
+    /* Suspended Mode */
+    case WAIT_STOP:
+      Detect_STOP();
+      break;
+
+    /* Get Word Address 7 bits: MODE-1 only (24C01)
+     * and R/W bit
+     */
+    case GET_WORD_ADR_7BITS:
+      Detect_START();
+      Detect_STOP();
+
+      /* look for SCL LOW to HIGH transition */
+      if (!old_scl && scl)
+      {
+        if (cycles == 0) cycles ++;
+      }
+
+
+      /* look for SCL HIGH to LOW transition */
+      if (old_scl && !scl && (cycles > 0))
+      {
+        if (cycles < 8)
         {
-                /* Standby Mode */
-                case STAND_BY:
-                        Detect_START();
-                        Detect_STOP();
-                        break;
-
-
-                /* Suspended Mode */
-                case WAIT_STOP:
-                        Detect_STOP();
-                        break;
-
-
-                /* Get Word Address 7 bits: MODE-1 only (24C01)
-                 * and R/W bit
-                 */             
-                case GET_WORD_ADR_7BITS:
-                        Detect_START();
-                        Detect_STOP();
-
-                        /* look for SCL LOW to HIGH transition */
-                        if (!old_scl && scl)
-                        {
-                                if (cycles == 0) cycles ++;
-                        }
-
-                        /* look for SCL HIGH to LOW transition */
-                        if (old_scl && !scl && (cycles > 0))
-                        {                               
-                                if (cycles < 8) word_address |= (old_sda << (7 - cycles));
-                                else if (cycles == 8) rw = old_sda;
-                                else
-                                {       /* ACK CYCLE */
-                                        cycles = 0;
-                                        word_address &= type.size_mask;
-                                        state = rw ? READ_DATA : WRITE_DATA;
-                                }
-
-                                cycles ++;
-                        }
-                        break;
-
-
-                /* Get Slave Address (3bits) : MODE-2 & MODE-3 only (24C01 - 24C512) (0-3bits, depending on the array size)
-                 * or/and Word Address MSB: MODE-2 only (24C04 - 24C16) (0-3bits, depending on the array size)
-                 * and R/W bit
-                 */             
-                case GET_SLAVE_ADR:
-
-                        Detect_START();
-                        Detect_STOP();
-
-                        /* look for SCL LOW to HIGH transition */
-                        if (!old_scl && scl)
-                        {
-                                if (cycles == 0) cycles ++;
-                        }
-
-                        /* look for SCL HIGH to LOW transition */
-                        if (old_scl && !scl && (cycles > 0))
-                        {
-                                if ((cycles > 4) && (cycles <8))
-                                {
-                                        if ((type.address_bits == 16) ||
-                                                (type.size_mask < (1 << (15 - cycles))))
-                                        {
-                                                /* this is a SLAVE ADDRESS bit */
-                                                slave_mask |= (old_sda << (7 - cycles));
-                                        }
-                                        else
-                                        {
-                                                /* this is a WORD ADDRESS high bit */
-                                                if (old_sda) word_address |= (1 << (15 - cycles));
-                                                else word_address &= ~(1 << (15 - cycles));
-                                        }
-                                }
-                                else if (cycles == 8) rw = old_sda;
-                                else if (cycles > 8)
-                                {
-                                        /* ACK CYCLE */
-                                        cycles = 0;
-                                        if (type.address_bits == 16)
-                                        {
-                                                /* two ADDRESS bytes */
-                                                state = rw ? READ_DATA : GET_WORD_ADR_HIGH;
-                                                slave_mask <<= 16;
-                                        }
-                                        else
-                                        {
-                                                /* one ADDRESS byte */
-                                                state = rw ? READ_DATA : GET_WORD_ADR_LOW;
-                                                slave_mask <<= 8;
-                                        }
-                                }
-
-                                cycles ++;
-                        }
-                        break;
-
-                /* Get Word Address MSB (4-8bits depending on the array size)
-                 * MODE-3 only (24C32 - 24C512)
-                 */
-                case GET_WORD_ADR_HIGH:
-
-                        Detect_START();
-                        Detect_STOP();
-
-                        /* look for SCL HIGH to LOW transition */
-                        if (old_scl && !scl)
-                        {                               
-                                if (cycles < 9)
-                                {
-                                        if ((type.size_mask + 1) < (1 << (17 - cycles)))
-                                        {
-                                                /* ignored bit: slave mask should be right-shifted by one  */
-                                                slave_mask >>= 1;
-                                        }
-                                        else
-                                        {
-                                                /* this is a WORD ADDRESS high bit */
-                                                if (old_sda) word_address |= (1 << (16 - cycles));
-                                                else word_address &= ~(1 << (16 - cycles));
-                                        }
-
-                                        cycles ++;
-                                }
-                                else
-                                {
-                                        /* ACK CYCLE */
-                                        cycles = 1;
-                                        state = GET_WORD_ADR_LOW;
-                                }
-                        }
-                        break;
-
-
-                /* Get Word Address LSB: 7bits (24C01) or 8bits (24C02-24C512)
-                 * MODE-2 and MODE-3 only (24C01 - 24C512)
-                 */
-                case GET_WORD_ADR_LOW: 
-
-                        Detect_START();
-                        Detect_STOP();
-
-                        /* look for SCL HIGH to LOW transition */
-                        if (old_scl && !scl)
-                        {
-                                if (cycles < 9)
-                                {
-                                        if ((type.size_mask + 1) < (1 << (9 - cycles)))
-                                        {
-                                                /* ignored bit (X24C01): slave mask should be right-shifted by one  */
-                                                slave_mask >>= 1;
-                                        }
-                                        else
-                                        {
-                                                /* this is a WORD ADDRESS high bit */
-                                                if (old_sda) word_address |= (1 << (8 - cycles));
-                                                else word_address &= ~(1 << (8 - cycles));
-                                        }
-
-                                        cycles ++;
-                                }
-                                else
-                                {
-                                        /* ACK CYCLE */
-                                        cycles = 1;
-                                        word_address &= type.size_mask;
-                                        state = WRITE_DATA;
-                                }
-                        }
-                        break;
-
-
-                /*
-                 * Read Cycle
-                 */
-                case READ_DATA:
-
-                        Detect_START();
-                        Detect_STOP();
-
-                        /* look for SCL HIGH to LOW transition */
-                        if (old_scl && !scl)
-                        {
-                                if (cycles < 9) cycles ++;
-                                else
-                                {
-                                        cycles = 1;
-
-                                        /* ACK not received */
-                                        if (old_sda) state = WAIT_STOP;
-                                 }
-                        }
-                        break;
-
-
-                /*
-                 * Write Cycle
-                 */
-                case WRITE_DATA:
-
-                        Detect_START();
-                        Detect_STOP();
-
-                        /* look for SCL HIGH to LOW transition */
-                        if (old_scl && !scl)
-                        {                               
-                                if (cycles < 9)
-                                {
-                                        /* Write DATA bits (max 64kBytes) */
-                                        sram_address = (slave_mask | word_address) & 0xFFFF;
-                                        if (old_sda) sram[sram_address] |= (1 << (8 - cycles));
-                                        else sram[sram_address] &= ~(1 << (8 - cycles));
-
-                                        if (cycles == 8) 
-                                        {
-                                                /* WORD ADDRESS is incremented (roll up at maximum pagesize) */
-                                                word_address = (word_address & (0xFFFF - type.pagewrite_mask)) | 
-                                                                                          ((word_address + 1) & type.pagewrite_mask);
-                                        }
-
-                                        cycles ++;
-                                }
-                                else cycles = 1;        /* ACK cycle */
-                        }
-                        break;
+          word_address |= (old_sda << (7 - cycles));
+        }
+        else if (cycles == 8)
+        {
+          rw = old_sda;
+        }
+        else
+        {  /* ACK CYCLE */
+          cycles = 0;
+          word_address &= type.size_mask;
+          state = rw ? READ_DATA : WRITE_DATA;
         }
 
-        old_scl = scl;
-        old_sda = sda;
+        cycles ++;
+      }
+      break;
+
+
+    /* Get Slave Address (3bits) : MODE-2 & MODE-3 only (24C01 - 24C512) (0-3bits, depending on the array size)
+     * or/and Word Address MSB: MODE-2 only (24C04 - 24C16) (0-3bits, depending on the array size)
+     * and R/W bit
+     */
+    case GET_SLAVE_ADR:
+
+      Detect_START();
+      Detect_STOP();
+
+      /* look for SCL LOW to HIGH transition */
+      if (!old_scl && scl)
+      {
+        if (cycles == 0) cycles ++;
+      }
+
+      /* look for SCL HIGH to LOW transition */
+      if (old_scl && !scl && (cycles > 0))
+      {
+        if ((cycles > 4) && (cycles <8))
+        {
+          if ((type.address_bits == 16) ||
+            (type.size_mask < (1 << (15 - cycles))))
+          {
+            /* this is a SLAVE ADDRESS bit */
+            slave_mask |= (old_sda << (7 - cycles));
+          }
+          else
+          {
+            /* this is a WORD ADDRESS high bit */
+            if (old_sda) word_address |= (1 << (15 - cycles));
+            else word_address &= ~(1 << (15 - cycles));
+          }
+        }
+        else if (cycles == 8) rw = old_sda;
+        else if (cycles > 8)
+        {
+          /* ACK CYCLE */
+          cycles = 0;
+          if (type.address_bits == 16)
+          {
+            /* two ADDRESS bytes */
+            state = rw ? READ_DATA : GET_WORD_ADR_HIGH;
+            slave_mask <<= 16;
+          }
+          else
+          {
+            /* one ADDRESS byte */
+            state = rw ? READ_DATA : GET_WORD_ADR_LOW;
+            slave_mask <<= 8;
+          }
+        }
+
+        cycles ++;
+      }
+      break;
+
+    /* Get Word Address MSB (4-8bits depending on the array size)
+     * MODE-3 only (24C32 - 24C512)
+     */
+    case GET_WORD_ADR_HIGH:
+
+      Detect_START();
+      Detect_STOP();
+
+      /* look for SCL HIGH to LOW transition */
+      if (old_scl && !scl)
+      {        
+        if (cycles < 9)
+        {
+          if ((type.size_mask + 1) < (1 << (17 - cycles)))
+          {
+            /* ignored bit: slave mask should be right-shifted by one  */
+            slave_mask >>= 1;
+          }
+          else
+          {
+            /* this is a WORD ADDRESS high bit */
+            if (old_sda) word_address |= (1 << (16 - cycles));
+            else word_address &= ~(1 << (16 - cycles));
+          }
+
+          cycles ++;
+        }
+        else
+        {
+          /* ACK CYCLE */
+          cycles = 1;
+          state = GET_WORD_ADR_LOW;
+        }
+      }
+      break;
+
+
+    /* Get Word Address LSB: 7bits (24C01) or 8bits (24C02-24C512)
+     * MODE-2 and MODE-3 only (24C01 - 24C512)
+     */
+    case GET_WORD_ADR_LOW: 
+
+      Detect_START();
+      Detect_STOP();
+
+      /* look for SCL HIGH to LOW transition */
+      if (old_scl && !scl)
+      {
+        if (cycles < 9)
+        {
+          if ((type.size_mask + 1) < (1 << (9 - cycles)))
+          {
+            /* ignored bit (X24C01): slave mask should be right-shifted by one  */
+            slave_mask >>= 1;
+          }
+          else
+          {
+            /* this is a WORD ADDRESS high bit */
+            if (old_sda) word_address |= (1 << (8 - cycles));
+            else word_address &= ~(1 << (8 - cycles));
+          }
+
+          cycles ++;
+        }
+        else
+        {
+          /* ACK CYCLE */
+          cycles = 1;
+          word_address &= type.size_mask;
+          state = WRITE_DATA;
+        }
+      }
+      break;
+
+
+    /*
+     * Read Cycle
+     */
+    case READ_DATA:
+
+      Detect_START();
+      Detect_STOP();
+
+      /* look for SCL HIGH to LOW transition */
+      if (old_scl && !scl)
+      {
+        if (cycles < 9) cycles ++;
+        else
+        {
+          cycles = 1;
+
+          /* ACK not received */
+          if (old_sda) state = WAIT_STOP;
+         }
+      }
+      break;
+
+
+    /*
+     * Write Cycle
+     */
+    case WRITE_DATA:
+
+      Detect_START();
+      Detect_STOP();
+
+      /* look for SCL HIGH to LOW transition */
+      if (old_scl && !scl)
+      {        
+        if (cycles < 9)
+        {
+          /* Write DATA bits (max 64kBytes) */
+          uint16 sram_address = (slave_mask | word_address) & 0xFFFF;
+          if (old_sda) sram[sram_address] |= (1 << (8 - cycles));
+          else sram[sram_address] &= ~(1 << (8 - cycles));
+
+          if (cycles == 8) 
+          {
+            /* WORD ADDRESS is incremented (roll up at maximum pagesize) */
+            word_address = (word_address & (0xFFFF - type.pagewrite_mask)) | 
+                        ((word_address + 1) & type.pagewrite_mask);
+          }
+
+          cycles ++;
+        }
+        else cycles = 1;  /* ACK cycle */
+      }
+      break;
+  }
+
+  old_scl = scl;
+  old_sda = sda;
 }
 
-unsigned int MD_Cart_Type_EEPROM::ReadEEPROM(unsigned int address)
+unsigned int MD_Cart_Type_EEPROM::ReadEEPROM(unsigned int address, bool word_access)
 {
-        uint16 sram_address;
-        uint8 sda_out = sda;
+  uint8 sda_out = sda;
 
-        //printf("Read: %08x, %08x\n", address, type.sda_out_adr);
+  /* EEPROM state */
+  switch (state)
+  {
+    case READ_DATA:
+      if (cycles < 9)
+      {
+        /* Return DATA bits (max 64kBytes) */
+        uint16 sram_address = (slave_mask | word_address) & 0xffff;
+        sda_out = (sram[sram_address] >> (8 - cycles)) & 1;
 
-        /* EEPROM state */
-        switch (state)
+        if (cycles == 8)
         {
-                case READ_DATA:
-                        if (cycles < 9)
-                        {
-                                /* Return DATA bits (max 64kBytes) */
-                                sram_address = (slave_mask | word_address) & 0xFFFF;
-                                sda_out = (sram[sram_address] >> (8 - cycles)) & 1;
-
-                                if (cycles == 8)
-                                {
-                                        /* WORD ADDRESS is incremented (roll up at maximum array size) */
-                                        word_address ++;
-                                        word_address &= type.size_mask;
-                                }
-                        }
-                        break;
-
-                case GET_WORD_ADR_7BITS:
-                case GET_SLAVE_ADR:
-                case GET_WORD_ADR_HIGH:
-                case GET_WORD_ADR_LOW:
-                case WRITE_DATA:
-                        if (cycles == 9) sda_out = 0;
-                        break;
-
-                default:
-                        break;
+          /* WORD ADDRESS is incremented (roll up at maximum array size) */
+          word_address ++;
+          word_address &= type.size_mask;
         }
+      }
+      break;
 
-        if (address == type.sda_out_adr) return (sda_out << type.sda_out_bit);
-        else return 0;
+    case GET_WORD_ADR_7BITS:
+    case GET_SLAVE_ADR:
+    case GET_WORD_ADR_HIGH:
+    case GET_WORD_ADR_LOW:
+    case WRITE_DATA:
+      if (cycles == 9) sda_out = 0;
+      break;
+
+    default:
+      break;
+  }
+
+  /* memory access */
+  if (word_access)
+  {
+    /* 16-bits access */
+    if (type.sda_out_adr & 1) return (sda_out << type.sda_out_bit); /* LSB */
+    else return (sda_out << (type.sda_out_bit + 8));  /* MSB */
+  }
+  else return (sda_out << type.sda_out_bit);
 }
 
 
 void MD_Cart_Type_EEPROM::Write8(uint32 A, uint8 V)
 {
- if(A >= eeprom_start && A <= eeprom_end)
- {
-  WriteEEPROM(A, V);
- }
+ if((A == type.sda_in_adr) || (A == type.scl_adr))
+  WriteEEPROM(A, V, false);
 }
 
 void MD_Cart_Type_EEPROM::Write16(uint32 A, uint8 V)
 {
- if(A >= eeprom_start && A <= eeprom_end)
- {
-  WriteEEPROM(A, V);
- }
+ if((A == (type.sda_in_adr & 0xFFFFFE)) || (A == (type.scl_adr & 0xFFFFFE)))
+  WriteEEPROM(A, V, true);
 }
 
 uint8 MD_Cart_Type_EEPROM::Read8(uint32 A)
 {
- if(A >= eeprom_start && A <= eeprom_end)
- {
-  return(ReadEEPROM(A));
- }
+ if(A == type.sda_out_adr)
+  return(ReadEEPROM(A, false));
+
+ //
 
  if(A < 0x400000)
  {
@@ -571,10 +582,10 @@ uint8 MD_Cart_Type_EEPROM::Read8(uint32 A)
 
 uint16 MD_Cart_Type_EEPROM::Read16(uint32 A)
 {
- if(A >= eeprom_start && A <= eeprom_end)
- {
-  return(ReadEEPROM(A));
- }
+ if(A == (type.sda_out_adr & 0xFFFFFE))
+  return(ReadEEPROM(A, true));
+
+ //
 
  if(A < 0x400000)
  {

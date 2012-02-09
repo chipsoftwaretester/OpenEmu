@@ -797,6 +797,8 @@ static void ChangePos(int64 delta)
 
 static void DoCrazy(void)
 {
+ LockGameMutex(1);
+
  uint32 start = ASpacePos[CurASpace];
  uint32 A = ASpacePos[CurASpace];
 
@@ -858,6 +860,8 @@ static void DoCrazy(void)
  FILE *fp = fopen("markers.txt", "ab");
  fprintf(fp, "%08x %08x\n", start, ASpacePos[CurASpace]);
  fclose(fp);
+
+ LockGameMutex(0);
 }
 
 // Call this from the main thread
@@ -900,7 +904,9 @@ int MemDebugger_Event(const SDL_Event *event)
 	 {
           to_write_len = 16 - obl;
 
+	  LockGameMutex(1);
 	  ASpace->PutAddressSpaceBytes(ASpace->name, ASpacePos[CurASpace], to_write_len, 1, TRUE, to_write);
+	  LockGameMutex(0);
 
 	  LowNib = 0;
 	  ChangePos(to_write_len);
@@ -916,10 +922,14 @@ int MemDebugger_Event(const SDL_Event *event)
           tc = 0x0 + event->key.keysym.sym - SDLK_0;
          else if(event->key.keysym.sym >= SDLK_a && event->key.keysym.sym <= SDLK_f)
           tc = 0xA + event->key.keysym.sym - SDLK_a;
+
+	 LockGameMutex(1);
          ASpace->GetAddressSpaceBytes(ASpace->name, ASpacePos[CurASpace], 1, &meowbyte);
          meowbyte &= 0xF << ((LowNib) * 4);
          meowbyte |= tc << ((!LowNib) * 4);
          ASpace->PutAddressSpaceBytes(ASpace->name, ASpacePos[CurASpace], 1, 1, TRUE, &meowbyte);
+	 LockGameMutex(0);
+
          LowNib = !LowNib;
          if(!LowNib)
 	  ChangePos(1);

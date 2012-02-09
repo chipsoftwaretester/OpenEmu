@@ -19,6 +19,9 @@
 
 #include <time.h>
 
+namespace MDFN_IEN_GB
+{
+
 struct mapperMBC1 {
   int mapperRAMEnable;
   int mapperROMBank;
@@ -143,7 +146,4 @@ extern void memoryUpdateMapMBC7();
 extern void memoryUpdateMapHuC1();
 extern void memoryUpdateMapHuC3();
 
-
-
-
-
+}

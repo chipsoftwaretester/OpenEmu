@@ -20,6 +20,9 @@
 #ifndef VBA_EEPROM_H
 #define VBA_EEPROM_H
 
+namespace MDFN_IEN_GBA
+{
+
 bool GBA_EEPROM_SaveFile(const char *filename);
 bool GBA_EEPROM_LoadFile(const char *filename);
 
@@ -37,5 +40,7 @@ extern uint8 eepromData[0x2000];
 #define EEPROM_READDATA       2
 #define EEPROM_READDATA2      3
 #define EEPROM_WRITEDATA      4
+
+}
 
 #endif // VBA_EEPROM_H

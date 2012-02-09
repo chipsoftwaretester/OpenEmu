@@ -16,6 +16,13 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+/*
+ FIXME:
+
+  HC table for 320-pixel mode is mapped to cycles incorrectly.
+
+*/
+
 #include "shared.h"
 #include "vcnt.h"
 #include "hcnt.h"
@@ -153,11 +160,11 @@ void MDVDP::Reset(void)
     dma_fill = 0;
     im2_flag = 0;
 
-    vdp_cycle_counter = 0;
+    vdp_cycle_counter = 4 * 10;
     vdp_last_ts = 0;
-    vdp_line_phase = 0;
+    vdp_line_phase = VDPLP_VISIBLE_0;
     vdp_hcounter_start_ts = 0;
-    scanline = 0;
+    scanline = visible_frame_end;
 
     MD_Suspend68K(FALSE);
     z80_set_interrupt(FALSE);
@@ -338,7 +345,8 @@ INLINE void MDVDP::MemoryWrite16(uint16 data)
             /* Copy SAT data to the internal SAT */
             if((addr & sat_base_mask) == satb)
             {
-                MDFN_en16lsb(&sat[addr & sat_addr_mask], data);
+                //MDFN_en16lsb(&sat[addr & sat_addr_mask], data);
+		MDFN_en16lsb(&sat[addr & sat_addr_mask & ~1], data);
             }
 
             /* Only write unique data to VRAM */
@@ -540,11 +548,14 @@ void MDVDP::vdp_reg_w(uint8 r, uint8 d)
 
 uint16 MDVDP::vdp_hvc_r(void)
 {
- int32 cycle = md_timestamp - vdp_hcounter_start_ts;
+ int32 cycle = (md_timestamp - vdp_hcounter_start_ts) / ((reg[0x0C] & 1) ? 8 : 10);
  int hc;
  uint8 vc;
- 
+
  cycle >>= 1;
+
+ //if(cycle / ((reg[0xC] & 1) ? 211 : 171))
+ //printf("MOO: %d\n", cycle); //cycle / ((reg[0xC] & 1) ? 211 : 171));
  cycle %= (reg[0xC] & 1) ? 211 : 171;
 
  hc = (reg[0xC] & 1) ? hc_320[cycle] : hc_256[cycle];
@@ -668,6 +679,7 @@ void MDVDP::Run(void)
 void MDVDP::ResetTS(void)
 {
  //printf("%d, %d\n", vdp_cycle_counter, md_timestamp);
+ vdp_hcounter_start_ts -= vdp_last_ts;
  vdp_last_ts = 0;
 }
 
@@ -822,15 +834,11 @@ void MDVDP::SetPixelFormat(const MDFN_PixelFormat &format)
  SyncColors();
 }
 
-void MDVDP::SetSurface(MDFN_Surface *new_surface, MDFN_Rect *new_rect)
+void MDVDP::SetSurface(EmulateSpecStruct *espec_arg)	//MDFN_Surface *new_surface, MDFN_Rect *new_rect)
 {
- surface = new_surface;
- rect = new_rect;
-
- //rect->x = bitmap.viewport.x;
- //rect->y = 0; //bitmap.viewport.y;
- //rect->w = bitmap.viewport.w;
- //rect->h = bitmap.viewport.h;
+ espec = espec_arg;
+ surface = espec->surface;
+ rect = &espec->DisplayRect;
 }
 
 
@@ -895,22 +903,16 @@ void MDVDP::render_line(int line)
     // Our display output window is nominally XXX*224 with NTSC, XXX*240 with PAL.
     //if(line == 0)
     {
-     rect->x = 0;
-     rect->y = is_pal ? 0 : 8;
-     rect->w = WantAutoAspect ? vp_w : 320;
-     rect->h = is_pal ? 240 : 224;
-
      if(!(reg[0x1] & 0x8) && is_pal)
      {
       //puts("FIXME, lines clear");
      }
     }
 
-    // Double-vertical-resolution interlaced mode
-    if((reg[0xC] & 0x06) == 0x06)
+    if(line == 120)
     {
-     rect->y *= 2;
-     rect->h *= 2;
+     rect->x = 0;
+     rect->w = WantAutoAspect ? vp_w : 320;
     }
 
     if((reg[1] & 0x40) == 0x00)
@@ -989,16 +991,10 @@ void MDVDP::render_line(int line)
     }
 
     {
-     static uint32 last_buffer[512 * 256];
-     static bool last_buffer_valid = FALSE;
-
      int width = (reg[12] & 1) ? 320 : 256;
-     // TODO: Frameskip will break this.  Make last_buffer dynamically-allocated.  Clear last_buffer_valid when im2_flag is zero.
-     //printf("%d, %d, %d\n", line, im2_flag, (status & 0x10) >> 4);
+     uint32 *out = &surface->pixels[((line + ((240 - visible_frame_end) >> 1)) * (espec->InterlaceOn ? 2 : 1) + espec->InterlaceField) * surface->pitch32];
 
-     uint32 *out = &surface->pixels[((line + ((240 - visible_frame_end) >> 1)) * (im2_flag ? 2 : 1)) * surface->pitch32];
-
-     // FIXME: Framebuffer clear
+	//printf("%d, %d %d\n", line, espec->InterlaceOn, espec->InterlaceField);
 
      if(!WantAutoAspect)
      {
@@ -1024,39 +1020,7 @@ void MDVDP::render_line(int line)
       out += (320 - vp_w) >> 1;
      }
 
-     if(im2_flag)
-     {
-      bool odd_field = ((status & 0x10) >> 4);
-
-      if(0)
-      {
-       remap_32(lb + 0x20, out + odd_field * surface->pitch32, pixel_32, width);
-
-       if(line < 239)
-        remap_32(lb + 0x20, out + (odd_field + 1) * surface->pitch32, pixel_32, width);
-      }
-      else if(0)
-      {
-       remap_32(lb + 0x20, out + odd_field * surface->pitch32, pixel_32, width);
-       memset(out + (odd_field ^ 1) * surface->pitch32, 0, width * sizeof(uint32));
-      }
-      else
-      {
-       if(last_buffer_valid)
-        memcpy(out + (odd_field ^ 1) * surface->pitch32, last_buffer + line * 512, width * sizeof(uint32));
-
-       remap_32(lb + 0x20, last_buffer + line * 512, pixel_32, width);
-
-       memcpy(out + odd_field * surface->pitch32, last_buffer + line * 512, width * sizeof(uint32));
-
-       if(!last_buffer_valid)
-        memcpy(out + (odd_field ^ 1) * surface->pitch32, last_buffer + line * 512, width * sizeof(uint32));
-
-       last_buffer_valid = TRUE;
-      }
-     }
-     else
-      remap_32(lb + 0x20, out, pixel_32, width);
+     remap_32(lb + 0x20, out, pixel_32, width);
     }
 }
 /*--------------------------------------------------------------------------*/
@@ -1774,7 +1738,7 @@ void MDVDP::parse_satb(int line)
             // using xpos from internal satb stops sprite x
             // scrolling in bloodlin.bin,
             // but this seems to go against the test prog
-//          object_info[object_index_count].xpos = MDFN_de16lsb(&q[6]);
+           //object_info[object_index_count].xpos = MDFN_de16lsb(&q[6]);
             object_info[object_index_count].attr = MDFN_de16lsb(&p[4]);
             object_info[object_index_count].size = q[3];
             object_info[object_index_count].index = count;

@@ -27,6 +27,7 @@
 #include "md5.h"
 #include "string/world_strtod.h"
 #include "string/escape.h"
+#include "FileWrapper.h"
 
 typedef struct
 {
@@ -201,7 +202,9 @@ static bool ValidateSetting(const char *value, const MDFNSetting *setting)
     found = true;
     break;
    }
-   valid_string_list = valid_string_list + std::string(enum_list->string) + (enum_list[1].string ? " " : "");
+
+   if(enum_list->description)	// Don't list out undocumented and deprecated values.
+    valid_string_list = valid_string_list + (enum_list == setting->enum_list ? "" : " ") + std::string(enum_list->string);
 
    enum_list++;
   }
@@ -235,8 +238,95 @@ static uint32 MakeNameHash(const char *name)
  return(name_hash);
 }
 
+static bool ParseSettingLine(char *linebuf, bool IsOverrideSetting = false)
+{
+  MDFNCS *zesetting;
+  char *spacepos = strchr(linebuf, ' ');
+
+  if(!spacepos) return(true);	// EOF or bad line
+
+  if(spacepos == linebuf) return(true);	// No name(key)
+  if(spacepos[1] == 0) return(true);	// No value
+  if(spacepos[0] == ';') return(true);	// Comment
+
+  // FIXME
+  if(linebuf[0] == ';')
+   return(true);
+
+  *spacepos = 0;
+ 
+  char *lfpos = strchr(spacepos + 1, '\n');
+  if(lfpos) *lfpos = 0;
+  lfpos = strchr(spacepos + 1, '\r');
+  if(lfpos) *lfpos = 0;
+
+  if(spacepos[1] == 0)
+   return(true);        // No value
+
+  zesetting = FindSetting(linebuf, true, true);
+
+  if(zesetting)
+  {
+   char *nv = strdup(spacepos + 1);
+
+   if(IsOverrideSetting)
+   {
+    if(zesetting->game_override)
+     free(zesetting->game_override);
+
+    zesetting->game_override = nv;
+   }
+   else
+   {
+    if(zesetting->value)
+     free(zesetting->value);
+
+    zesetting->value = nv;
+   }
+
+   if(!ValidateSetting(nv, zesetting->desc))	// TODO: Validate later(so command line options can override invalid setting file data correctly)
+    return(false);
+  }
+  else if(!IsOverrideSetting)
+  {
+   UnknownSetting_t unks;
+
+   unks.name = strdup(linebuf);
+   unks.value = strdup(spacepos + 1);
+
+   UnknownSettings.push_back(unks);
+  }
+ return(true);
+}
+
+// TODO: not used yet.
+void MDFN_LoadPGOSettings(const char *path, const char *section)
+{
+ FileWrapper fp(path, FileWrapper::MODE_READ);
+ char linebuf[1024];
+ bool InCorrectSection = true;	// To allow for all-game overrides at the start of the override file, might be useful in certain scenarios.
+
+ while(fp.get_line(linebuf, 1024))
+ {
+  if(linebuf[0] == '[')
+  {
+   if(!strcasecmp(&linebuf[1], section) && linebuf[1 + strlen(section)] == ']')
+    InCorrectSection = true;
+   else
+    InCorrectSection = false;
+  }
+  else if(InCorrectSection)
+  {
+   if(!ParseSettingLine(linebuf))
+    throw(MDFN_Error(0, "I AM ERROR"));
+  }
+ }
+
+}
+
 bool MFDN_LoadSettings(const char *basedir)
 {
+ char linebuf[1024];
  FILE *fp;
 
  fname = basedir;
@@ -259,54 +349,15 @@ bool MFDN_LoadSettings(const char *basedir)
  }
  MDFN_printf("\n");
 
- char linebuf[1024];
-
  while(fgets(linebuf, 1024, fp) > 0)
  {
-  MDFNCS *zesetting;
-  char *spacepos = strchr(linebuf, ' ');
-
-  if(!spacepos) continue;	// EOF or bad line
-
-  if(spacepos == linebuf) continue;	// No name(key)
-  if(spacepos[1] == 0) continue;	// No value
-  if(spacepos[0] == ';') continue;	// Comment
-
-  // FIXME
-  if(linebuf[0] == ';')
-   continue;
-
-  *spacepos = 0;
- 
-  char *lfpos = strchr(spacepos + 1, '\n');
-  if(lfpos) *lfpos = 0;
-  lfpos = strchr(spacepos + 1, '\r');
-  if(lfpos) *lfpos = 0;
-
-  if(spacepos[1] == 0) continue;        // No value
-
-  zesetting = FindSetting(linebuf, true, true);
-
-  if(zesetting)
+  if(!ParseSettingLine(linebuf))
   {
-   if(zesetting->value)
-    free(zesetting->value);
-
-   zesetting->value = strdup(spacepos + 1);
-
-   if(!ValidateSetting(zesetting->value, zesetting->desc))
-    return(0);
-  }
-  else
-  {
-   UnknownSetting_t unks;
-
-   unks.name = strdup(linebuf);
-   unks.value = strdup(spacepos + 1);
-
-   UnknownSettings.push_back(unks);
+   fclose(fp);
+   return(false);
   }
  }
+
  fclose(fp);
  return(1);
 }
@@ -332,6 +383,7 @@ static INLINE void MergeSettingSub(const MDFNSetting *setting)
   TempSetting.name_hash = name_hash;
   TempSetting.desc = setting;
   TempSetting.ChangeNotification = setting->ChangeNotification;
+  TempSetting.game_override = NULL;
   TempSetting.netplay_override = NULL;
 
   CurrentSettings.insert(std::pair<uint32, MDFNCS>(name_hash, TempSetting)); //[name_hash] = TempSetting;
@@ -456,6 +508,8 @@ static const char *GetSetting(const MDFNCS *setting)
 
  if(setting->netplay_override)
   value = setting->netplay_override;
+ else if(setting->game_override)
+  value = setting->game_override;
  else
   value = setting->value;
 
@@ -517,13 +571,13 @@ int64 MDFN_GetSettingI(const char *name)
 }
 
 double MDFN_GetSettingF(const char *name)
-{ 
+{
  return(world_strtod(GetSetting(FindSetting(name)), (char **)NULL));
 }
 
 bool MDFN_GetSettingB(const char *name)
 {
- return(strtoull(GetSetting(FindSetting(name)), NULL, 10));
+ return((bool)MDFN_GetSettingUI(name));
 }
 
 std::string MDFN_GetSettingS(const char *name)

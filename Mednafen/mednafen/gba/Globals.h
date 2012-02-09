@@ -20,6 +20,9 @@
 #ifndef VBA_GLOBALS_H
 #define VBA_GLOBALS_H
 
+namespace MDFN_IEN_GBA
+{
+
 #define VERBOSE_SWI                  1
 #define VERBOSE_UNALIGNED_MEMORY     2
 #define VERBOSE_ILLEGAL_WRITE        4
@@ -123,5 +126,7 @@ extern uint16 P1;
 extern uint16 IE;
 extern uint16 IF;
 extern uint16 IME;
+
+}
 
 #endif // VBA_GLOBALS_H

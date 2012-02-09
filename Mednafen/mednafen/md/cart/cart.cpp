@@ -21,6 +21,7 @@
 #include "map_rom.h"
 #include "map_sram.h"
 #include "map_eeprom.h"
+#include "map_svp.h"
 
 #include "map_realtec.h"
 #include "map_ssf2.h"
@@ -121,6 +122,16 @@ static game_db_t GamesDB[] =
  // Ya-Se Chuan Shuo
  { NULL, 0, 0x2786df4902ef8856ULL, "YaSe", 0, 0, 0 },
 
+ // Virtua Racing
+ { "MK-1229 -00", 0, 0, "SVP", 0, 0, 0 },
+
+
+ /***************************************
+ //
+ // SRAM-related header corrections
+ //
+ ***************************************/
+
  // Chaoji Dafuweng
  { NULL, 0, 0x13639e87230c85aaULL, NULL,  0x5241f820, 0x200001, 0x200fff },
 
@@ -134,7 +145,6 @@ static game_db_t GamesDB[] =
  { "T-50216 -00", 0, 0, NULL, 0x5241f820, 0x200000, 0x203fff },
  { "T-50216 -01", 0, 0, NULL, 0x5241f820, 0x200000, 0x203fff },
 
-
  // Taiwan Tycoon(TODO)
 
  // Top Shooter
@@ -143,75 +153,109 @@ static game_db_t GamesDB[] =
  // World Pro Baseball 94
  { NULL, 0, 0xe7bb31787f189ebeULL, NULL, 0x5241f820, 0x200001, 0x20ffff },
 
+
+ /***************************************
  //
  // EEPROM Carts
  //
+ ***************************************/
+ 
+ //
  //	Acclaim
+ //
  // NBA Jam (UE)
- {"T-081326", 0, 0, "Acclaim_24C02_Old", 0, 0, 0  },
+ {"T-081326 00", 0, 0, "Acclaim_24C02_Old", 0, 0, 0  },
 
  // NBA Jam (J)   
- {"T-81033", 0, 0, "Acclaim_24C02_Old", 0, 0, 0  },
-
- // NBA Jam TE
- {"T-81406", 0, 0, "Acclaim_24C02", 0, 0, 0  },
+ {"T-81033  00", 0, 0, "Acclaim_24C02_Old", 0, 0, 0  },
 
  // NFL Quarterback Club
- {"T-081276", 0, 0, "Acclaim_24C02", 0, 0, 0  },
+ {"T-081276 00", 0, 0, "Acclaim_24C02", 0, 0, 0  },
+
+ // NBA Jam TE
+ {"T-81406 -00", 0, 0, "Acclaim_24C04", 0, 0, 0  },
 
  // NFL Quarterback Club '96
- {"T-081586", 0, 0, "Acclaim_24C16", 0, 0, 0  },
+ {"T-081586-00", 0, 0, "Acclaim_24C16", 0, 0, 0  },
 
  // College Slam
- {"T-81576", 0, 0, "Acclaim_24C65", 0, 0, 0  },
+ {"T-81576 -00", 0, 0, "Acclaim_24C65", 0, 0, 0  },
 
  // Frank Thomas Big Hurt Baseball
- {"T-81476", 0, 0, "Acclaim_24C65", 0, 0, 0  },
+ {"T-81476 -00", 0, 0, "Acclaim_24C65", 0, 0, 0  },
         
+ //
  //	EA
- // NHLPA Hockey 93 (UE)
- {"T-50396", 0, 0, "EA_24C01", 0, 0, 0  },
-
+ //
  // Rings of Power
- {"T-50176", 0, 0, "EA_24C01", 0, 0, 0  },
-        
- //	Sega
- // Megaman - The Wily Wars
- {"T-12046", 0, 0, "Sega_24C01", 0, 0, 0  },
+ {"T-50176 -00", 0, 0, "EA_24C01", 0, 0, 0  },
 
- // Rockman Mega World (J) [A]
- {"T-12053", 0, 0, "Sega_24C01", 0, 0, 0  },
+ // NHLPA Hockey 93 (UE)
+ {"T-50396 -00", 0, 0, "EA_24C01", 0, 0, 0  },
+
+ // John Madden Football 93
+ {"T-50446 -00", 0, 0, "EA_24C01", 0, 0, 0  },
+
+ // John Madden Football 93 (Championship Edition)
+ {"T-50516 -00", 0, 0, "EA_24C01", 0, 0, 0  },
+
+ // Bill Walsh College Football
+ {"T-50606 -00", 0, 0, "EA_24C01", 0, 0, 0  },
+
+
+        
+ //
+ //	Sega
+ //
+ // Megaman - The Wily Wars
+ {"T-12046 -00", 0, 0, "Sega_24C01", 0, 0, 0  },
+
+ // Rockman Mega World (J)
+ {"T-12053 -00", 0, 0x969a9e19a5850e7cULL, "Sega_24C01", 0, 0, 0  },	// Hash necessary due to hacked RAM-using version floating around.
 
  // Evander 'Real Deal' Holyfield's Boxing
- {"MK-1215", 0, 0, "Sega_24C01", 0, 0, 0  },
+ {"MK-1215 -00", 0, 0, "Sega_24C01", 0, 0, 0  },
 
  // Greatest Heavyweights of the Ring (U)
- {"MK-1228", 0, 0, "Sega_24C01", 0, 0, 0  },
+ {"MK-1228 -00", 0, 0, "Sega_24C01", 0, 0, 0  },
 
  // Greatest Heavyweights of the Ring (J)
- {"G-5538", 0, 0, "Sega_24C01", 0, 0, 0  },
+ {"G-5538  -00", 0, 0, "Sega_24C01", 0, 0, 0  },
 
  // Greatest Heavyweights of the Ring (E)
- {"PR-1993", 0, 0, "Sega_24C01", 0, 0, 0  },
+ {"PR-1993 -00", 0, 0, "Sega_24C01", 0, 0, 0  },	// Confirm correct product code.
 
  // Wonderboy in Monster World
- {"G-4060", 0, 0, "Sega_24C01", 0, 0, 0  },
+ {"G-4060  -00", 0, 0, "Sega_24C01", 0, 0, 0  },
 
  // Sports Talk Baseball
- {"00001211-00", 0, 0, "Sega_24C01_Alt", 0, 0, 0  },
+ {"00001211-00", 0, 0, "Sega_24C01", 0, 0, 0  },
         
- //	Codemasters
- // Brian Lara Cricket
- {"T-120106", 0, 0, "Codemasters_24C01", 0, 0, 0  },
+ // Honoo no Toukyuuji Dodge Danpei
+ {"_00004076-00", 0, 0, "Sega_24C01", 0, 0, 0  },
 
- // Micro Machines 2 - Turbo Tournament (E)
- {"T-120096-50", 0, 0, "Codemasters_24C08", 0, 0, 0  },
+ // Ninja Burai Densetsu
+ {"G-4524  -00", 0, 0, "Sega_24C01", 0, 0, 0  },
+
+ // Game Toshokan
+ {"00054503-00", 0, 0, "Sega_24C01", 0, 0, 0  },
+
+
+ //
+ //	Codemasters
+ //
+ // Brian Lara Cricket
+ {"T-120106-00", 0, 0, "Codemasters_24C08", 0, 0, 0  },
+ {"T-120106-50", 0, 0, "Codemasters_24C08", 0, 0, 0  },
 
  // Micro Machines Military
  { NULL, 0, 0x34253755ee0eed41ULL, "Codemasters_24C08", 0, 0, 0  },
 
  // Micro Machines Military (bad)
  { NULL, 0, 0x3241b7da6ce42fecULL, "Codemasters_24C08", 0, 0, 0  },
+
+ // Micro Machines 2 - Turbo Tournament (E)
+ {"T-120096-50", 0, 0, "Codemasters_24C16", 0, 0, 0  },
 
  // Micro Machines Turbo Tournament 96
  {NULL, 0, 0xe672e84fed6ce270ULL, "Codemasters_24C16", 0, 0, 0  },
@@ -240,6 +284,9 @@ static BoardHandler_t BoardHandlers[] =
  { "ROM", MD_Make_Cart_Type_ROM, 0, NULL },
  { "SRAM", MD_Make_Cart_Type_SRAM, 0, NULL },
 
+ { "SVP", MD_Make_Cart_Type_SVP, 0, NULL },
+
+
  { "REALTEC", MD_Make_Cart_Type_REALTEC, 0, NULL },
  { "SSF2", MD_Make_Cart_Type_SSF2, 0, NULL },
  { "FF", MD_Make_Cart_Type_FF, 0, NULL },
@@ -247,16 +294,15 @@ static BoardHandler_t BoardHandlers[] =
  { "YaSe", MD_Make_Cart_Type_YaSe, 0, NULL },
 
  { "Acclaim_24C02_Old", MD_Make_Cart_Type_EEPROM, EEP_ACCLAIM_24C02_OLD, NULL },
- { "Acclaim_24C02", MD_Make_Cart_Type_EEPROM, EEP_ACCLAIM_24C02, NULL }, 
+ { "Acclaim_24C02", MD_Make_Cart_Type_EEPROM, EEP_ACCLAIM_24C02, NULL },
+ { "Acclaim_24C04", MD_Make_Cart_Type_EEPROM, EEP_ACCLAIM_24C04, NULL },  
  { "Acclaim_24C16", MD_Make_Cart_Type_EEPROM, EEP_ACCLAIM_24C16, NULL },
  { "Acclaim_24C65", MD_Make_Cart_Type_EEPROM, EEP_ACCLAIM_24C65, NULL },
 
  { "EA_24C01", MD_Make_Cart_Type_EEPROM, EEP_EA_24C01, NULL },
 
  { "Sega_24C01", MD_Make_Cart_Type_EEPROM, EEP_SEGA_24C01, NULL },
- { "Sega_24C01_Alt", MD_Make_Cart_Type_EEPROM, EEP_SEGA_24C01_ALT, NULL },
 
- { "Codemasters_24C01", MD_Make_Cart_Type_EEPROM, EEP_CM_24C01, NULL },
  { "Codemasters_24C08", MD_Make_Cart_Type_EEPROM, EEP_CM_24C08, NULL },
  { "Codemasters_24C16", MD_Make_Cart_Type_EEPROM, EEP_CM_24C16, NULL },
  { "Codemasters_24C65", MD_Make_Cart_Type_EEPROM, EEP_CM_24C65, NULL },
@@ -274,15 +320,11 @@ bool MDCart_TestMagic(const char *name, MDFNFILE *fp)
  if(!memcmp(fp->data + 0x100, "SEGA MEGA DRIVE", 15) || !memcmp(fp->data + 0x100, "SEGA GENESIS", 12) || !memcmp(fp->data + 0x100, "SEGA 32X", 8))
   return(TRUE);
 
- if((!memcmp(fp->data + 0x100, "SEGA", 4) || !memcmp(fp->data + 0x100, " SEGA", 5)) && (!strcmp(fp->ext, "bin") || 
-	!strcmp(fp->ext, "gen") || !strcmp(fp->ext, "md")))
+ if((!memcmp(fp->data + 0x100, "SEGA", 4) || !memcmp(fp->data + 0x100, " SEGA", 5)) && !strcmp(fp->ext, "bin"))
   return(TRUE);
 
- if(!strcmp(fp->ext, "gen"))
- {
-  puts("Warning");
+ if(!strcmp(fp->ext, "gen") || !strcmp(fp->ext, "md"))
   return(TRUE);
- }
 
  return(FALSE);
 }
@@ -290,17 +332,7 @@ bool MDCart_TestMagic(const char *name, MDFNFILE *fp)
 int MDCart_Load(md_game_info *ginfo, const char *name, MDFNFILE *fp)
 {
  const char *mapper = NULL;
-
  md5_context md5;
-
- if(fp->size & 512)
- {
-  if(memcmp(fp->data + 0x100, "SEGA", 4))
-  {
-   puts("Unhandled!");
-   return(0);
-  }
- }
 
  MD_ReadSegaHeader(fp->data + 0x100, ginfo);
  Cart_ROM_Size = fp->size;
@@ -345,14 +377,16 @@ int MDCart_Load(md_game_info *ginfo, const char *name, MDFNFILE *fp)
 
   for(int i = 0; i < sizeof(GamesDB) / sizeof(game_db_t); i++)
   {
-   bool found = FALSE;
+   bool found = true;
 
-   if(GamesDB[i].header_md5 && GamesDB[i].header_md5 == hmd5_partial)
-    found = TRUE;
-   else if(GamesDB[i].md5 && GamesDB[i].md5 == md5_partial)
-    found = TRUE;
-   else if(GamesDB[i].id && !strcmp(GamesDB[i].id, ginfo->product_code))
-    found = TRUE;
+   if(GamesDB[i].header_md5 && GamesDB[i].header_md5 != hmd5_partial)
+    found = false;
+
+   if(GamesDB[i].md5 && GamesDB[i].md5 != md5_partial)
+    found = false;
+
+   if(GamesDB[i].id && strcmp(GamesDB[i].id, ginfo->product_code))
+    found = false;
 
    if(found)
    {

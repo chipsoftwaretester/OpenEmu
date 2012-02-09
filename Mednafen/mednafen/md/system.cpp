@@ -159,6 +159,8 @@ static void Emulate(EmulateSpecStruct *espec)
 {
  MDFNMP_ApplyPeriodicCheats();
 
+ MDIO_BeginTimePeriod(md_timestamp);
+
  MDINPUT_Frame();
 
  if(espec->VideoFormatChanged)
@@ -167,13 +169,26 @@ static void Emulate(EmulateSpecStruct *espec)
  if(espec->SoundFormatChanged)
   MDSound_SetSoundRate(espec->SoundRate);
 
- MainVDP.SetSurface(espec->surface, &espec->DisplayRect);
+ MainVDP.SetSurface(espec);	//espec->surface, &espec->DisplayRect);
 
  system_frame(0);
 
  espec->MasterCycles = md_timestamp;
 
  espec->SoundBufSize = MDSound_Flush(espec->SoundBuf, espec->SoundBufMaxSize);
+
+#if 0
+ {
+  static double avg = 0;
+  static double s_avg = 0;
+
+  avg += (espec->MasterCycles - avg) * 0.05;
+  s_avg += (espec->SoundBufSize - s_avg) * 0.05;
+  printf("%f, %f\n", avg / 262 / 10, 48000 / s_avg);
+ }
+#endif
+
+ MDIO_EndTimePeriod(md_timestamp);
 
  md_timestamp = 0;
  MainVDP.ResetTS();
@@ -334,6 +349,8 @@ static int LoadCommonPost(const md_game_info &ginfo)
    MDFNGameInfo->fps = (int64)CLOCK_PAL * 65536 * 256 / (313 * 3420);
   else
    MDFNGameInfo->fps = (int64)CLOCK_NTSC * 65536 * 256 / (262 * 3420);
+
+  //printf("%f\n", (double)MDFNGameInfo->fps / 65536 / 256);
  }
 
  if(MDFN_GetSettingB("md.correct_aspect"))
@@ -383,7 +400,7 @@ static int Load(const char *name, MDFNFILE *fp)
  return(1);
 }
 
-static int LoadCD(void)
+static int LoadCD(std::vector<CDIF *> *CDInterfaces)
 {
  md_game_info ginfo;
 
@@ -391,7 +408,7 @@ static int LoadCD(void)
 
  MD_IsCD = TRUE;
 
- if(!MDCD_Load(&ginfo))
+ if(!MDCD_Load(CDInterfaces, &ginfo))
  {
   puts("BOOM");
   return(FALSE);
@@ -405,9 +422,9 @@ static int LoadCD(void)
  return(TRUE);
 }
 
-static bool TestMagicCD(void)
+static bool TestMagicCD(std::vector<CDIF *> *CDInterfaces)
 {
- return(MDCD_TestMagic());
+ return(MDCD_TestMagic(CDInterfaces));
 }
 
 static void DoSimpleCommand(int cmd)

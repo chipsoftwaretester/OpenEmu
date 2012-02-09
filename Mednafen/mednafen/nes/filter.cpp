@@ -15,9 +15,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/* This resampler has only been designed with NES CPU frequencies(NTSC and PAL) as the input rate, and output rates of 8192-48000 in mind,
-   up to 1024 coefficient multiply-accumulates per output sample.  Additionally, for extra safety, no input sample should exceed 90% of the
-   maximum and minimum values storeable in the int16 type.
+/* This resampler has only been designed with NES CPU frequencies(NTSC and PAL) as the input rate, and output rates of
+   22050-1048576 in mind, up to 1024 coefficient multiply-accumulates per output sample.
 */
 
 // Don't set these higher than 3, the accumulation variables will overflow if you do.
@@ -29,17 +28,10 @@
 #include "../mednafen.h"
 #include <math.h>
 #include "filter.h"
-#include "../cputest.h"
+#include "../cputest/cputest.h"
 
-#ifdef ARCH_POWERPC
-
-// Code snippet taken from:  http://72.14.203.104/search?q=cache:HcMA_-5Ied8J:www.gromacs.org/pipermail/gmx-developers/2004-October/000955.html+maltivec+faltivec&hl=en&gl=us&ct=clnk&cd=7
-#if !defined(__APPLE_ALTIVEC__)
-#if !defined(__ALTIVEC__) || !defined(__APPLE__)
-#include <altivec.h>
-#endif
-#endif
-
+#if defined(ARCH_POWERPC_ALTIVEC) && defined(HAVE_ALTIVEC_H)
+ #include <altivec.h>
 #endif
 
 static void kaiser_window( double* io, int count, double beta )
@@ -110,30 +102,55 @@ static void normalize( double* io, int size, double gain = 1.0 )
 
 static INLINE void DoMAC(int16 *wave, int16 *coeffs, int32 count, int32 *accum_output)
 {
- int32 acc[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+ int32 acc0[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+ int32 acc1[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+ int c;
 
- for(int c = 0; c < count; c += 8)
+ for(c = 0; c < (count >> 1); c += 8)
  {
-  acc[0] += ((int32)wave[c + 0] * coeffs[c + 0]);
-  acc[1] += ((int32)wave[c + 1] * coeffs[c + 1]);
-  acc[2] += ((int32)wave[c + 2] * coeffs[c + 2]);
-  acc[3] += ((int32)wave[c + 3] * coeffs[c + 3]);
-  acc[4] += ((int32)wave[c + 4] * coeffs[c + 4]);
-  acc[5] += ((int32)wave[c + 5] * coeffs[c + 5]);
-  acc[6] += ((int32)wave[c + 6] * coeffs[c + 6]);
-  acc[7] += ((int32)wave[c + 7] * coeffs[c + 7]);
+  acc0[0] += ((int32)wave[c + 0] * coeffs[c + 0]);
+  acc0[1] += ((int32)wave[c + 1] * coeffs[c + 1]);
+  acc0[2] += ((int32)wave[c + 2] * coeffs[c + 2]);
+  acc0[3] += ((int32)wave[c + 3] * coeffs[c + 3]);
+  acc0[4] += ((int32)wave[c + 4] * coeffs[c + 4]);
+  acc0[5] += ((int32)wave[c + 5] * coeffs[c + 5]);
+  acc0[6] += ((int32)wave[c + 6] * coeffs[c + 6]);
+  acc0[7] += ((int32)wave[c + 7] * coeffs[c + 7]);
  }
 
- acc[0] >>= FIR_TABLE_EXTRA_BITS;
- acc[1] >>= FIR_TABLE_EXTRA_BITS;
- acc[2] >>= FIR_TABLE_EXTRA_BITS;
- acc[3] >>= FIR_TABLE_EXTRA_BITS;
- acc[4] >>= FIR_TABLE_EXTRA_BITS;
- acc[5] >>= FIR_TABLE_EXTRA_BITS;
- acc[6] >>= FIR_TABLE_EXTRA_BITS;
- acc[7] >>= FIR_TABLE_EXTRA_BITS;
+ acc0[0] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[1] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[2] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[3] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[4] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[5] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[6] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc0[7] >>= FIR_TABLE_EXTRA_BITS + 1;
 
- *accum_output = (acc[0] + acc[1] + acc[2] + acc[3] + acc[4] + acc[5] + acc[6] + acc[7]) >> 16;
+
+ for(; c < count; c += 8)
+ {
+  acc1[0] += ((int32)wave[c + 0] * coeffs[c + 0]);
+  acc1[1] += ((int32)wave[c + 1] * coeffs[c + 1]);
+  acc1[2] += ((int32)wave[c + 2] * coeffs[c + 2]);
+  acc1[3] += ((int32)wave[c + 3] * coeffs[c + 3]);
+  acc1[4] += ((int32)wave[c + 4] * coeffs[c + 4]);
+  acc1[5] += ((int32)wave[c + 5] * coeffs[c + 5]);
+  acc1[6] += ((int32)wave[c + 6] * coeffs[c + 6]);
+  acc1[7] += ((int32)wave[c + 7] * coeffs[c + 7]);
+ }
+
+ acc1[0] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[1] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[2] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[3] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[4] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[5] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[6] >>= FIR_TABLE_EXTRA_BITS + 1;
+ acc1[7] >>= FIR_TABLE_EXTRA_BITS + 1;
+
+ *accum_output = (acc0[0] + acc0[1] + acc0[2] + acc0[3] + acc0[4] + acc0[5] + acc0[6] + acc0[7] +
+		  acc1[0] + acc1[1] + acc1[2] + acc1[3] + acc1[4] + acc1[5] + acc1[6] + acc1[7]) >> 15;
 }
 
 #ifdef ARCH_X86
@@ -177,16 +194,20 @@ static INLINE void DoMAC_MMX(int16 *wave, int16 *coeffs, int32 count, int32 *acc
 "pmaddwd (%%"X86_REGC"si), %%mm0\n\t"
 
 "movq 8(%%"X86_REGC"di), %%mm2\n\t"
+"psrad $1, %%mm0\n\t"
 "pmaddwd 8(%%"X86_REGC"si), %%mm2\n\t"
 
 "movq 16(%%"X86_REGC"di), %%mm6\n\t"
+"psrad $1, %%mm2\n\t"
 "pmaddwd 16(%%"X86_REGC"si), %%mm6\n\t"
 
 "movq 24(%%"X86_REGC"di), %%mm7\n\t"
+"psrad $1, %%mm6\n\t"
 "pmaddwd 24(%%"X86_REGC"si), %%mm7\n\t"
 
 "paddd %%mm0, %%mm1\n\t"
 "paddd %%mm2, %%mm3\n\t"
+"psrad $1, %%mm7\n\t"
 "paddd %%mm6, %%mm4\n\t"
 "paddd %%mm7, %%mm5\n\t"
 
@@ -212,7 +233,8 @@ static INLINE void DoMAC_MMX(int16 *wave, int16 *coeffs, int32 count, int32 *acc
 "psrlq $32, %%mm6\n\t"
 "paddd %%mm6, %%mm1\n\t"
 
-"psrad $16, %%mm1\n\t"
+"psrad $15, %%mm1\n\t"
+//"psrad $16, %%mm1\n\t"
 "movd %%mm1, (%%"X86_REGC"dx)\n\t"
  : "=D" (dummy), "=S" (dummy), "=c" (dummy)
  : "D" (wave), "S" (coeffs), "c" ((count + 0xF) >> 4), "d" (accum_output)
@@ -228,26 +250,68 @@ static INLINE void DoMAC_MMX(int16 *wave, int16 *coeffs, int32 count, int32 *acc
 #endif
 
 
-//#ifdef ARCH_POWERPC
-#if 0
+#ifdef ARCH_POWERPC_ALTIVEC
 static INLINE void DoMAC_AltiVec(int16 *wave, int16 *coeffs, int32 count, int32 *accum_output)
 {
-          vector signed int acc;
-          MDFN_ALIGN(16) signed int acc_store[4];
-          unsigned int c;
+          vector signed int acc0, acc1, acc2, acc3;
+	  vector unsigned int vecsrEBp1 = vec_splats((unsigned int)FIR_TABLE_EXTRA_BITS + 1);
+	  vector unsigned int vecsr16m1 = vec_splats((unsigned int)16 - 1);
+          vector signed int zerosi = vec_splat_s32(0);
+          vector signed short wd0, fd0;
+          vector signed short wd1, fd1;
+	  vector signed int tmp;
+	  int32 ino;
 
-          acc = vec_xor(acc, acc);
+#if 0
+	  {
+	   const uint8 blocksize = 1 * sizeof(int16);
+	   const uint8 blockcount = (count + 15) / 16;
+	   const int16 blockstride = blocksize;
 
-          for(c = 0; c < count; c+=8)
+	   vec_dstt(coeffs, (blocksize << 3) | (blockcount << 8) | (blockstride << 16), 0);
+	  }
+#endif
+
+          acc0 = zerosi;
+	  acc1 = zerosi;
+	  acc2 = zerosi;
+	  acc3 = zerosi;
+
+          for(ino = 0; ino < count; ino += (16 << 1))
           {
-           vector signed short wd, fd;
-           wd = vec_ld(c, wave);
-           fd = vec_ld(c, coeffs);
+           wd0 = vec_ld(ino, wave);
+           fd0 = vec_ld(ino, coeffs);
+           acc0 = vec_msums(wd0, fd0, acc0);
 
-           acc = vec_msums(wd, fd, acc);
+           wd1 = vec_ld(ino + (8 << 1), wave);
+           fd1 = vec_ld(ino + (8 << 1), coeffs);
+           acc1 = vec_msums(wd1, fd1, acc1);
           }
-          vec_st(vec_sra(acc, vecsr13), 0, acc_store);  // Shifting right might not be necessary at this point...
-          *accum_output = ((acc_store[0] + acc_store[1] + acc_store[2] + acc_store[3]) >> 2);
+
+          acc0 = vec_sra(acc0, vecsrEBp1);
+          acc1 = vec_sra(acc1, vecsrEBp1);
+
+          for(; ino < (count << 1); ino += (16 << 1))
+          {
+           wd0 = vec_ld(ino, wave);
+           fd0 = vec_ld(ino, coeffs);
+           acc2 = vec_msums(wd0, fd0, acc2);
+
+           wd1 = vec_ld(ino + (8 << 1), wave);
+           fd1 = vec_ld(ino + (8 << 1), coeffs);
+           acc3 = vec_msums(wd1, fd1, acc3);
+          }
+
+	  acc2 = vec_sra(acc2, vecsrEBp1);
+	  acc3 = vec_sra(acc3, vecsrEBp1);
+
+	  //
+	  //
+	  tmp = vec_add(vec_add(acc0, acc2), vec_add(acc1, acc3));
+	  tmp = vec_splat(vec_sums(tmp, zerosi), 3);
+	  tmp = vec_sra(tmp, vecsr16m1);
+
+	  vec_ste(tmp, 0, accum_output);
 }
 #endif
 
@@ -256,14 +320,11 @@ static INLINE void DoMAC_AltiVec(int16 *wave, int16 *coeffs, int32 count, int32 
    from the end of in to the beginning of in.
 */
 
-/* Each sample value should ideally be larger than -32000, and smaller than +32000.  Lower or higher will probably work,
-   up to around 32767/-32768, but they could theoretically cause overflows and underflows.
-*/
-
 int32 NES_Resampler::Do(int16 *in, int16 *out, uint32 maxoutlen, uint32 inlen, int32 *leftover)
 {
 	uint32 max;
 	uint32 count=0;
+	int32 *boobuf = &IntermediateBuffer[0];
 	int32 *I32Out = boobuf;
 
 	{
@@ -285,7 +346,7 @@ int32 NES_Resampler::Do(int16 *in, int16 *out, uint32 maxoutlen, uint32 inlen, i
 
 	}
         #ifdef ARCH_X86
-        else if(cpuext & MM_MMX)
+        else if(cpuext & CPUTEST_FLAG_MMX)
         {
  	 while(InputIndex < max)
          {
@@ -303,6 +364,26 @@ int32 NES_Resampler::Do(int16 *in, int16 *out, uint32 maxoutlen, uint32 inlen, i
           InputIndex += PhaseStep[InputPhase];
 	 }
 	 asm volatile("emms\n\t");
+	}
+	#endif
+	#ifdef ARCH_POWERPC_ALTIVEC
+        else if(cpuext & CPUTEST_FLAG_ALTIVEC)
+	{
+         while(InputIndex < max)
+         {
+          const unsigned int align_index = InputIndex & 0x7;
+          int16 *wave = &in[InputIndex &~ 0x7];
+          int16 *coeffs = &FIR_ENTRY(align_index, PhaseWhich[InputPhase], 0);
+          int32 coeff_count = FIR_CoCounts[align_index];
+
+          DoMAC_AltiVec(wave, coeffs, coeff_count, I32Out);
+
+          I32Out++;
+          count++;
+
+          InputPhase = PhaseNext[InputPhase];
+          InputIndex += PhaseStep[InputPhase];
+         }
 	}
 	#endif
 	else
@@ -396,6 +477,8 @@ void NES_Resampler::SetVolume(double newvolume)
 }
 
 // Copy constructor
+#if 0
+// Bah, it's obviously screwed up, make a base initialization function to call or just don't implement a copy constructor!
 NES_Resampler::NES_Resampler(const NES_Resampler &resamp)
 {
  NES_Resampler(resamp.InputRate, resamp.OutputRate, resamp.RateError, resamp.DebiasCorner, resamp.Quality);
@@ -406,6 +489,7 @@ NES_Resampler::NES_Resampler(const NES_Resampler &resamp)
   PhaseStep[i] = resamp.PhaseStep[i];
  }
 }
+#endif
 
 NES_Resampler::NES_Resampler(double input_rate, double output_rate, double rate_error, double debias_corner, int quality)
 {
@@ -422,19 +506,21 @@ NES_Resampler::NES_Resampler(double input_rate, double output_rate, double rate_
  DebiasCorner = debias_corner;
  Quality = quality;
 
- cpuext = ac_mmflag();
+ IntermediateBuffer.resize(OutputRate * 4 / 50);	// *4 for safety padding, / min(50,60), an approximate calculation
+
+ cpuext = cputest_get_flags();
 
  MDFN_printf("filter.cpp debug info:\n");
  MDFN_indent(1);
 
  #ifdef ARCH_X86
- if(cpuext & MM_MMX)
+ if(cpuext & CPUTEST_FLAG_MMX)
  {
   MDFN_printf("MMX\n");
   NumAlignments = 4;
  } else
- #elif ARCH_POWERPC
- if(cpuext & MM_ALTIVEC)
+ #elif ARCH_POWERPC_ALTIVEC
+ if(cpuext & CPUTEST_FLAG_ALTIVEC)
  {
   puts("AltiVec");
   NumAlignments = 8;
@@ -488,7 +574,10 @@ NES_Resampler::NES_Resampler(double input_rate, double output_rate, double rate_
   throw(-1);
  }
 
- NumCoeffs_Padded = NumCoeffs + 4 + 16;
+ assert((NumCoeffs % 32) == 0);
+ assert(NumAlignments <= 8); 
+
+ NumCoeffs_Padded = NumCoeffs + 4 + 16;	// FIXME: set differently based on SIMD path in use.
 
  required_bandwidth = k_d / NumCoeffs;
 
@@ -537,7 +626,26 @@ NES_Resampler::NES_Resampler(double input_rate, double output_rate, double rate_
   MDFN_printf("Desired rate error: %.10f, Actual rate error: %.10f\n", rate_error, fabs((double)input_rate / output_rate * ratio - 1));
  }
 
- cutoff = (ratio - required_bandwidth) / NumPhases;
+ // Optimize cutoff for maximum sound frequencies humans can perceive, keep individual coefficient values from
+ // becoming too large, and keep dogs from freaking out with some games that "silence"
+ // sounds by making their fundamental frequencies beyond the range of typical human hearing.
+ //
+ // (For when output playback rate is considerably higher than 48KHz)
+ //
+ // This also incidentally handles the case of UPSAMPLING to a higher rate(at least when upsampling from the NES
+ // CPU frequency), so if this code is removed/disabled, code to handle that case will need to be added.
+ {
+  double cutoff_robot = (ratio - required_bandwidth) / NumPhases;
+  double cutoff_human = ((24000 * 2) / input_rate) / NumPhases; // Not subtracting required_bandwidth here is intentional.
+
+  if(cutoff_human < cutoff_robot)
+  {
+   //puts("HUMANS WIN THIS ROUND");
+   cutoff = cutoff_human;
+  }
+  else
+   cutoff = cutoff_robot;
+ }
 
  MDFN_printf("Cutoff: %f, %f\n", cutoff, required_bandwidth);
 
@@ -566,31 +674,54 @@ NES_Resampler::NES_Resampler(double input_rate, double output_rate, double rate_
  gen_sinc(FilterBuf, NumCoeffs * NumPhases, cutoff, k_beta);
  normalize(FilterBuf, NumCoeffs * NumPhases); 
 
+ #if 0
+ for(int i = 0; i < NumCoeffs * NumPhases; i++)
+  fprintf(stderr, "%.20f\n", FilterBuf[i]);
+
+ #endif
+
 
  FIR_CoCounts = (uint32 *)calloc(NumAlignments, sizeof(uint32));
  FIR_CoCounts[0] = NumCoeffs;
 
  for(unsigned int phase = 0; phase < NumPhases; phase++)
  {
-  double count = 0;
-  double max = 0, min = 0;
+  int32 neg_sum = 0;
+  int32 pos_sum = 0;
+  int32 sum = 0;
+  int32 sum_absv = 0;
+  int32 max = 0, min = 0;
   double amp_mult = 65536 * NumPhases * (1 << FIR_TABLE_EXTRA_BITS);
 
   for(unsigned int i = 0; i < NumCoeffs; i++)
   {
-   if(FilterBuf[i * NumPhases + phase] > max) max = FilterBuf[i * NumPhases + phase];
-   if(FilterBuf[i * NumPhases + phase] < min) min = FilterBuf[i * NumPhases + phase];
+   int32 tmpco = (int32)(FilterBuf[i * NumPhases + phase] * amp_mult);
+
+   FIR_ENTRY(0, NumPhases - 1 - phase, i) = (int16)tmpco;
+
+   sum += tmpco;
+   sum_absv += abs(tmpco);
+
+   if(tmpco > max)
+    max = tmpco;
+
+   if(tmpco < min)
+    min = tmpco;
+
+   if(tmpco > 0)
+    pos_sum += tmpco;
+   else
+    neg_sum += tmpco;
   }
 
-  for(unsigned int i = 0; i < NumCoeffs; i++)
-  {
-   FIR_ENTRY(0, NumPhases - 1 - phase, i) = (int16)(FilterBuf[i * NumPhases + phase] * amp_mult);
-   count += FIR_ENTRY(0, NumPhases - 1 - phase, i);
-  }
+  assert(min >= -32768);
+  assert(max <= 32767);
 
-  assert((min * amp_mult) >= -32768);
-  assert((max * amp_mult) <= 32767);
-  MDFN_printf("Phase %d: minimum=%f maximum=%f, mean=%f\n", phase, min * amp_mult, max * amp_mult, 65536 * count / amp_mult * NumPhases);
+  double ira = ((double)(65536 << FIR_TABLE_EXTRA_BITS) / sum_absv) * 2; // * 2 since we shift right by one in loops now
+								         // to prevent distortions when input samples are near
+								         // maximum absolute magnitude.
+
+  MDFN_printf("Phase %d: min=%d max=%d, neg_sum=%d, pos_sum=%d, sum=%d, sum_absv=%d -- worst-case ira=%.2f%%\n", phase, min, max, neg_sum, pos_sum, sum, sum_absv, ira * 100); //65536 * count / amp_mult * NumPhases);
  }
 
  for(unsigned int ali = 1; ali < NumAlignments; ali++)

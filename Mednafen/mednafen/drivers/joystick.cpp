@@ -95,6 +95,33 @@ int DTestButtonJoy(ButtConfig &bc)
  return(0);
 }
 
+int DTestAnalogButtonJoy(ButtConfig &bc)
+{
+ if(bc.DeviceNum >= MAX_JOYSTICKS)
+  return(0);
+
+ if(bc.ButtonNum & 0x8000)      /* Axis "button" */
+ {
+        int pos;
+        pos = SDL_JoystickGetAxis(Joysticks[bc.DeviceNum], bc.ButtonNum&16383);
+
+        if ((bc.ButtonNum & 0x4000) && pos < 0)
+         return(std::min<int>(-pos, 32767));
+        else if (!(bc.ButtonNum & 0x4000) && pos > 0)
+         return(pos);
+  }
+  else if(bc.ButtonNum & 0x2000)        /* Hat "button" */
+  {
+   if( SDL_JoystickGetHat(Joysticks[bc.DeviceNum],(bc.ButtonNum>>8)&0x1F) & (bc.ButtonNum&0xFF))
+    return(32767);
+  }
+  else
+   if(SDL_JoystickGetButton(Joysticks[bc.DeviceNum], bc.ButtonNum)) 
+    return(32767);
+
+ return(0);
+}
+
 /* Cleanup opened joysticks. */
 int KillJoysticks (void)
 {

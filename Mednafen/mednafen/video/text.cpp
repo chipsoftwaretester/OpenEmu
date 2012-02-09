@@ -109,13 +109,6 @@ void MDFN_InitFontData(void)
  #endif
 }
 
-static long min(long a1, long a2)
-{
- if(a1 < a2)
-  return(a1);
- return(a2);
-}
-
 size_t utf32_strlen(UTF32 *s)
 {
  size_t ret = 0;
@@ -125,11 +118,11 @@ size_t utf32_strlen(UTF32 *s)
  return(ret);
 }
 
-static void DrawTextSub(const UTF32 *utf32_buf, uint32 &slen, const uint8 **glyph_ptrs, uint8 *glyph_width, uint8 *glyph_ov_width, uint32 width, uint32 &pixwidth, uint32 which_font = 0)
+static void DrawTextSub(const UTF32 *utf32_buf, uint32 &slen, const uint8 **glyph_ptrs, uint8 *glyph_width, uint8 *glyph_ov_width, uint32 &pixwidth, uint32 which_font)
 {
  pixwidth = 0;
 
- for(uint32 x=0;x<slen;x++)
+ for(uint32 x = 0; x < slen; x++)
  {
   uint32 thisglyph = utf32_buf[x] & 0xFFFF;
   bool GlyphFound = FALSE;
@@ -155,26 +148,12 @@ static void DrawTextSub(const UTF32 *utf32_buf, uint32 &slen, const uint8 **glyp
    glyph_width[x] = FontDescriptors[which_font].glyph_width;
   }
 
-  pixwidth += glyph_width[x];
-
-  if(thisglyph >= 0x0300 && thisglyph <= 0x036F)
-  {
-   if(x != (slen-1))
-   {
-    pixwidth -= min(glyph_width[x], glyph_width[x + 1]);
-   }
+  if((thisglyph >= 0x0300 && thisglyph <= 0x036F) || (thisglyph >= 0xFE20 && thisglyph <= 0xFE2F))
    glyph_ov_width[x] = 0;
-  }
   else
    glyph_ov_width[x] = glyph_width[x];
 
-  if(pixwidth > width) // Oopsies, it's too big for the screen!  Just truncate it for now.
-  {
-   //printf("Oops: %d\n", x);
-   slen = x;
-   pixwidth -= glyph_width[x];
-   break;
-  }
+  pixwidth += (((x + 1) == slen) ? glyph_width[x] : glyph_ov_width[x]);
  }
 }
 
@@ -193,7 +172,7 @@ uint32 GetTextPixLength(const UTF8 *msg, uint32 which_font)
 
  ConvertUTF8toUTF32(&src_begin, (UTF8*)msg + max_glyph_len, &tstart, &tstart[max_glyph_len], lenientConversion);
  slen = (tstart - utf32_buf);
- DrawTextSub(utf32_buf, slen, glyph_ptrs, glyph_width, glyph_ov_width, ~0, pixwidth, which_font);
+ DrawTextSub(utf32_buf, slen, glyph_ptrs, glyph_width, glyph_ov_width, pixwidth, which_font);
 
  return(pixwidth);
 }
@@ -208,44 +187,76 @@ uint32 GetTextPixLength(const UTF32 *msg, uint32 which_font)
  uint8 glyph_ov_width[max_glyph_len];
 
  slen = utf32_strlen((UTF32 *)msg);
- DrawTextSub((UTF32*)msg, slen, glyph_ptrs, glyph_width, glyph_ov_width, ~0, pixwidth, which_font);
+ DrawTextSub((UTF32*)msg, slen, glyph_ptrs, glyph_width, glyph_ov_width, pixwidth, which_font);
 
  return(pixwidth);
 }
 
-static uint32 DoRealDraw(uint32 *dest, uint32 pitch, uint32 width, uint32 fgcolor, int centered, uint32 slen, const uint32 pixwidth,
-		       uint32 glyph_height, const uint8 *glyph_ptrs[], const uint8 glyph_width[], const uint8 glyph_ov_width[])
+static uint32 DoRealDraw(uint32 *dest, uint32 pitch, uint32 width_limit, uint32 fgcolor, int centered, uint32 slen, uint32 pixwidth,
+		       uint32 glyph_height, const uint8 *glyph_ptrs[], const uint8 glyph_width[], const uint8 glyph_ov_width[], const uint32 ex_offset = 0)
 {
- uint32 x;
-
  pitch /= sizeof(uint32);
  if(centered)
  {
-  int32 poot = width - pixwidth;
+  int32 poot = width_limit - pixwidth;
+
+  if(poot < 0)
+   poot = 0;
 
   dest += poot / 2;
  }
 
- for(x=0;x<slen;x++)
- {
-  unsigned int gx, gy;
-  const uint8 *src_glyph = glyph_ptrs[x];
-  unsigned int gy_mul = (glyph_width[x] >> 3) + 1;
+#if 0
+ // TODO to prevent writing past width
+ // Shadow support kludge
+ //
+ if(width_limit < ex_offset)
+  return(0);
+ dest += ex_offset + pitch;
+ width_limit -= ex_offset;
+ //
+ //
+#endif
 
-  for(gy = 0; gy < glyph_height; gy++)
+ pixwidth = 0;
+
+ for(uint32 n = 0; n < slen; n++)
+ {
+  const uint8 *src_glyph = glyph_ptrs[n];
+  uint32 gy_mul = (glyph_width[n] >> 3) + 1;
+  uint32 gw = glyph_width[n];
+
+  if((pixwidth + gw) > width_limit)
   {
-   for(gx=0;gx<glyph_width[x];gx++)
+   if(pixwidth > width_limit)	// Prooooobably shouldn't happen, but just in case.
+    gw = 0;
+   else
+    gw = width_limit - pixwidth;
+  }
+
+  if((pixwidth + glyph_ov_width[n]) > width_limit)
+   slen = n + 1;       // Break out
+
+
+  for(uint32 gy = 0; gy < glyph_height; gy++)
+  {
+   for(uint32 gx = 0; gx < gw; gx++)
    {
     if((src_glyph[gy * gy_mul + (gx >> 3)] << (gx & 0x7)) & 0x80)
      dest[gy * pitch + gx] = fgcolor;
    }
   }
-  dest += glyph_ov_width[x];
+  dest += glyph_ov_width[n];
+  pixwidth += ((n + 1) == slen) ? gw : glyph_ov_width[n];
  }
+
+ if(pixwidth > width_limit)
+  pixwidth = width_limit;
 
  return(pixwidth);
 }
 
+// FIXME/TODO: maximum text pixel width should be signed, not unsigned.
 uint32 DrawTextTrans(uint32 *dest, int pitch, uint32 width, const UTF8 *msg, uint32 fgcolor, int centered, uint32 which_font)
 {
  uint32 slen;
@@ -261,7 +272,7 @@ uint32 DrawTextTrans(uint32 *dest, int pitch, uint32 width, const UTF8 *msg, uin
 
  ConvertUTF8toUTF32(&src_begin, (UTF8*)msg + max_glyph_len, &tstart, &tstart[max_glyph_len], lenientConversion);
  slen = (tstart - utf32_buf);
- DrawTextSub(utf32_buf, slen, glyph_ptrs, glyph_width, glyph_ov_width, width, pixwidth, which_font);
+ DrawTextSub(utf32_buf, slen, glyph_ptrs, glyph_width, glyph_ov_width, pixwidth, which_font);
 
  return(DoRealDraw(dest, pitch, width, fgcolor, centered, slen, pixwidth, FontDescriptors[which_font].glyph_height, glyph_ptrs, glyph_width, glyph_ov_width));
 }
@@ -276,7 +287,7 @@ uint32 DrawTextTrans(uint32 *dest, int pitch, uint32 width, const UTF32 *msg, ui
  uint8 glyph_ov_width[max_glyph_len];
 
  slen = utf32_strlen((UTF32 *)msg);
- DrawTextSub((UTF32*)msg, slen, glyph_ptrs, glyph_width, glyph_ov_width, ~0, pixwidth, which_font);
+ DrawTextSub((UTF32*)msg, slen, glyph_ptrs, glyph_width, glyph_ov_width, pixwidth, which_font);
 
  return(DoRealDraw(dest, pitch, width, fgcolor, centered, slen, pixwidth, FontDescriptors[which_font].glyph_height, glyph_ptrs, glyph_width, glyph_ov_width));
 }
@@ -286,3 +297,26 @@ uint32 DrawTextTransShadow(uint32 *dest, int pitch, uint32 width, const UTF8 *te
  DrawTextTrans(dest + 1 + (pitch >> 2), pitch, width, textmsg, shadcolor, centered, which_font);
  return(DrawTextTrans(dest, pitch, width, textmsg, fgcolor, centered, which_font));
 }
+
+uint32 DrawTextTransShadow(uint32 *dest, int pitch, uint32 width, const std::string &textmsg, uint32 fgcolor, uint32 shadcolor, int centered, uint32 which_font)
+{
+ const char *tmp = textmsg.c_str();
+
+ DrawTextTrans(dest + 1 + (pitch >> 2), pitch, width, (const UTF8 *)tmp, shadcolor, centered, which_font);
+ return(DrawTextTrans(dest, pitch, width, (const UTF8 *)tmp, fgcolor, centered, which_font));
+}
+
+#if 0
+uint32 DrawText(MDFN_Surface *surface, const MDFN_Rect &rect, const std::string &textmsg, uint32 color,
+		bool centered, uint32 which_font)
+{
+ MDFN_Rect tr = rect;
+
+ if((tr.x + tr.w) > surface->w)
+  tr.w = surface->w - tr.x;
+
+ if((tr.y + tr.h) > surface->h)
+  tr.h = surface->h - tr.y;
+
+}
+#endif

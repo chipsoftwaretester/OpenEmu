@@ -21,7 +21,7 @@ enum device_names {DEVICE_NONE = 0, DEVICE_MS2B, DEVICE_MD3B, DEVICE_MD6B, DEVIC
 
 static void SetDevice(int i, int type);
 
-static MD_Input_Device *port[PORT_MAX];
+static MD_Input_Device *port[PORT_MAX] = { NULL };
 
 static InputDeviceInfoStruct InputDeviceInfo[] =
 {
@@ -80,6 +80,7 @@ InputInfoStruct MDInputInfo =
  PortInfo
 };
 
+static void UpdateBusThing(const int32 master_timestamp);
 
 void MDIO_Init(bool overseas, bool PAL, bool overseas_reported, bool PAL_reported)
 {
@@ -90,25 +91,42 @@ void MDIO_Init(bool overseas, bool PAL, bool overseas_reported, bool PAL_reporte
 
  for(int i = 0; i < PORT_MAX; i++)
   SetDevice(i, DEVICE_NONE);
+
+ UpdateBusThing(md_timestamp);
 }
 
-uint8 PortData[3];
-uint8 PortCtrl[3];
-uint8 PortTxData[3];
-uint8 PortSCtrl[3];
+static uint8 PortData[3];
+static uint8 PortDataBus[3];
+static uint8 PortCtrl[3];
+static uint8 PortTxData[3];
+static uint8 PortSCtrl[3];
+
+static void UpdateBusThing(const int32 master_timestamp)
+{
+ for(int i = 0; i < PORT_MAX; i++)
+ {
+  PortDataBus[i] &= ~PortCtrl[i];
+  PortDataBus[i] |= PortData[i] & PortCtrl[i];
+  port[i]->UpdateBus(master_timestamp, PortDataBus[i], PortCtrl[i] & 0x7F);
+ }
+}
+
 
 void gen_io_reset(void)
 {
  for(int i = 0; i < 3; i++)
  {
-  PortData[i] = 0x7F;
+  PortDataBus[i] = 0x7F;
+  PortData[i] = 0x00;
   PortCtrl[i] = 0x00;
   PortTxData[i] = 0xFF;
   PortSCtrl[i] = 0x00;
 
-  port[i]->Write(0x00);
+  port[i]->Power();		// Should be called before Write(...)
  }
  PortTxData[2] = 0xFB;
+
+ UpdateBusThing(0);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -127,8 +145,8 @@ void gen_io_w(int offset, int value)
 	    {
 	     int wp = offset - 0x01;
              PortData[wp] = value;
-             port[wp]->Write(value & PortCtrl[wp] & 0x7F);
 	    }
+	    UpdateBusThing(md_timestamp);
             break;
 
         case 0x04: /* Port A Ctrl */
@@ -138,8 +156,8 @@ void gen_io_w(int offset, int value)
 	     int wp = offset - 0x04;
 
 	     PortCtrl[wp] = value;
-             port[wp]->Write(value & PortCtrl[wp] & 0x7F);
 	    }
+	    UpdateBusThing(md_timestamp);
             break;
 
         case 0x07: /* Port A TxData */
@@ -158,20 +176,25 @@ void gen_io_w(int offset, int value)
 
 int gen_io_r(int offset)
 {
+    uint8 ret;
     uint8 temp;
     uint8 has_scd = MD_IsCD ? 0x00 : 0x20;
     uint8 gen_ver = 0x00; /* Version 0 hardware */
 
-    //printf("I/O Read: %04x, %d @ %08x\n", offset, md_timestamp, C68k_Get_PC(&Main68K));
     switch(offset)
     {
+	default:
+	    ret = 0x00;
+	    printf("Unmapped I/O Read: %04x\n", offset);
+	    break;
+
         case 0x00: /* Version */
 	    temp = 0x00;
 	    if(is_overseas_reported)
 	     temp |= 0x80;
 	    if(is_pal_reported)
 	     temp |= 0x40;
-            return (temp | has_scd | gen_ver);
+            ret = (temp | has_scd | gen_ver);
             break;
 
         case 0x01: /* Port A Data */
@@ -180,28 +203,48 @@ int gen_io_r(int offset)
 	    {
 	     int wp = offset - 0x01;
 
-             return(PortData[wp] & (0x80 | PortCtrl[wp])) | (port[wp]->Read() & ~PortCtrl[wp]);
+	     UpdateBusThing(md_timestamp);
+             ret = (PortDataBus[wp] & 0x7F) | (PortCtrl[wp] & 0x80);
 	    }
+	    break;
 
         case 0x04: /* Port A Ctrl */
         case 0x05: /* Port B Ctrl */
         case 0x06: /* Port C Ctrl */
-            return(PortCtrl[offset - 0x04]);
+            ret = PortCtrl[offset - 0x04];
+	    break;
 
         case 0x07: /* Port A TxData */
         case 0x0A: /* Port B TxData */
         case 0x0D: /* Port C TxData */
-            return(PortTxData[(offset - 0x07) / 3]);
+            ret = PortTxData[(offset - 0x07) / 3];
+	    break;
 
         case 0x09: /* Port A S-Ctrl */
         case 0x0C: /* Port B S-Ctrl */
         case 0x0F: /* Port C S-Ctrl */
-            return(PortSCtrl[(offset - 0x09) / 3]);
+            ret = PortSCtrl[(offset - 0x09) / 3];
+	    break;
     }
 
-    printf("Unmapped I/O Read: %04x\n", offset);
-    return(0x00);
+ //printf("I/O Read: %04x ret=%02x, %d @ %08x\n", offset, ret, md_timestamp, C68k_Get_PC(&Main68K));
+
+ return(ret);
 }
+
+
+void MDIO_BeginTimePeriod(const int32 timestamp_base)
+{
+ for(int i = 0; i < 3; i++)
+  port[i]->BeginTimePeriod(timestamp_base);
+}
+
+void MDIO_EndTimePeriod(const int32 master_timestamp)
+{
+ for(int i = 0; i < 3; i++)
+  port[i]->EndTimePeriod(master_timestamp);
+}
+
 
 /*--------------------------------------------------------------------------*/
 /* Null device                                                              */
@@ -217,22 +260,34 @@ MD_Input_Device::~MD_Input_Device()
 
 }
 
-uint8 MD_Input_Device::Read(void)
-{
- return(0x7F);
-}
-
-void MD_Input_Device::Write(uint8)
+void MD_Input_Device::Power(void)
 {
 
 }
 
-void MD_Input_Device::Update(const void *data)
+void MD_Input_Device::UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted)
+{
+
+
+}
+
+void MD_Input_Device::UpdatePhysicalState(const void *data)
 {
 
 }
 
-int MD_Input_Device::StateAction(StateMem *sm, int load, int data_only, const char *section_name)
+void MD_Input_Device::BeginTimePeriod(const int32 timestamp_base)
+{
+
+}
+
+void MD_Input_Device::EndTimePeriod(const int32 master_timestamp)
+{
+
+}
+
+
+int MD_Input_Device::StateAction(StateMem *sm, int load, int data_only, const char *section_prefix)
 {
  return(1);
 }
@@ -240,6 +295,9 @@ int MD_Input_Device::StateAction(StateMem *sm, int load, int data_only, const ch
 
 static void SetDevice(int i, int type)
 {
+ if(port[i])
+  delete port[i];
+
     switch(type)
     {
         case DEVICE_NONE:
@@ -262,6 +320,8 @@ static void SetDevice(int i, int type)
 	    port[i] = MDInput_MakeMegaMouse();
             break;
     }
+
+ port[i]->Power();
 }
 
 static void *data_ptr[8];
@@ -270,7 +330,7 @@ void MDINPUT_Frame(void)
 {
  for(int i = 0; i < 2; i++)
  {
-  port[i]->Update(data_ptr[i]);
+  port[i]->UpdatePhysicalState(data_ptr[i]);
  }
 }
 
@@ -301,6 +361,8 @@ void MDINPUT_SetInput(int aport, const char *type, void *ptr)
 
  data_ptr[aport] = ptr;
  SetDevice(aport, itype);
+
+ UpdateBusThing(md_timestamp);
 }
 
 int MDINPUT_StateAction(StateMem *sm, int load, int data_only)
@@ -311,6 +373,8 @@ int MDINPUT_StateAction(StateMem *sm, int load, int data_only)
   SFARRAY(PortCtrl, 3),
   SFARRAY(PortTxData, 3),
   SFARRAY(PortSCtrl, 3),
+
+  SFARRAY(PortDataBus, 3),
   SFEND
  };
 

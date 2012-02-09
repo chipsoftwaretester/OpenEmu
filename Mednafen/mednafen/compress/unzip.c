@@ -42,6 +42,9 @@ woven in by Terry Thorsen 1/2003.
 #include <stdlib.h>
 #include <string.h>
 #include "zlib.h"
+#ifndef OF
+#define OF(a) a
+#endif
 #include "unzip.h"
 
 #ifdef STDC

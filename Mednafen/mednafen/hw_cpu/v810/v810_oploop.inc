@@ -38,11 +38,14 @@
 
     while(Running)
     {
+     #ifdef RB_DEBUGMODE
+     uint32 old_PC = RB_GETPC();
+     #endif
      uint32 tmpop;
 
      assert(timestamp_rl <= next_event_ts);
 
-     if(!WillInterruptOccur())
+     if(!IPendingCache)
      {
       if(Halted)
       {
@@ -58,11 +61,9 @@
 
      while(timestamp_rl < next_event_ts)
      {
-	if(ilevel >= 0)
-	{ 
-	 int temp_clocks = Int(ilevel);
-	 timestamp_rl += temp_clocks;	//ADDCLOCK(temp_clocks);
-	}
+	#ifdef RB_DEBUGMODE
+	old_PC = RB_GETPC();
+	#endif
 
         P_REG[0] = 0; //Zero the Zero Reg!!!
 
@@ -79,14 +80,17 @@
 
 	  timestamp_rl = timestamp;
 	 }
-       	 opcode = tmpop >> 9;
-	 //printf("%02x\n", opcode >> 1);
-	static const void *const op_goto_table[128] =
-	{
-	 #include "v810_op_table.inc"
-	};
 
-	goto *op_goto_table[tmpop >> 9];
+       	 opcode = (tmpop >> 9) | IPendingCache;
+
+	 //printf("%02x\n", opcode >> 1);
+
+	 static const void *const op_goto_table[256] =
+	 {
+	  #include "v810_op_table.inc"
+	 };
+
+	 goto *op_goto_table[opcode];
 
 	// Bit string subopcodes
         #define DO_AM_BSTR()							\
@@ -221,7 +225,7 @@
 	    {
 	     BRANCH_ALIGN_CHECK(PC);
 	    }
-	    RB_ADDBT(RB_GETPC());
+	    RB_ADDBT(old_PC, RB_GETPC(), 0);
 	END_OP();
 
 	BEGIN_OP(SAR);
@@ -400,10 +404,10 @@
 	    {
              ADDCLOCK(1);
              S_REG[PSW] = S_REG[PSW] &~ PSW_ID;
+	     RecalcIPendingCache();
 	    }
 	    else
 	    {
-	     puts("EI");
 	     ADDCLOCK(1);
 	     RB_DECPCBY2();
              Exception(INVALID_OP_HANDLER_ADDR, ECODE_INVALID_OP);
@@ -419,10 +423,10 @@
             {
              ADDCLOCK(1);
              S_REG[PSW] |= PSW_ID;
+	     IPendingCache = 0;
 	    }
 	    else
             {
-	     puts("DI");
              ADDCLOCK(1);
 	     RB_DECPCBY2();
              Exception(INVALID_OP_HANDLER_ADDR, ECODE_INVALID_OP);
@@ -440,7 +444,7 @@
 		 {					\
 		  BRANCH_ALIGN_CHECK(PC);		\
 		 }					\
-		 RB_ADDBT(RB_GETPC());			\
+		 RB_ADDBT(old_PC, RB_GETPC(), 0);			\
 		}					\
 		else					\
 		{					\
@@ -516,7 +520,7 @@
             {
              BRANCH_ALIGN_CHECK(PC);
             }
-            RB_ADDBT(RB_GETPC());
+            RB_ADDBT(old_PC, RB_GETPC(), 0);
 	END_OP();
 
 	BEGIN_OP(JAL);
@@ -527,7 +531,7 @@
             {
              BRANCH_ALIGN_CHECK(PC);
             }
-            RB_ADDBT(RB_GETPC());
+            RB_ADDBT(old_PC, RB_GETPC(), 0);
 	END_OP();
 
 	BEGIN_OP(MOVEA);
@@ -820,7 +824,9 @@
                 RB_SETPC(S_REG[EIPC] & 0xFFFFFFFE);
                 S_REG[PSW] = S_REG[EIPSW];
             }
-            RB_ADDBT(RB_GETPC());
+	    RecalcIPendingCache();
+
+            RB_ADDBT(old_PC, RB_GETPC(), 0);
 	END_OP();
 
 	BEGIN_OP(MUL);
@@ -994,6 +1000,49 @@
 	    // Unlock bus(N/A)
 
 	END_OP();
+
+
+
+	op_INT_HANDLER:
+	{
+	 int iNum = ilevel;
+
+	 S_REG[EIPC]  = GetPC();
+	 S_REG[EIPSW] = S_REG[PSW];
+
+	 SetPC(0xFFFFFE00 | (iNum << 4));
+
+	 RB_ADDBT(old_PC, RB_GETPC(), 0xFE00 | (iNum << 4));
+    
+	 S_REG[ECR] = 0xFE00 | (iNum << 4);
+
+	 S_REG[PSW] |= PSW_EP;
+	 S_REG[PSW] |= PSW_ID;
+	 S_REG[PSW] &= ~PSW_AE;
+
+	 // Now, set need to set the interrupt enable level to he level that is being processed + 1,
+	 // saturating at 15.
+	 iNum++;
+
+	 if(iNum > 0x0F) 
+	  iNum = 0x0F;
+
+	 S_REG[PSW] &= ~PSW_IA;
+	 S_REG[PSW] |= iNum << 16;
+
+	 // Accepting an interrupt takes us out of normal HALT status, of course!
+	 Halted = HALT_NONE;
+
+	 // Invalidate our bitstring state(forces the instruction to be re-read, and the r/w buffers reloaded).
+	 in_bstr = FALSE;
+	 have_src_cache = FALSE;
+	 have_dst_cache = FALSE;
+
+	 IPendingCache = 0;
+
+ 	 goto OpFinished;
+	}
+
 
 	BEGIN_OP(INVALID);
 	    RB_DECPCBY2();

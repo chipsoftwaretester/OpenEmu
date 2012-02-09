@@ -36,10 +36,15 @@
 #include <pwd.h>
 #endif
 
+#ifdef HAVE_LIBCDIO
+#include <cdio/version.h>
+#endif
+
 #include "input.h"
 #include "joystick.h"
 #include "video.h"
 #include "opengl.h"
+#include "shader.h"
 #include "sound.h"
 #include "netplay.h"
 #include "cheat.h"
@@ -55,21 +60,26 @@
 
 static bool RemoteOn = FALSE;
 bool pending_save_state, pending_snapshot, pending_save_movie;
-static volatile Uint32 MainThreadID = 0;
+static Uint32 volatile MainThreadID = 0;
 static bool ffnosound;
 
 static const char *CSD_xres = gettext_noop("Full-screen horizontal resolution.");
 static const char *CSD_yres = gettext_noop("Full-screen vertical resolution.");
+static const char *CSDE_xres = gettext_noop("A value of \"0\" will cause the desktop horizontal resolution to be used.");
+static const char *CSDE_yres = gettext_noop("A value of \"0\" will cause the desktop vertical resolution to be used.");
+
 static const char *CSD_xscale = gettext_noop("Scaling factor for the X axis.");
 static const char *CSD_yscale = gettext_noop("Scaling factor for the Y axis.");
+
 static const char *CSD_xscalefs = gettext_noop("Scaling factor for the X axis in fullscreen mode.");
 static const char *CSD_yscalefs = gettext_noop("Scaling factor for the Y axis in fullscreen mode.");
+static const char *CSDE_xyscalefs = gettext_noop("For this settings to have any effect, the \"<system>.stretch\" setting must be set to \"0\".");
 
 static const char *CSD_scanlines = gettext_noop("Enable scanlines with specified opacity.");
 static const char *CSDE_scanlines = gettext_noop("Opacity is specified in %; IE a value of \"100\" will give entirely black scanlines.");
 
 static const char *CSD_stretch = gettext_noop("Stretch to fill screen.");
-static const char *CSD_videoip = gettext_noop("Enable bilinear interpolation.");
+static const char *CSD_videoip = gettext_noop("Enable (bi)linear interpolation.");
 
 
 static const char *CSD_special = gettext_noop("Enable specified special video scaler.");
@@ -130,13 +140,17 @@ static MDFNSetting_EnumList Special_List[] =
 
 static MDFNSetting_EnumList Pixshader_List[] =
 {
-    { "none",	-1,	"None/Disabled" },
-    { "ipxnoty", -1,	"Linear interpolation on X axis only." },
-    { "ipynotx", -1,	"Linear interpolation on Y axis only." },
-    { "ipsharper", -1,	"Sharper bilinear interpolation." },
-    { "ipxnotysharper", -1, "Sharper version of \"ipxnoty\"." },
-    { "ipynotxsharper", -1, "Sharper version of \"ipynotx\"." },
-    { "scale2x", -1,	"Scale2x" },
+    { "none",		SHADER_NONE,		"None/Disabled" },
+    { "autoip", 	SHADER_AUTOIP,	"Auto Interpolation", gettext_noop("Will automatically interpolate on each axis if the corresponding effective scaling factor is not an integer.") },
+    { "autoipsharper",	SHADER_AUTOIPSHARPER,	"Sharper Auto Interpolation", gettext_noop("Same as \"autoip\", but when interpolation is done, it is done in a manner that will reduce blurriness if possible.") },
+    { "scale2x", 	SHADER_SCALE2X,    "Scale2x" },
+
+    { "ipsharper", 	SHADER_IPSHARPER,  "Sharper bilinear interpolation." },
+    { "ipxnoty", 	SHADER_IPXNOTY,    "Linear interpolation on X axis only." },
+    { "ipynotx", 	SHADER_IPYNOTX,    "Linear interpolation on Y axis only." },
+    { "ipxnotysharper", SHADER_IPXNOTYSHARPER, "Sharper version of \"ipxnoty\"." },
+    { "ipynotxsharper", SHADER_IPYNOTXSHARPER, "Sharper version of \"ipynotx\"." },
+
     { NULL, 0 },
 };
 
@@ -155,11 +169,15 @@ static MDFNSetting DriverSettings[] =
   { "video.fs", MDFNSF_NOFLAGS, gettext_noop("Enable fullscreen mode."), NULL, MDFNST_BOOL, "0", },
   { "video.driver", MDFNSF_NOFLAGS, gettext_noop("Select video driver, \"opengl\" or \"sdl\"."), NULL, MDFNST_ENUM, "opengl", NULL, NULL, NULL,NULL, VDriver_List },
   { "video.glvsync", MDFNSF_NOFLAGS, gettext_noop("Attempt to synchronize OpenGL page flips to vertical retrace period."), 
-			       gettext_noop("Note: Additionally, if this setting is 1, and the environment variable \"__GL_SYNC_TO_VBLANK\" is not set at all(either 0 or any value), then it will be set to \"1\". This has the effect of forcing vblank synchronization when running under Linux with NVidia's drivers."),
+			       gettext_noop("Note: Additionally, if the environment variable \"__GL_SYNC_TO_VBLANK\" does not exist, then it will be created and set to the value specified for this setting.  This has the effect of forcibly enabling or disabling vblank synchronization when running under Linux with NVidia's drivers."),
 				MDFNST_BOOL, "1" },
 
   { "video.frameskip", MDFNSF_NOFLAGS, gettext_noop("Enable frameskip during emulation rendering."), 
 					gettext_noop("Disable for rendering code performance testing."), MDFNST_BOOL, "1" },
+
+  { "video.blit_timesync", MDFNSF_NOFLAGS, gettext_noop("Enable time synchronization(waiting) for frame blitting."),
+					gettext_noop("Disable to reduce latency, at the cost of potentially increased video \"juddering\", with the maximum reduction in latency being about 1 video frame's time.\nWill work best with emulated systems that are not very computationally expensive to emulate, combined with running on a relatively fast CPU."),
+					MDFNST_BOOL, "1" },
 
   { "ffspeed", MDFNSF_NOFLAGS, gettext_noop("Fast-forwarding speed multiplier."), NULL, MDFNST_FLOAT, "4", "1", "15" },
   { "fftoggle", MDFNSF_NOFLAGS, gettext_noop("Treat the fast-forward button as a toggle."), NULL, MDFNST_BOOL, "0" },
@@ -185,7 +203,7 @@ static MDFNSetting DriverSettings[] =
    "32"
    #endif
    ,"1", "1000" },
-  { "sound.rate", MDFNSF_NOFLAGS, gettext_noop("Specifies the sound playback rate, in frames per second(\"Hz\")."), NULL, MDFNST_UINT, "48000", "22050", "48000"},
+  { "sound.rate", MDFNSF_NOFLAGS, gettext_noop("Specifies the sound playback rate, in sound frames per second(\"Hz\")."), NULL, MDFNST_UINT, "48000", "22050", "1048576"},
 
   #ifdef WANT_DEBUGGER
   { "debugger.autostepmode", MDFNSF_NOFLAGS, gettext_noop("Automatically go into the debugger's step mode after a game is loaded."), NULL, MDFNST_BOOL, "0" },
@@ -218,62 +236,6 @@ static void BuildSystemSetting(MDFNSetting *setting, const char *system_name, co
  setting->enum_list = enum_list;
 }
 
-typedef struct
-{
- int x;
- int y;
-} resolution_pairs;
-
-static void FindBestResolution(int nominal_width, int nominal_height, int *res_x, int *res_y, double *scale)
-{
- static const resolution_pairs GoodResolutions[] =
- {
-  { 640, 480 },
-  { 800, 600 },
-  { 1024, 768 },
- };
- double max_visible_x = 0, max_visible_y = 0;
- int max_which = -1;
-
- for(unsigned int i = 0; i < sizeof(GoodResolutions) / sizeof(resolution_pairs); i++)
- {
-  int x, y;
-  double visible_x, visible_y;
-
-  x = GoodResolutions[i].x / nominal_width;
-  y = GoodResolutions[i].y / nominal_height;
-
-  if(y < x)
-   x = y;
-  else if(x < y)
-   y = x;
-
-  if(!x || !y)
-   continue;
-
-  visible_x = (double)(nominal_width * x) / GoodResolutions[i].x;
-  visible_y = (double)(nominal_height * y) / GoodResolutions[i].y;
-
-  if(visible_x > max_visible_x && visible_y > max_visible_y)
-  {
-   max_visible_x = visible_x;
-   max_visible_y = visible_y;
-   max_which = i;
-   *scale = x;
-  }
- }
-
- if(max_which == -1)
- {
-  puts("Oops");
-  max_which = 0;
-  *scale = 1;
- }
-
- *res_x = GoodResolutions[max_which].x;
- *res_y = GoodResolutions[max_which].y;
-}
-
 // TODO: Actual enum values
 static const MDFNSetting_EnumList DisFontSize_List[] =
 {
@@ -295,7 +257,21 @@ static const MDFNSetting_EnumList StretchMode_List[] =
  { "2", 2 },
  { "aspect", 2, gettext_noop("Aspect Preserve"), gettext_noop("Full-screen stretch as far as the aspect ratio(in this sense, the equivalent xscalefs == yscalefs) can be maintained.") },
 
- //{ "aspect_integer", 3, gettext_noop("Aspect Preserve + Integer Scale"), gettext_noop("Same as \"aspect\", but will truncate the equivalent xscalefs/yscalefs to integers.") },
+ { "aspect_int", 3, gettext_noop("Aspect Preserve + Integer Scale"), gettext_noop("Full-screen stretch, same as \"aspect\" except that the equivalent xscalefs and yscalefs are rounded down to the nearest integer.") },
+ { "aspect_mult2", 4, gettext_noop("Aspect Preserve + Integer Multiple-of-2 Scale"), gettext_noop("Full-screen stretch, same as \"aspect_int\", but rounds down to the nearest multiple of 2.") },
+
+ { NULL, 0 },
+};
+
+static const MDFNSetting_EnumList VideoIP_List[] =
+{
+ { "0", VIDEOIP_OFF, gettext_noop("Disabled") },
+
+ { "1", VIDEOIP_BILINEAR, gettext_noop("Bilinear") },
+
+ // Disabled until a fix can be made for rotation.
+ { "x", VIDEOIP_LINEAR_X, gettext_noop("Linear (X)"), gettext_noop("Interpolation only on the X axis.") },
+ { "y", VIDEOIP_LINEAR_Y, gettext_noop("Linear (Y)"), gettext_noop("Interpolation only on the Y axis.") },
 
  { NULL, 0 },
 };
@@ -331,8 +307,8 @@ void MakeVideoSettings(std::vector <MDFNSetting> &settings)
   const char *sysname;
   char default_value[256];
   MDFNSetting setting;
-  int default_xres, default_yres;
-  double default_scalefs;
+  const int default_xres = 0, default_yres = 0;
+  const double default_scalefs = 1.0;
   double default_scale;
 
   if(i == MDFNSystems.size())
@@ -349,52 +325,24 @@ void MakeVideoSettings(std::vector <MDFNSetting> &settings)
    multires = MDFNSystems[i]->multires;
    sysname = (const char *)MDFNSystems[i]->shortname;
   }
-  //printf("%s\n", sysname);
+
   if(multires)
-  {
-   double tmpx, tmpy;
-
-   default_xres = 1024;
-   default_yres = 768;
-
-   tmpx = (double)default_xres / nominal_width;
-   tmpy = (double)default_yres / nominal_height;
-
-   if(tmpx > tmpy)
-    tmpx = tmpy;
-
-   default_scalefs = tmpx;
    default_scale = ceil(1024 / nominal_width);
-   //printf("Fufu: %.64f\n", default_scalefs);
-  }
   else
-  {
-   FindBestResolution(nominal_width, nominal_height, &default_xres, &default_yres, &default_scalefs);
    default_scale = ceil(768 / nominal_width);
-  }
+
   if(default_scale * nominal_width > 1024)
    default_scale--;
 
   if(!default_scale)
    default_scale = 1;
 
-  //if(multires)
-  //{
-  // default_scale = ceil((double)1024 / nominal_width);
-  //}
-  //else
-  //{
-  // default_scale = ceil((double)640 / nominal_width);
-  //}
-
-  //printf("%d, %s %d %d,  %d %d, %f, %f\n", i, sysname, MDFNSystems[i]->nominal_width, MDFNSystems[i]->nominal_height, default_xres, default_yres, default_scalefs, default_scale);
-
   trio_snprintf(default_value, 256, "%d", default_xres);
-  BuildSystemSetting(&setting, sysname, "xres", CSD_xres, NULL, MDFNST_UINT, strdup(default_value), "64", "65536");
+  BuildSystemSetting(&setting, sysname, "xres", CSD_xres, CSDE_xres, MDFNST_UINT, strdup(default_value), "0", "65536");
   settings.push_back(setting);
 
   trio_snprintf(default_value, 256, "%d", default_yres);
-  BuildSystemSetting(&setting, sysname, "yres", CSD_yres, NULL, MDFNST_UINT, strdup(default_value), "64", "65536");
+  BuildSystemSetting(&setting, sysname, "yres", CSD_yres, CSDE_yres, MDFNST_UINT, strdup(default_value), "0", "65536");
   settings.push_back(setting);
 
   trio_snprintf(default_value, 256, "%f", default_scale);
@@ -404,18 +352,18 @@ void MakeVideoSettings(std::vector <MDFNSetting> &settings)
   settings.push_back(setting);
 
   trio_snprintf(default_value, 256, "%f", default_scalefs);
-  BuildSystemSetting(&setting, sysname, "xscalefs", CSD_xscalefs, NULL, MDFNST_FLOAT, strdup(default_value), "0.01", "256");
+  BuildSystemSetting(&setting, sysname, "xscalefs", CSD_xscalefs, CSDE_xyscalefs, MDFNST_FLOAT, strdup(default_value), "0.01", "256");
   settings.push_back(setting);
-  BuildSystemSetting(&setting, sysname, "yscalefs", CSD_yscalefs, NULL, MDFNST_FLOAT, strdup(default_value), "0.01", "256");
+  BuildSystemSetting(&setting, sysname, "yscalefs", CSD_yscalefs, CSDE_xyscalefs, MDFNST_FLOAT, strdup(default_value), "0.01", "256");
   settings.push_back(setting);
 
   BuildSystemSetting(&setting, sysname, "scanlines", CSD_scanlines, CSDE_scanlines, MDFNST_UINT, "0", "0", "100");
   settings.push_back(setting);
 
-  BuildSystemSetting(&setting, sysname, "stretch", CSD_stretch, NULL, MDFNST_ENUM, "0", NULL, NULL, NULL, NULL, StretchMode_List);
+  BuildSystemSetting(&setting, sysname, "stretch", CSD_stretch, NULL, MDFNST_ENUM, "aspect_mult2", NULL, NULL, NULL, NULL, StretchMode_List);
   settings.push_back(setting);
 
-  BuildSystemSetting(&setting, sysname, "videoip", CSD_videoip, NULL, MDFNST_BOOL, multires ? "1" : "0");
+  BuildSystemSetting(&setting, sysname, "videoip", CSD_videoip, NULL, MDFNST_ENUM, multires ? "1" : "0", NULL, NULL, NULL, NULL, VideoIP_List);
   settings.push_back(setting);
 
   BuildSystemSetting(&setting, sysname, "special", CSD_special, CSDE_special, MDFNST_ENUM, "none", NULL, NULL, NULL, NULL, Special_List);
@@ -428,19 +376,18 @@ void MakeVideoSettings(std::vector <MDFNSetting> &settings)
 }
 
 static SDL_Thread *GameThread;
-//static uint32 *VTBuffer[2] = { NULL, NULL };
-static volatile MDFN_Surface *VTBuffer[2] = { NULL, NULL };
+static MDFN_Surface *VTBuffer[2] = { NULL, NULL };
 static MDFN_Rect *VTLineWidths[2] = { NULL, NULL };
 
-static volatile int VTBackBuffer = 0;
+static int volatile VTBackBuffer = 0;
 static SDL_mutex *VTMutex = NULL, *EVMutex = NULL, *GameMutex = NULL;
 static SDL_mutex *StdoutMutex = NULL;
 
-//static volatile uint32 *VTReady;
-static volatile MDFN_Surface *VTReady;
-static volatile MDFN_Rect *VTLWReady;
-static volatile MDFN_Rect *VTDRReady;
+static MDFN_Surface * volatile VTReady;
+static MDFN_Rect * volatile VTLWReady;
+static MDFN_Rect * volatile VTDRReady;
 static MDFN_Rect VTDisplayRects[2];
+static bool sc_blit_timesync;
 
 void LockGameMutex(bool lock)
 {
@@ -525,8 +472,8 @@ static bool CreateDirs(void)
 
 #if defined(HAVE_SIGNAL) || defined(HAVE_SIGACTION)
 
-static const char *SiginfoFormatString = NULL;
-static volatile bool SignalSafeExitWanted = false;
+static const char *SiginfoString = NULL;
+static bool volatile SignalSafeExitWanted = false;
 typedef struct
 {
  int number;
@@ -584,9 +531,13 @@ static SignalInfo SignalDefs[] =
  #endif
 };
 
+static volatile int SignalSTDOUT;
+
 static void SetSignals(void (*t)(int))
 {
- SiginfoFormatString = _("\nSignal %d(%s) has been caught and dealt with...\n");
+ SignalSTDOUT = fileno(stdout);
+
+ SiginfoString = _("\nSignal has been caught and dealt with: ");
  for(unsigned int x = 0; x < sizeof(SignalDefs) / sizeof(SignalInfo); x++)
  {
   if(!SignalDefs[x].translated)
@@ -607,8 +558,18 @@ static void SetSignals(void (*t)(int))
  }
 }
 
+static void SignalPutString(const char *string)
+{
+ size_t count = 0;
+
+ while(string[count]) { count++; }
+
+ write(SignalSTDOUT, string, count);
+}
+
 static void CloseStuff(int signum)
 {
+	const int save_errno = errno;
 	const char *name = "unknown";
 	const char *translated = NULL;
 	bool safetryexit = false;
@@ -624,21 +585,19 @@ static void CloseStuff(int signum)
 	 }
 	}
 
-        printf(SiginfoFormatString, signum, name);
-        printf("%s", translated);
+	SignalPutString(SiginfoString);
+	SignalPutString(name);
+        SignalPutString("\n");
+	SignalPutString(translated);
 
 	if(safetryexit)
 	{
          SignalSafeExitWanted = safetryexit;
+	 errno = save_errno;
          return;
 	}
 
-        if(GameThread && SDL_ThreadID() == MainThreadID)
-	{
-	 SDL_KillThread(GameThread);		// Could this potentially deadlock?
-	 GameThread = NULL;
-	}
-        exit(1);
+	_exit(1);
 }
 #endif
 
@@ -766,9 +725,9 @@ static int DoArgs(int argc, char *argv[], char **filename)
 	return(1);
 }
 
-static volatile int NeedVideoChange = 0;
+static int volatile NeedVideoChange = 0;
 int GameLoop(void *arg);
-volatile int GameThreadRun = 0;
+int volatile GameThreadRun = 0;
 void MDFND_Update(MDFN_Surface *surface, int16 *Buffer, int Count);
 
 bool sound_active;	// true if sound is enabled and initialized
@@ -816,6 +775,8 @@ static int LoadGame(const char *force_module, const char *path)
            SDL_Delay(1);
 	  }
 	sound_active = 0;
+
+        sc_blit_timesync = MDFN_GetSettingB("video.blit_timesync");
 
 	if(MDFN_GetSettingB("sound"))
 	 sound_active = InitSound(tmp);
@@ -889,7 +850,7 @@ int CloseGame(void)
 }
 
 static void GameThread_HandleEvents(void);
-static volatile int NeedExitNow = 0;
+static int volatile NeedExitNow = 0;
 double CurGameSpeed = 1;
 
 void MainRequestExit(void)
@@ -1062,7 +1023,6 @@ int GameLoop(void *arg)
 
 	 do
 	 {
-          GameThread_HandleEvents();
 	  VTBackBuffer = ThisBackBuffer;
           MDFND_Update(fskip ? NULL : (MDFN_Surface *)VTBuffer[ThisBackBuffer], sound, ssize);
           if((InFrameAdvance && !NeedFrameAdvance) || GameLoopPaused)
@@ -1133,7 +1093,7 @@ char *GetBaseDirectory(void)
  return(ret);
 }
 
-static volatile int (*EventHook)(const SDL_Event *event) = 0;
+static int (* volatile EventHook)(const SDL_Event *event) = 0;
 
 static const int gtevents_size = 2048; // Must be a power of 2.
 static volatile SDL_Event gtevents[gtevents_size];
@@ -1160,6 +1120,35 @@ static void GameThread_HandleEvents(void)
  {
   SDL_Event *event = &gtevents_temp[i];
 
+  Input_Event(event);
+
+#if 0
+  if(event->type == SDL_VIDEORESIZE)
+  {
+   double xs, ys;
+   char buf[256];
+
+   if(CurGame) // && !_fullscreen)
+   {
+    std::string sn = std::string(CurGame->shortname);
+
+    xs = (double)event->resize.w / CurGame->nominal_width;
+    ys = (double)event->resize.h / CurGame->nominal_height;
+
+    xs = (int)xs;
+    ys = (int)ys;
+
+    trio_snprintf(buf, 256, "%.30f", xs);
+    MDFNI_SetSetting(std::string(sn + "." + std::string("xscale")).c_str(), buf);
+
+    trio_snprintf(buf, 256, "%.30f", ys);
+    MDFNI_SetSetting(std::string(sn + "." + std::string("yscale")).c_str(), buf);
+
+    GT_ReinitVideo();
+    //printf("%s, %d %d, %f %f\n", std::string(sn + "." + std::string("xscale")).c_str(), nw, nh, xs, ys);
+   }
+  }
+#endif
   if(EventHook)
    EventHook(event);
 
@@ -1288,7 +1277,10 @@ void PumpWrap(void)
   {
    case SDL_ACTIVEEVENT: break;
    case SDL_SYSWMEVENT: break;
-   case SDL_VIDEORESIZE: VideoResize(event.resize.w, event.resize.h); break;
+   //case SDL_VIDEORESIZE: //if(VideoResize(event.resize.w, event.resize.h))
+			 // NeedVideoChange = -1;
+   //			 break;
+
    case SDL_VIDEOEXPOSE: break;
    case SDL_QUIT: NeedExitNow = 1;break;
    case SDL_USEREVENT:
@@ -1308,8 +1300,8 @@ void PumpWrap(void)
                          SDL_WM_GrabInput(*(int *)event.user.data1 ? SDL_GRAB_ON : SDL_GRAB_OFF);
                          free(event.user.data1);
                          break;
-		 case CEVT_TOGGLEFS: NeedVideoChange = 1; break;
-		 case CEVT_VIDEOSYNC: NeedVideoChange = -1; break;
+		 //case CEVT_TOGGLEFS: NeedVideoChange = 1; break;
+		 //case CEVT_VIDEOSYNC: NeedVideoChange = -1; break;
 		 case CEVT_SHOWCURSOR: SDL_ShowCursor(*(int *)event.user.data1); free(event.user.data1); break;
 	  	 case CEVT_DISP_MESSAGE: VideoShowMessage((UTF8*)event.user.data1); break;
 		 default: 
@@ -1345,7 +1337,7 @@ void PumpWrap(void)
 
 void MainSetEventHook(int (*eh)(const SDL_Event *event))
 {
- EventHook = (volatile int (*)(const SDL_Event *))eh;
+ EventHook = eh;
 }
 
 static volatile int JoyModeChange = 0;
@@ -1402,11 +1394,47 @@ void RefreshThrottleFPS(double multiplier)
         CurGameSpeed = multiplier;
 }
 
+void PrintCompilerVersion(void)
+{
+ #if defined(__GNUC__)
+  MDFN_printf(_("Compiled with gcc %s\n"), __VERSION__);
+ #endif
+}
+
 void PrintSDLVersion(void)
 {
  const SDL_version *sver = SDL_Linked_Version();
 
- MDFN_printf(_("Compiled against SDL %u.%u.%u, running with SDL %u.%u.%u\n\n"), SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL, sver->major, sver->minor, sver->patch);
+ MDFN_printf(_("Compiled against SDL %u.%u.%u, running with SDL %u.%u.%u\n"), SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL, sver->major, sver->minor, sver->patch);
+}
+
+#ifdef HAVE_LIBSNDFILE
+ #include <sndfile.h>
+#endif
+
+void PrintLIBSNDFILEVersion(void)
+{
+ #ifdef HAVE_LIBSNDFILE
+  MDFN_printf(_("Running with %s\n"), sf_version_string());
+ #endif
+}
+
+void PrintZLIBVersion(void)
+{
+ #ifdef ZLIB_VERSION
+  MDFN_printf(_("Compiled against zlib %s, running with zlib %s\n"), ZLIB_VERSION, zlibVersion());
+ #endif
+}
+
+void PrintLIBCDIOVersion(void)
+{
+ #ifdef HAVE_LIBCDIO
+  #if LIBCDIO_VERSION_NUM < 83
+  const char *cdio_version_string = "(unknown)";
+  #endif
+
+  MDFN_printf(_("Compiled against libcdio %s, running with libcdio %s\n"), CDIO_VERSION, cdio_version_string);
+ #endif
 }
 
 int sdlhaveogl = 0;
@@ -1488,6 +1516,16 @@ int main(int argc, char *argv[])
 
 	MDFNI_printf(_("Starting Mednafen %s\n"), MEDNAFEN_VERSION);
 	MDFN_indent(1);
+
+        MDFN_printf(_("Build information:\n"));
+        MDFN_indent(2);
+        PrintCompilerVersion();
+        PrintZLIBVersion();
+        PrintSDLVersion();
+        PrintLIBSNDFILEVersion();
+	PrintLIBCDIOVersion();
+        MDFN_indent(-2);
+
         MDFN_printf(_("Base directory: %s\n"), DrBaseDirectory);
 
 	#ifdef ENABLE_NLS
@@ -1540,8 +1578,6 @@ int main(int argc, char *argv[])
         if(!(ret=MDFNI_Initialize(DrBaseDirectory, NeoDriverSettings)))
          return(-1);
 
-	PrintSDLVersion();
-
         SDL_EnableUNICODE(1);
 
         #if defined(HAVE_SIGNAL) || defined(HAVE_SIGACTION)
@@ -1581,6 +1617,15 @@ int main(int argc, char *argv[])
 	  setenv("__GL_SYNC_TO_VBLANK", "1", 0);
 	  #endif
 	 }
+         else
+         {
+	  #if HAVE_PUTENV
+	  static char gl_pe_string[] = "__GL_SYNC_TO_VBLANK=0";
+	  putenv(gl_pe_string); 
+	  #elif HAVE_SETENV
+	  setenv("__GL_SYNC_TO_VBLANK", "0", 0);
+	  #endif
+         }
 	}
 
 	/* Now the fun begins! */
@@ -1695,7 +1740,7 @@ int main(int argc, char *argv[])
 	  //static int last_time;
 	  //int curtime;
 
-          BlitScreen((MDFN_Surface *)VTReady, (MDFN_Rect *)VTDRReady, (MDFN_Rect*)VTLWReady);
+          BlitScreen(VTReady, VTDRReady, VTLWReady);
 
           //curtime = SDL_GetTicks();
           //printf("%d\n", curtime - last_time);
@@ -1856,39 +1901,19 @@ void MDFND_MidSync(const EmulateSpecStruct *espec)
 
  UpdateSoundSync(espec->SoundBuf + (espec->SoundBufSizeALMS * CurGame->soundchan), espec->SoundBufSize - espec->SoundBufSizeALMS);
 
+ // TODO(once we can ensure it's safe): GameThread_HandleEvents();
  MDFND_UpdateInput(true, false);
 }
 
-
-void MDFND_Update(MDFN_Surface *surface, int16 *Buffer, int Count)
+static void PassBlit(MDFN_Surface *surface)
 {
- UpdateSoundSync(Buffer, Count);
-
- MDFND_UpdateInput();
-
- if(surface)
- {
-  if(pending_snapshot)
-   MDFNI_SaveSnapshot(surface, (MDFN_Rect *)&VTDisplayRects[VTBackBuffer], (MDFN_Rect *)VTLineWidths[VTBackBuffer]);
-
-  if(pending_save_state || pending_save_movie)
-   LockGameMutex(1);
-
-  if(pending_save_state)
-   MDFNI_SaveState(NULL, NULL, surface, (MDFN_Rect *)&VTDisplayRects[VTBackBuffer], (MDFN_Rect *)VTLineWidths[VTBackBuffer]);
-  if(pending_save_movie)
-   MDFNI_SaveMovie(NULL, surface, (MDFN_Rect *)&VTDisplayRects[VTBackBuffer], (MDFN_Rect *)VTLineWidths[VTBackBuffer]);
-
-  if(pending_save_state || pending_save_movie)
-   LockGameMutex(0);
-
-  pending_save_movie = pending_snapshot = pending_save_state = 0;
-
   /* If it's been >= 100ms since the last blit, assume that the blit
      thread is being time-slice starved, and let it run.  This is especially necessary
      for fast-forwarding to respond well(since keyboard updates are
      handled in the main thread) on slower systems or when using a higher fast-forwarding speed ratio.
   */
+ if(surface)
+ {
   if((last_btime + 100) < SDL_GetTicks())
   {
    //puts("Eep");
@@ -1912,6 +1937,46 @@ void MDFND_Update(MDFN_Surface *surface, int16 *Buffer, int Count)
   VTLWReady = VTLineWidths[VTBackBuffer];
   VTReady = VTBuffer[VTBackBuffer];
   VTBackBuffer ^= 1;
+ }
+}
+
+
+void MDFND_Update(MDFN_Surface *surface, int16 *Buffer, int Count)
+{
+ if(false == sc_blit_timesync)
+ {
+  //puts("ABBYNORMAL");
+  PassBlit(surface);
+ }
+
+ UpdateSoundSync(Buffer, Count);
+
+ GameThread_HandleEvents();
+ MDFND_UpdateInput();
+
+ if(surface)
+ {
+  if(pending_snapshot)
+   MDFNI_SaveSnapshot(surface, (MDFN_Rect *)&VTDisplayRects[VTBackBuffer], (MDFN_Rect *)VTLineWidths[VTBackBuffer]);
+
+  if(pending_save_state || pending_save_movie)
+   LockGameMutex(1);
+
+  if(pending_save_state)
+   MDFNI_SaveState(NULL, NULL, surface, (MDFN_Rect *)&VTDisplayRects[VTBackBuffer], (MDFN_Rect *)VTLineWidths[VTBackBuffer]);
+  if(pending_save_movie)
+   MDFNI_SaveMovie(NULL, surface, (MDFN_Rect *)&VTDisplayRects[VTBackBuffer], (MDFN_Rect *)VTLineWidths[VTBackBuffer]);
+
+  if(pending_save_state || pending_save_movie)
+   LockGameMutex(0);
+
+  pending_save_movie = pending_snapshot = pending_save_state = 0;
+ }
+
+ if(true == sc_blit_timesync)
+ {
+  //puts("NORMAL");
+  PassBlit(surface);
  }
 }
 

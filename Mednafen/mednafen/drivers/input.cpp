@@ -211,9 +211,9 @@ static std::vector<std::vector<ButtConfig> > PortButtConfig[16];
 static std::vector<int> PortButtConfigOffsets[16];
 static std::vector<int> PortButtConfigPrettyPrio[16];
 
-
 static std::vector<uint32> PortBitOffsets[16]; // within PortData, mask with 0x80000000 for rapid buttons
 static std::vector<uint32> PortButtBitOffsets[16];
+static std::vector<bool> PortButtIsAnalog[16];
 
 typedef struct
 {
@@ -244,11 +244,11 @@ static void KillPortInfo(void) // Murder it!!
   PortButtConfigOffsets[port].clear();
   PortButtConfigPrettyPrio[port].clear();
 
-
   PortBitOffsets[port].clear();
   PortButtBitOffsets[port].clear();
   PortButtRotateOffsets[port].clear();
   PortButtExclusionBitOffsets[port].clear();
+  PortButtIsAnalog[port].clear();
 
   for(unsigned int x = 0; x < PortButtSettingNames[port].size(); x++)
    free(PortButtSettingNames[port][x]);
@@ -338,9 +338,12 @@ static void BuildPortInfo(MDFNGI *gi)
    }   // End of handling dummy/padding entries
    
 
-   if(zedevice->IDII[x].Type == IDIT_BUTTON || zedevice->IDII[x].Type == IDIT_BUTTON_CAN_RAPID || zedevice->IDII[x].Type == IDIT_BUTTON_BYTE)
+   if(zedevice->IDII[x].Type == IDIT_BUTTON || zedevice->IDII[x].Type == IDIT_BUTTON_CAN_RAPID || zedevice->IDII[x].Type == IDIT_BUTTON_BYTE
+	 || zedevice->IDII[x].Type == IDIT_BUTTON_ANALOG)
    {
-    if(zedevice->IDII[x].Type == IDIT_BUTTON_BYTE)
+    if(zedevice->IDII[x].Type == IDIT_BUTTON_ANALOG)
+     bit_offset = (bit_offset + 31) &~ 31; // Align to a 32-bit boundary
+    else if(zedevice->IDII[x].Type == IDIT_BUTTON_BYTE)
      bit_offset = (bit_offset + 7) &~ 7; // Align to an 8-bit boundary
 
     std::vector<ButtConfig> buttc;
@@ -356,6 +359,7 @@ static void BuildPortInfo(MDFNGI *gi)
     PortButtConfig[NumPorts].push_back(buttc);
     PortBitOffsets[NumPorts].push_back(bit_offset);
     PortButtBitOffsets[NumPorts].push_back(bit_offset);
+    PortButtIsAnalog[NumPorts].push_back(zedevice->IDII[x].Type == IDIT_BUTTON_ANALOG);
 
     PortButtons[NumPorts].push_back(strdup(zedevice->IDII[x].Name));
     PortButtConfigOffsets[NumPorts].push_back(buttconfig_offset);
@@ -375,6 +379,7 @@ static void BuildPortInfo(MDFNGI *gi)
      PortButtConfig[NumPorts].push_back(buttc);
      PortBitOffsets[NumPorts].push_back(bit_offset | 0x80000000);
      PortButtBitOffsets[NumPorts].push_back(bit_offset | 0x80000000);
+     PortButtIsAnalog[NumPorts].push_back(false);
 
      PortButtons[NumPorts].push_back(trio_aprintf("Rapid %s", zedevice->IDII[x].Name));
      PortButtConfigOffsets[NumPorts].push_back(buttconfig_offset);
@@ -383,7 +388,11 @@ static void BuildPortInfo(MDFNGI *gi)
      buttconfig_offset++;
     }
 
-    if(zedevice->IDII[x].Type == IDIT_BUTTON_BYTE)
+    if(zedevice->IDII[x].Type == IDIT_BUTTON_ANALOG)
+    {
+     bit_offset += 32;
+    }
+    else if(zedevice->IDII[x].Type == IDIT_BUTTON_BYTE)
     {
      bit_offset += 8;
     }
@@ -453,7 +462,7 @@ static void BuildPortInfo(MDFNGI *gi)
     if(NULL == zedevice->IDII[x].SettingName)
      continue;
 
-    if(zedevice->IDII[x].Type == IDIT_BUTTON || zedevice->IDII[x].Type == IDIT_BUTTON_CAN_RAPID)
+    if(zedevice->IDII[x].Type == IDIT_BUTTON || zedevice->IDII[x].Type == IDIT_BUTTON_CAN_RAPID || zedevice->IDII[x].Type == IDIT_BUTTON_ANALOG)
     {
      if(zedevice->IDII[x].ExcludeName)
      {
@@ -507,6 +516,7 @@ static void BuildPortInfo(MDFNGI *gi)
 
   assert(PortButtExclusionBitOffsets[NumPorts].size() == PortButtBitOffsets[NumPorts].size());
   assert(PortButtRotateOffsets[NumPorts].size() == PortButtBitOffsets[NumPorts].size());
+  assert(PortButtBitOffsets[NumPorts].size() == PortButtIsAnalog[NumPorts].size());
 
   MDFNI_SetInput(NumPorts, zedevice->ShortName, PortData[NumPorts], PortDataSize[NumPorts]);
   NumPorts++;
@@ -691,7 +701,7 @@ static COKE CKeys[_CK_COUNT]	=
 	{ MK_CK(F11), "power", ~0, 0, gettext_noop("Power toggle") },
 	{ MK_CK2(F12, ESCAPE), "exit", ~0, 0, gettext_noop("Exit") },
 	{ MK_CK(BACKSPACE), "state_rewind", ~0, 1, gettext_noop("Rewind") },
-	{ MK_CK(F8), "rotatescreen", ~0, 1, gettext_noop("Rotate screen") },
+	{ MK_CK_ALT(o), "rotate_screen", ~0, 1, gettext_noop("Rotate screen") },
 
 	{ MK_CK(t), "togglenetview", ~0, 1, gettext_noop("Toggle netplay console")},
 	{ MK_CK_ALT(a), "advance_frame", ~0, 1, gettext_noop("Advance frame") },
@@ -727,7 +737,7 @@ static int CK_Check(CommandKey which)
  if(CKeys[which].SkipCKDelay)
   tmp_ckdelay = 0;
 
- if((CKeysLastState[which] = DTestButtonCombo(CKeysBC[which], keys)))
+ if((CKeysLastState[which] = DTestButtonCombo(CKeysBC[which], keys, MouseData)))
  {
   if(!last)
    CKeysPressTime[which] = CurTicks;
@@ -745,7 +755,7 @@ static int CK_Check(CommandKey which)
 
 static int CK_CheckActive(CommandKey which)
 {
- return(DTestButtonCombo(CKeysBC[which], keys));
+ return(DTestButtonCombo(CKeysBC[which], keys, MouseData));
 }
 #if 0
 static int ckg_scroll = 0;
@@ -800,22 +810,81 @@ static ICType IConfig = none;
 static int ICLatch;
 static uint32 ICDeadDelay = 0;
 
-static void UpdatePhysicalDeviceState(void)
+static struct __MouseState
 {
- int mouse_x, mouse_y;
+ int x, y;
+ int xrel_accum;
+ int yrel_accum;
 
- MouseData[2] = SDL_GetMouseState(&mouse_x, &mouse_y);
+ uint32 button;
+ uint32 button_realstate;
+ uint32 button_prevsent;
+} MouseState = { 0, 0, 0, 0, 0, 0, 0 };
+
+void Input_Event(const SDL_Event *event)
+{
+ switch(event->type)
+ {
+  case SDL_MOUSEBUTTONDOWN:
+	if(event->button.state == SDL_PRESSED)
+	{
+	 MouseState.button |= 1 << (event->button.button - 1);
+	 MouseState.button_realstate |= 1 << (event->button.button - 1);
+	}
+	break;
+
+  case SDL_MOUSEBUTTONUP:
+	if(event->button.state == SDL_RELEASED)
+	{
+	 MouseState.button_realstate &= ~(1 << (event->button.button - 1));
+	}
+        break;
+
+  case SDL_MOUSEMOTION:
+	MouseState.x = event->motion.x;
+	MouseState.y = event->motion.y;
+	MouseState.xrel_accum += event->motion.xrel;
+	MouseState.yrel_accum += event->motion.yrel;
+	break;
+ }
+}
+
+/*
+ The mouse button handling convolutedness is to make sure that extremely quick mouse button press and release
+ still register as pressed for 1 emulated frame, and without otherwise increasing the lag of a mouse button release(which
+ is what the button_prevsent is for).
+*/
+static void UpdatePhysicalDeviceState(bool clearify_mdr = true)
+{
+ int mouse_x = MouseState.x, mouse_y = MouseState.y;
+
+ //printf("%08x -- %08x %08x\n", MouseState.button & (MouseState.button_realstate | ~MouseState.button_prevsent), MouseState.button, MouseState.button_realstate);
+
  PtoV(&mouse_x, &mouse_y);
  MouseData[0] = mouse_x & 0xFFFF;
  MouseData[1] = mouse_y & 0xFFFF;
+ MouseData[2] = MouseState.button & (MouseState.button_realstate | ~MouseState.button_prevsent);
 
- SDL_GetRelativeMouseState(&mouse_x, &mouse_y);
+ if(clearify_mdr)
+ {
+  MouseState.button_prevsent = MouseData[2];
+  MouseState.button &= MouseState.button_realstate;
+  MouseDataRel[0] -= (int32)MouseDataRel[0]; //floor(MouseDataRel[0]);
+  MouseDataRel[1] -= (int32)MouseDataRel[1]; //floor(MouseDataRel[1]);
+ }
 
- MouseDataRel[0] -= (int32)MouseDataRel[0]; //floor(MouseDataRel[0]);
- MouseDataRel[1] -= (int32)MouseDataRel[1]; //floor(MouseDataRel[1]);
+ MouseDataRel[0] += CurGame->mouse_sensitivity * MouseState.xrel_accum;
+ MouseDataRel[1] += CurGame->mouse_sensitivity * MouseState.yrel_accum;
 
- MouseDataRel[0] += CurGame->mouse_sensitivity * mouse_x;
- MouseDataRel[1] += CurGame->mouse_sensitivity * mouse_y;
+ //
+ //
+ //
+ MouseState.xrel_accum = 0;
+ MouseState.yrel_accum = 0;
+ //
+ //
+ //
+
 
  memcpy(keys, SDL_GetKeyState(0), MKK_COUNT);
  SDL_JoystickUpdate();
@@ -823,14 +892,12 @@ static void UpdatePhysicalDeviceState(void)
  CurTicks = SDL_GetTicks();
 }
 
-
-
 static bool NeedBLExitNow = 0;
 bool MDFND_ExitBlockingLoop(void)
 {
  SDL_Delay(1);
 
- UpdatePhysicalDeviceState();
+ UpdatePhysicalDeviceState(false);
 
  if(CK_Check(CK_EXIT))
  {
@@ -966,7 +1033,7 @@ static void CheckCommandKeys(void)
     else
     {
      int x;
-     MDFNI_DispMessage(_("Press a command key now."));
+     MDFNI_DispMessage(_("Press command key to remap now..."));
      for(x = (int)_CK_FIRST; x < (int)_CK_COUNT; x++)
       if(CK_Check((CommandKey)x))
       {      
@@ -1038,10 +1105,6 @@ static void CheckCommandKeys(void)
   if(CK_Check(CK_TOGGLE_FS)) 
   {
    GT_ToggleFS();
-   //SDL_Event evt;
-   //evt.user.type = SDL_USEREVENT;
-   //evt.user.code = CEVT_TOGGLEFS;
-   //SDL_PushEvent(&evt);
   }
 
   if(!CurGame)
@@ -1084,13 +1147,8 @@ static void CheckCommandKeys(void)
    }
   }
 
- 
- if(!strcmp(CurGame->shortname, "lynx") || !strcmp(CurGame->shortname, "wswan"))
- {
   if(CK_Check(CK_ROTATESCREEN))
   {
-   //SDL_Event evt;
-
    if(CurGame->rotated == MDFN_ROTATE0)
     CurGame->rotated = MDFN_ROTATE90;
    else if(CurGame->rotated == MDFN_ROTATE90)
@@ -1098,12 +1156,9 @@ static void CheckCommandKeys(void)
    else if(CurGame->rotated == MDFN_ROTATE270)
     CurGame->rotated = MDFN_ROTATE0;
 
-   //evt.user.type = SDL_USEREVENT;
-   //evt.user.code = CEVT_VIDEOSYNC;
-   //SDL_PushEvent(&evt);
    GT_ReinitVideo();
   }
- }
+
   if(CK_CheckActive(CK_STATE_REWIND))
 	DNeedRewind = TRUE;
   else
@@ -1153,16 +1208,11 @@ static void CheckCommandKeys(void)
 
   if(CurGame->GameType != GMT_PLAYER)
   {
-   if(CK_Check(CK_DEVICE_SELECT1))
-    IncSelectedDevice(0);
-   if(CK_Check(CK_DEVICE_SELECT2))
-    IncSelectedDevice(1);
-   if(CK_Check(CK_DEVICE_SELECT3))
-    IncSelectedDevice(2);
-   if(CK_Check(CK_DEVICE_SELECT4))
-    IncSelectedDevice(3);
-   if(CK_Check(CK_DEVICE_SELECT5))
-    IncSelectedDevice(4);
+   for(int i = 0; i < 8; i++)
+   {
+    if(CK_Check((CommandKey)(CK_DEVICE_SELECT1 + i)))
+     IncSelectedDevice(i);
+   }
   }
 
   if(CK_Check(CK_TAKE_SNAPSHOT)) 
@@ -1382,20 +1432,43 @@ void MDFND_UpdateInput(bool VirtualDevicesOnly, bool UpdateRapidFire)
   // First, handle buttons
   for(unsigned int butt = 0; butt < PortButtConfig[x].size(); butt++)
   {
-   if(DTestButton(PortButtConfig[x][butt], keys, MouseData))
+   if(CurGame->rotated && PortButtRotateOffsets[x][butt].rotate[CurGame->rotated - 1] != 0xFFFFFFFF)
+   {
+    if(RotateInput < 0)
+    {
+     char tmp_setting_name[256];
+
+     trio_snprintf(tmp_setting_name, 256, "%s.rotateinput", CurGame->shortname);
+     RotateInput = MDFN_GetSettingB(tmp_setting_name);
+    }
+   }
+
+   //
+   // Analog button
+   //
+   if(PortButtIsAnalog[x][butt])
+   {
+    uint8 *tptr = (uint8 *)PortData[x];
+    uint32 bo = PortButtBitOffsets[x][butt];
+    uint32 tv;
+
+    if(CurGame->rotated && PortButtRotateOffsets[x][butt].rotate[CurGame->rotated - 1] != 0xFFFFFFFF)
+    {
+     if(RotateInput)
+      bo = PortButtRotateOffsets[x][butt].rotate[CurGame->rotated - 1];
+    }
+
+    tv = std::min<int>(MDFN_de32lsb(&tptr[(bo & 0x7FFFFFFF) / 8]) + DTestButton(PortButtConfig[x][butt], keys, MouseData, true), 32767);
+
+    MDFN_en32lsb(&tptr[(bo & 0x7FFFFFFF) / 8], tv);
+   }
+   else if(DTestButton(PortButtConfig[x][butt], keys, MouseData)) // boolean button
    {
     uint8 *tptr = (uint8 *)PortData[x];
     uint32 bo = PortButtBitOffsets[x][butt];
 
     if(CurGame->rotated && PortButtRotateOffsets[x][butt].rotate[CurGame->rotated - 1] != 0xFFFFFFFF)
     {
-     if(RotateInput < 0)
-     {
-      char tmp_setting_name[256];
-
-      trio_snprintf(tmp_setting_name, 256, "%s.rotateinput", CurGame->shortname);
-      RotateInput = MDFN_GetSettingB(tmp_setting_name);
-     }
      if(RotateInput)
       bo = PortButtRotateOffsets[x][butt].rotate[CurGame->rotated - 1];
     }
@@ -1526,7 +1599,7 @@ static int subcon(const char *text, std::vector<ButtConfig> &bc, int commandkey)
 
    tmpbc = subcon_bc;
 
-   if((!commandkey && DTestButton(tmpbc, keys, MouseData)) || (commandkey && DTestButtonCombo(tmpbc, keys)))
+   if((!commandkey && DTestButton(tmpbc, keys, MouseData)) || (commandkey && DTestButtonCombo(tmpbc, keys, MouseData)))
    {
     jitter_correct++;
    }
@@ -1621,7 +1694,7 @@ static void MakeSettingsForDevice(std::vector <MDFNSetting> &settings, const MDF
 
  for(int x = 0; x < info->NumInputs; x++)
  {
-  if(info->IDII[x].Type != IDIT_BUTTON && info->IDII[x].Type != IDIT_BUTTON_CAN_RAPID && info->IDII[x].Type != IDIT_BUTTON_BYTE)
+  if(info->IDII[x].Type != IDIT_BUTTON && info->IDII[x].Type != IDIT_BUTTON_CAN_RAPID && info->IDII[x].Type != IDIT_BUTTON_BYTE && info->IDII[x].Type != IDIT_BUTTON_ANALOG)
    continue;
 
   if(NULL == info->IDII[x].SettingName)

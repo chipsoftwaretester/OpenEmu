@@ -62,6 +62,7 @@ typedef enum
  IDIT_X_AXIS_REL,  // 32-bits, signed
  IDIT_Y_AXIS_REL,  // 32-bits, signed
  IDIT_BYTE_SPECIAL,
+ IDIT_BUTTON_ANALOG, // 32-bits, 0 - 32767
 } InputDeviceInputType;
 
 #include "git-virtb.h"
@@ -191,6 +192,12 @@ typedef struct
 	// TODO
 	bool *IsFMV;
 
+	// Set(optionally) by emulation code.  If InterlaceOn is true, then assume field height is 1/2 DisplayRect.h, and
+	// only every other line in surface (with the start line defined by InterlacedField) has valid data
+	// (it's up to internal Mednafen code to deinterlace it).
+	bool InterlaceOn;
+	bool InterlaceField;
+
 	// Skip rendering this frame if true.  Set by the driver code.
 	int skip;
 
@@ -254,6 +261,8 @@ typedef enum
  MODPRIO_EXTERNAL_HIGH = 40
 } ModPrio;
 
+class CDIF;
+
 typedef struct
 {
  /* Private functions to Mednafen.  Do not call directly
@@ -286,9 +295,11 @@ typedef struct
  // Return TRUE if the file is a recognized type, FALSE if not.
  bool (*TestMagic)(const char *name, MDFNFILE *fp);
 
- int (*LoadCD)(void);
- bool (*TestMagicCD)(void);
- 
+ //
+ // (*CDInterfaces).size() is guaranteed to be >= 1.
+ int (*LoadCD)(std::vector<CDIF *> *CDInterfaces);
+ bool (*TestMagicCD)(std::vector<CDIF *> *CDInterfaces);
+
  void (*CloseGame)(void);
  bool (*ToggleLayer)(int which);
  const char *LayerNames;
@@ -306,7 +317,7 @@ typedef struct
 
  void (*DoSimpleCommand)(int cmd);
 
- MDFNSetting *Settings;
+ const MDFNSetting *Settings;
 
  // Time base for EmulateSpecStruct::MasterCycles
  #define MDFN_MASTERCLOCK_FIXED(n)	((n) * (1LL << 32))

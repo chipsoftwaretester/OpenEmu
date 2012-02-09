@@ -81,6 +81,9 @@ class HuC6280
 
 	int StateAction(StateMem *sm, int load, int data_only);
 
+	template<bool DebugMode>
+	void RunSub(void);
+
 	void Run(bool StepMode = FALSE);
 
 	INLINE void Exit(void)
@@ -124,7 +127,7 @@ class HuC6280
 	//
 	// Debugger support methods:
 	//
-	INLINE void SetCPUHook(void (*new_CPUHook)(uint32), void (*new_ADDBT)(uint32))
+	INLINE void SetCPUHook(void (*new_CPUHook)(uint32), void (*new_ADDBT)(uint32, uint32, uint32))
 	{
 	 CPUHook = new_CPUHook;
 	 ADDBT = new_ADDBT;
@@ -494,8 +497,14 @@ class HuC6280
 
 	void PUSH(const uint8 V);
 	uint8 POP(void);
-	void JR(const bool cond);
+
+	template<bool DebugMode>
+	void JR(const bool cond, const bool BBRS = false);
+
+	template<bool DebugMode>
 	void BBRi(const uint8 val, const unsigned int bitto);
+
+	template<bool DebugMode>
 	void BBSi(const uint8 val, const unsigned int bitto);
 
 	private:
@@ -556,7 +565,7 @@ class HuC6280
 	bool isopread;
 
 	void (*CPUHook)(uint32);
-	void (*ADDBT)(uint32);
+	void (*ADDBT)(uint32, uint32, uint32);
 
 	HuC6280_Support *EventHandler;
 

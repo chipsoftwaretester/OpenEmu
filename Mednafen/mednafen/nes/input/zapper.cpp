@@ -57,15 +57,15 @@ static void ZapperFrapper(int w, uint8 *bg, uint8 *spr, uint32 linets, int final
      if(sum>=100*3)
      {
       ZD[w].zaphit = timestampbase + timestamp;
-//	printf("Hit: %d %d %ld\n", scanline, timestamp, timestampbase + timestamp);
+//      printf("Hit: %d %d %ld\n", scanline, timestamp, timestampbase + timestamp);
       goto endo;
      }
-    }   
+    }
    xs++;
   }
  }
  endo:;
-}      
+}
 
 static int CheckColor(int w)
 {
@@ -115,6 +115,8 @@ static void UpdateZapper(int w, void *data)
  uint32 new_x = (uint32)MDFN_de32lsb(data_8 + 0);
  uint32 new_y = (uint32)MDFN_de32lsb(data_8 + 4);
  uint8 new_b = *(uint8 *)(data_8 + 8);
+
+ NESPPU_TranslateMouseXY(new_x, new_y);
 
  if(ZD[w].bogo)
   ZD[w].bogo--;

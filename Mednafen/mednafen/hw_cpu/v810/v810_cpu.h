@@ -195,7 +195,7 @@ class V810
 
  #ifdef WANT_DEBUGGER
  void CheckBreakpoints(void (*callback)(int type, uint32 address, unsigned int len), uint16 MDFN_FASTCALL (*peek16)(const v810_timestamp_t, uint32), uint32 MDFN_FASTCALL (*peek32)(const v810_timestamp_t, uint32));
- void SetCPUHook(void (*newhook)(uint32 PC), void (*new_ADDBT)(uint32));
+ void SetCPUHook(void (*newhook)(uint32 PC), void (*new_ADDBT)(uint32, uint32, uint32));
  #endif
  uint32 GetPC(void);
  void SetPC(uint32);
@@ -215,6 +215,9 @@ class V810
  uint32 PC;
  uint8 *PC_ptr;
  uint8 *PC_base;
+
+ uint32 IPendingCache;
+ void RecalcIPendingCache(void);
 
  public:
  v810_timestamp_t v810_timestamp;	// Will never be less than 0.
@@ -289,8 +292,6 @@ class V810
  void fpu_subop(v810_timestamp_t &timestamp, int sub_op, int arg1, int arg2);
 
  void Exception(uint32 handler, uint16 eCode);
- bool WillInterruptOccur(void);
- int Int(uint32 iNum);
 
  // Caching-related:
  typedef struct
@@ -313,7 +314,7 @@ class V810
 
  #ifdef WANT_DEBUGGER
  void (*CPUHook)(uint32 PC);
- void (*ADDBT)(uint32 PC);
+ void (*ADDBT)(uint32 old_PC, uint32 new_PC, uint32);
  #endif
 
 

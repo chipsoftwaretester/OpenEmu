@@ -20,6 +20,9 @@
 #ifndef VBA_GB_GB_H
 #define VBA_GB_GB_H
 
+namespace MDFN_IEN_GB
+{
+
 #define C_FLAG 0x10
 #define H_FLAG 0x20
 #define N_FLAG 0x40
@@ -61,5 +64,7 @@ extern struct EmulatedSystem GBSystem;
 void gbWriteMemory(uint16 address, uint8 value);
 uint8 gbReadMemory(uint16 address);
 void gbSpeedSwitch();
+
+}
 
 #endif

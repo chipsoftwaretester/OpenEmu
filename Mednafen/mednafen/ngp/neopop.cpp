@@ -248,10 +248,10 @@ static void DoSimpleCommand(int cmd)
 
 static const MDFNSetting_EnumList LanguageList[] =
 {
- { "english", 0, gettext_noop("English") },
+ { "japanese", 0, gettext_noop("Japanese") },
  { "0", 0 },
 
- { "japanese", 1, gettext_noop("Japanese") },
+ { "english", 1, gettext_noop("English") },
  { "1", 1 },
 
  { NULL, 0 },

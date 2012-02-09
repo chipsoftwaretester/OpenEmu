@@ -284,17 +284,15 @@ void SetBPCallback(void (*callb)(uint32 PC))
  BPCallB = callb;
 }
 
-std::vector<std::string> GetBranchTrace(void)
+std::vector<BranchTraceResult> GetBranchTrace(void)
 {
- std::vector<std::string> ret;
+ std::vector<BranchTraceResult> ret;
 
  return(ret);
 }
 
 static void GetAddressSpaceBytes(const char *name, uint32 Address, uint32 Length, uint8 *Buffer)
 {
- uint32 ws = 0;
-
  MD_HackyHackyMode++;
 
  if(!strcmp(name, "cpu"))
@@ -318,7 +316,6 @@ static void GetAddressSpaceBytes(const char *name, uint32 Address, uint32 Length
  }
 
  MD_HackyHackyMode--;
-
 }
 
 static void PutAddressSpaceBytes(const char *name, uint32 Address, uint32 Length, uint32 Granularity, bool hl, const uint8 *Buffer)

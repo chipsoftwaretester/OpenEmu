@@ -20,7 +20,9 @@
 #include "pce_psg/pce_psg.h"
 #include "input.h"
 #include "huc.h"
+#include "subhw.h"
 #include "../cdrom/pcecd.h"
+#include "../cdrom/scsicd.h"
 #include "hes.h"
 #include "debug.h"
 #include "tsushin.h"
@@ -32,7 +34,7 @@
 #include <zlib.h>
 #include <errno.h>
 
-#define PCE_DEBUG(x, ...) { /* printf(x, ## __VA_ARGS__); */ }
+#define PCE_DEBUG(x, ...) {  /* printf(x, ## __VA_ARGS__); */ }
 
 namespace MDFN_IEN_PCE
 {
@@ -46,6 +48,10 @@ static const MDFNSetting_EnumList PSGRevisionList[] =
  { NULL, 0 },
 };
 
+static std::vector<CDIF*> *cdifs = NULL;
+static bool CD_TrayOpen;
+static int CD_SelectedDisc;	// -1 for no disc
+
 HuC6280 *HuCPU;
 
 VCE *vce = NULL;
@@ -54,6 +60,7 @@ static PCE_PSG *psg = NULL;
 
 extern ArcadeCard *arcade_card;	// Bah, lousy globals.
 
+Blip_Buffer huc_sbuf;
 static Blip_Buffer sbuf[2];
 static bool SetSoundRate(double rate);
 
@@ -179,6 +186,7 @@ static DECLFR(IORead)
 
   case 0x1C00: if(IsHES)
 		return(ReadIBP(A)); 
+	       return(SubHW_ReadIOPage(A));
 	       break; // Expansion
  }
 
@@ -241,13 +249,14 @@ static DECLFW(IOWrite)
 
 		vce->SetCDEvent(next_cd_event);
 	       }
-		
+
 	       break;
 
-  case 0x1C00:  if(!PCE_InDebug)
-		{
-		 PCE_DEBUG("I/O Unmapped Write: %04x %02x\n", A, V);
-		}
+  case 0x1C00:  //if(!PCE_InDebug)
+		//{
+		// PCE_DEBUG("I/O Unmapped Write: %04x %02x\n", A, V);
+		//}
+		SubHW_WriteIOPage(A, V);
 		break;
  }
 }
@@ -379,8 +388,6 @@ static int Load(const char *name, MDFNFILE *fp)
   if(!PCE_HESLoad(fp->data, fp->size))
    return(0);
 
-  // FIXME:  If a HES rip tries to execute a SCSI command, the CD emulation code will probably crash.  Obviously, a HES rip shouldn't do this,
-  // but Mednafen shouldn't crash either. ;)
   PCE_IsCD = 1;
   PCECD_Init(NULL, PCECDIRQCB, PCE_MASTER_CLOCK, 1, &sbuf[0], &sbuf[1]);
  }
@@ -433,6 +440,12 @@ static int Load(const char *name, MDFNFILE *fp)
 
 static void LoadCommonPre(void)
 {
+ // Initialize sound buffers
+ for(unsigned i = 0; i < 2; i++)
+  sbuf[i].clear();
+
+ huc_sbuf.clear();
+
  // FIXME:  Make these globals less global!
  PCE_ACEnabled = MDFN_GetSettingB("pce.arcadecard");
 
@@ -507,7 +520,34 @@ static int LoadCommon(void)
 
  PCEINPUT_Init();
 
+ //
+ //
+ //
+ SubHW_Init();
+ HuCPU->SetReadHandler(0xFE, SubHW_ReadFEPage);
+ HuCPU->SetWriteHandler(0xFE, SubHW_WriteFEPage);
+ //
+ //
+ //
+
  PCE_Power();
+
+ //
+ // REMOVE ME, debugging stuff
+ //
+ #if 0
+ {
+  uint8 er[8] = { 0x47, 0x6E, 0x31, 0x14, 0xB3, 0xEB, 0xEC, 0x2B };
+
+  for(int i = 0; i < 8; i++)
+   SubHW_WriteIOPage(0x1C00, er[i]);
+
+  SubHW_WriteIOPage(0x1FF7, 0x80);
+ }
+ #endif
+ //
+ //
+ //
 
  MDFNGameInfo->LayerNames = IsSGX ? "BG0\0SPR0\0BG1\0SPR1\0" : "Background\0Sprites\0";
  MDFNGameInfo->fps = (uint32)((double)7159090.90909090 / 455 / 263 * 65536 * 256);
@@ -535,24 +575,67 @@ static int LoadCommon(void)
  return(1);
 }
 
-static bool TestMagicCD(void)
+static bool DetectGECD(CDIF *cdiface)	// Very half-assed detection until(if) we get ISO-9660 reading code.
+{
+ uint8 sector_buffer[2048];
+ CDUtility::TOC toc;
+
+ cdiface->ReadTOC(&toc);
+
+ // Now, test for the Games Express CD games.  The GE BIOS seems to always look at sector 0x10, but only if the first track is a
+ // data track.
+ if(toc.first_track == 1 && (toc.tracks[1].control & 0x4))
+ {
+  if(cdiface->ReadSector(sector_buffer, 0x10, 1) == 0x1)
+  {
+   if(!memcmp((char *)sector_buffer + 0x8, "HACKER CD ROM SYSTEM", 0x14))
+    return(true);
+
+   if(!memcmp((char *)sector_buffer + 0x01, "CD001", 0x5))
+   {
+    if(cdiface->ReadSector(sector_buffer, 0x14, 1) == 0x1)
+    {
+     static const uint32 known_crcs[] =
+     {
+      0xd7b47c06,	// AV Tanjou
+      0x86aec522,	// Bishoujo Jyanshi [...]
+      0xc8d1b5ef,	// CD Bishoujo [...]
+      0x0bdbde64,	// CD Pachisuro [...]
+     };
+     uint32 zecrc = crc32(0, sector_buffer, 2048);
+
+     //printf("%04x\n", zecrc);
+     for(unsigned int i = 0; i < sizeof(known_crcs) / sizeof(uint32); i++)
+      if(known_crcs[i] == zecrc)
+       return(true);
+    }
+   }
+  }
+ }
+
+ return(false);
+}
+
+static bool TestMagicCD(std::vector<CDIF *> *CDInterfaces)
 {
  static const uint8 magic_test[0x20] = { 0x82, 0xB1, 0x82, 0xCC, 0x83, 0x76, 0x83, 0x8D, 0x83, 0x4F, 0x83, 0x89, 0x83, 0x80, 0x82, 0xCC,  
 				   	 0x92, 0x98, 0x8D, 0xEC, 0x8C, 0xA0, 0x82, 0xCD, 0x8A, 0x94, 0x8E, 0xAE, 0x89, 0xEF, 0x8E, 0xD0
 				       };
+ CDIF *cdiface = (*CDInterfaces)[0];
  uint8 sector_buffer[2048];
- CD_TOC toc;
+ CDUtility::TOC toc;
  bool ret = FALSE;
 
  memset(sector_buffer, 0, sizeof(sector_buffer));
 
- CDIF_ReadTOC(&toc);
+ cdiface->ReadTOC(&toc);
 
  for(int32 track = toc.first_track; track <= toc.last_track; track++)
  {
   if(toc.tracks[track].control & 0x4)
   {
-   CDIF_ReadSector(sector_buffer, toc.tracks[track].lba, 1);
+   if(cdiface->ReadSector(sector_buffer, toc.tracks[track].lba, 1) != 0x1)
+    break;
 
    if(!memcmp((char*)sector_buffer, (char *)magic_test, 0x20))
     ret = TRUE;
@@ -568,7 +651,7 @@ static bool TestMagicCD(void)
  {
   if(toc.tracks[track].control & 0x4)
   {
-   CDIF_ReadSector(sector_buffer, toc.tracks[track].lba, 1);
+   cdiface->ReadSector(sector_buffer, toc.tracks[track].lba, 1);
    if(!strncmp("PC-FX:Hu_CD-ROM", (char*)sector_buffer, strlen("PC-FX:Hu_CD-ROM")))
    {
     return(false);
@@ -576,24 +659,13 @@ static bool TestMagicCD(void)
   }
  }
 
-
- // Now, test for the Games Express CD games.  The GE BIOS seems to always look at sector 0x10, but only if the first track is a
- // data track.
- if(toc.first_track == 1 && (toc.tracks[1].control & 0x4))
- {
-  if(CDIF_ReadSector(sector_buffer, 0x10, 1))
-  {
-   if(!memcmp((char *)sector_buffer + 0x8, "HACKER CD ROM SYSTEM", 0x14))
-   {
-    ret = TRUE;
-   }
-  }
- }
+ if(DetectGECD(cdiface))
+  ret = true;
 
  return(ret);
 }
 
-static int LoadCD(void)
+static int LoadCD(std::vector<CDIF *> *CDInterfaces)
 {
  static const FileExtensionSpecStruct KnownBIOSExtensions[] =
  {
@@ -612,7 +684,8 @@ static int LoadCD(void)
 
  LoadCommonPre();
 
- std::string bios_path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, MDFN_GetSettingS("pce.cdbios").c_str() );
+ const char *bios_sname = DetectGECD((*CDInterfaces)[0]) ? "pce.gecdbios" : "pce.cdbios";
+ std::string bios_path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, MDFN_GetSettingS(bios_sname).c_str() );
 
  if(!fp.Open(bios_path, KnownBIOSExtensions, _("CD BIOS")))
  {
@@ -645,6 +718,15 @@ static int LoadCD(void)
   HuCClose();
   return(0);
  }
+
+ MDFNGameInfo->GameType = GMT_CDROM;
+ CD_TrayOpen = false;
+ CD_SelectedDisc = 0;
+ cdifs = CDInterfaces;
+
+ SCSICD_SetDisc(true, NULL, true);
+ SCSICD_SetDisc(false, (*CDInterfaces)[0], true);
+
 
  MDFN_printf(_("CD Layout:   0x%s\n"), md5_context::asciistr(MDFNGameInfo->MD5, 0).c_str());
  MDFN_printf(_("Arcade Card Emulation:  %s\n"), PCE_ACEnabled ? _("Enabled") : _("Disabled"));
@@ -716,19 +798,34 @@ static void Emulate(EmulateSpecStruct *espec)
 
   INPUT_FixTS(HuCPU->Timestamp());
 
+  SubHW_EndFrame(HuCPU->Timestamp());
+
   psg->EndFrame(HuCPU->Timestamp() / 3);
+
+  HuC_EndFrame(HuCPU->Timestamp());
 
   //assert(!(HuCPU->Timestamp() % 3));
 
   if(espec->SoundBuf)
   {
    int32 new_sc;
+
+   huc_sbuf.end_frame(HuCPU->Timestamp() / 3);
+
    for(int y = 0; y < 2; y++)
    {
     sbuf[y].end_frame(HuCPU->Timestamp() / 3);
 
     new_sc = sbuf[y].read_samples(espec->SoundBuf + espec->SoundBufSize * 2 + y, espec->SoundBufMaxSize - espec->SoundBufSize, 1);
    }
+
+   if(huc_sbuf.clear_modified())
+   {
+
+   }
+   else
+    huc_sbuf.remove_samples(huc_sbuf.samples_avail());
+
    espec->SoundBufSize += new_sc;
   }
 
@@ -778,6 +875,10 @@ static int StateAction(StateMem *sm, int load, int data_only)
  {
   SFARRAY(BaseRAM, IsSGX? 32768 : 8192),
   SFVAR(PCE_TimestampBase),
+
+  SFVAR(CD_TrayOpen),
+  SFVAR(CD_SelectedDisc),
+
   SFEND
  };
 
@@ -788,10 +889,19 @@ static int StateAction(StateMem *sm, int load, int data_only)
  ret &= psg->StateAction(sm, load, data_only);
  ret &= INPUT_StateAction(sm, load, data_only);
  ret &= HuC_StateAction(sm, load, data_only);
+ ret &= SubHW_StateAction(sm, load, data_only);
+
 
  if(load)
  {
+  if(cdifs)
+  {
+   // Sanity check.
+   if(CD_SelectedDisc >= (int)cdifs->size())
+    CD_SelectedDisc = (int)cdifs->size() - 1;
 
+   SCSICD_SetDisc(CD_TrayOpen, (CD_SelectedDisc >= 0 && !CD_TrayOpen) ? (*cdifs)[CD_SelectedDisc] : NULL, true);
+  }
  }
 
  return(ret);
@@ -815,9 +925,54 @@ void PCE_Power(void)
 
  PCEINPUT_Power(timestamp);
 
+ SubHW_Power();
+
  if(PCE_IsCD)
  {
   vce->SetCDEvent(PCECD_Power(timestamp));
+ }
+}
+
+static void CDInsertEject(void)
+{
+ CD_TrayOpen = !CD_TrayOpen;
+
+ for(unsigned disc = 0; disc < cdifs->size(); disc++)
+ {
+  if(!(*cdifs)[disc]->Eject(CD_TrayOpen))
+  {
+   MDFN_DispMessage(_("Eject error."));
+   CD_TrayOpen = !CD_TrayOpen;
+  }
+ }
+
+ if(CD_TrayOpen)
+  MDFN_DispMessage(_("Virtual CD Drive Tray Open"));
+ else
+  MDFN_DispMessage(_("Virtual CD Drive Tray Closed"));
+
+ SCSICD_SetDisc(CD_TrayOpen, (CD_SelectedDisc >= 0 && !CD_TrayOpen) ? (*cdifs)[CD_SelectedDisc] : NULL);
+}
+
+static void CDEject(void)
+{
+ if(!CD_TrayOpen)
+  CDInsertEject();
+}
+
+static void CDSelect(void)
+{
+ if(cdifs && CD_TrayOpen)
+ {
+  CD_SelectedDisc = (CD_SelectedDisc + 1) % (cdifs->size() + 1);
+
+  if((unsigned)CD_SelectedDisc == cdifs->size())
+   CD_SelectedDisc = -1;
+
+  if(CD_SelectedDisc == -1)
+   MDFN_DispMessage(_("Disc absence selected."));
+  else
+   MDFN_DispMessage(_("Disc %d of %d selected."), CD_SelectedDisc + 1, (int)cdifs->size());
  }
 }
 
@@ -827,6 +982,18 @@ static void DoSimpleCommand(int cmd)
  {
   case MDFN_MSC_RESET: PCE_Power(); break;
   case MDFN_MSC_POWER: PCE_Power(); break;
+
+  case MDFN_MSC_INSERT_DISK:
+	CDInsertEject();
+        break;
+
+  case MDFN_MSC_SELECT_DISK:
+	CDSelect();
+        break;
+
+  case MDFN_MSC_EJECT_DISK:
+	CDEject();
+        break;
  }
 }
 
@@ -855,6 +1022,7 @@ static MDFNSetting PCESettings[] =
 					 gettext_noop("WARNING: Enabling this option may cause undesirable graphics glitching on some games(such as \"Bloody Wolf\")."), MDFNST_BOOL, "0" },
 
   { "pce.cdbios", MDFNSF_EMU_STATE, gettext_noop("Path to the CD BIOS"), NULL, MDFNST_STRING, "syscard3.pce" },
+  { "pce.gecdbios", MDFNSF_EMU_STATE, gettext_noop("Path to the GE CD BIOS"), gettext_noop("Games Express CD Card BIOS (Unlicensed)"), MDFNST_STRING, "gecard.pce" },
 
   { "pce.adpcmlp", MDFNSF_NOFLAGS, gettext_noop("Enable lowpass filter with rolloff dependent on playback-frequency."), 
 	gettext_noop("This makes ADPCM voices sound less \"harsh\", however, the downside is that it will cause many ADPCM sound effects to sound a bit muffled."), MDFNST_BOOL, "0", NULL, NULL, NULL, CDSettingChanged },
@@ -920,6 +1088,10 @@ static const FileExtensionSpecStruct KnownExtensions[] =
 
 static bool SetSoundRate(double rate)
 {
+ huc_sbuf.set_sample_rate(rate ? rate : 44100, 50);
+ huc_sbuf.clock_rate((long)(PCE_MASTER_CLOCK / 3));
+ huc_sbuf.bass_freq(20);
+
  for(int y = 0; y < 2; y++)
  {
   sbuf[y].set_sample_rate(rate ? rate : 44100, 50);

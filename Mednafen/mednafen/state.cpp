@@ -367,14 +367,14 @@ static int ReadStateChunk(StateMem *st, SFORMAT *sf, int size, int data_only)
  else
  {
   SFMap_t sfmap;
-  SFMap_t sfmap_found;	// Used for identify variables that are missing in the save state.
+  SFMap_t sfmap_found;	// Used for identifying variables that are missing in the save state.
 
   MakeSFMap(sf, sfmap);
 
   temp = smem_tell(st);
   while(smem_tell(st) < (temp + size))
   {
-   uint32 tsize;
+   uint32 recorded_size;	// In bytes
    uint8 toa[1 + 256];	// Don't change to char unless cast toa[0] to unsigned to smem_read() and other places.
 
    if(smem_read(st, toa, 1) != 1)
@@ -391,7 +391,7 @@ static int ReadStateChunk(StateMem *st, SFORMAT *sf, int size, int data_only)
 
    toa[1 + toa[0]] = 0;
 
-   smem_read32le(st, &tsize);
+   smem_read32le(st, &recorded_size);
 
    SFMap_t::iterator sfmit;
 
@@ -400,33 +400,45 @@ static int ReadStateChunk(StateMem *st, SFORMAT *sf, int size, int data_only)
    if(sfmit != sfmap.end())
    {
     SFORMAT *tmp = sfmit->second;
-    int32 bytesize = tmp->size;
+    uint32 expected_size = tmp->size;	// In bytes
 
-    sfmap_found[tmp->name] = tmp;
-
-    smem_read(st, (uint8 *)tmp->v, bytesize);
-
-    if(tmp->flags & MDFNSTATE_BOOL)
+    if(recorded_size != expected_size)
     {
-     // Converting downwards is necessary for the case of sizeof(bool) > 1
-     for(int32 bool_monster = bytesize - 1; bool_monster >= 0; bool_monster--)
+     printf("Variable in save state wrong size: %s.  Need: %d, got: %d\n", toa + 1, expected_size, recorded_size);
+     if(smem_seek(st, recorded_size, SEEK_CUR) < 0)
      {
-      ((bool *)tmp->v)[bool_monster] = ((uint8 *)tmp->v)[bool_monster];
+      puts("Seek error");
+      return(0);
      }
     }
-    if(tmp->flags & MDFNSTATE_RLSB64)
-     Endian_A64_LE_to_NE(tmp->v, bytesize / sizeof(uint64));
-    else if(tmp->flags & MDFNSTATE_RLSB32)
-     Endian_A32_LE_to_NE(tmp->v, bytesize / sizeof(uint32));
-    else if(tmp->flags & MDFNSTATE_RLSB16)
-     Endian_A16_LE_to_NE(tmp->v, bytesize / sizeof(uint16));
-    else if(tmp->flags & RLSB)
-     Endian_V_LE_to_NE(tmp->v, bytesize);
+    else
+    {
+     sfmap_found[tmp->name] = tmp;
+
+     smem_read(st, (uint8 *)tmp->v, expected_size);
+
+     if(tmp->flags & MDFNSTATE_BOOL)
+     {
+      // Converting downwards is necessary for the case of sizeof(bool) > 1
+      for(int32 bool_monster = expected_size - 1; bool_monster >= 0; bool_monster--)
+      {
+       ((bool *)tmp->v)[bool_monster] = ((uint8 *)tmp->v)[bool_monster];
+      }
+     }
+     if(tmp->flags & MDFNSTATE_RLSB64)
+      Endian_A64_LE_to_NE(tmp->v, expected_size / sizeof(uint64));
+     else if(tmp->flags & MDFNSTATE_RLSB32)
+      Endian_A32_LE_to_NE(tmp->v, expected_size / sizeof(uint32));
+     else if(tmp->flags & MDFNSTATE_RLSB16)
+      Endian_A16_LE_to_NE(tmp->v, expected_size / sizeof(uint16));
+     else if(tmp->flags & RLSB)
+      Endian_V_LE_to_NE(tmp->v, expected_size);
+    }
    }
    else
    {
     printf("Unknown variable in save state: %s\n", toa + 1);
-    if(smem_seek(st, tsize, SEEK_CUR) < 0)
+    if(smem_seek(st, recorded_size, SEEK_CUR) < 0)
     {
      puts("Seek error");
      return(0);
@@ -891,6 +903,7 @@ void MDFNSS_GetStateInfo(const char *filename, StateStatusStruct *status)
    StateShowPBWidth = width;
    StateShowPBHeight = height;
   }
+  gzclose(fp);
  }
  else
  {

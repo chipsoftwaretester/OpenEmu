@@ -22,6 +22,7 @@
 #include "input.h"
 #include "huc.h"
 #include "../cdrom/pcecd.h"
+#include "../cdrom/scsicd.h"
 #include "hes.h"
 #include "tsushin.h"
 #include "arcade_card/arcade_card.h"
@@ -141,7 +142,11 @@ static DECLFW(IOWrite)
 		 arcade_card->Write(A & 0x1FFF, V);
 	       }
 	       else
-	        PCECD_Write(HuCPU.timestamp * 3, A, V); 
+	       {
+	        int32 dummy_ne;
+
+		dummy_ne = PCECD_Write(HuCPU.timestamp * 3, A, V);
+	       }
 	       break;
   //case 0x1C00: break; // Expansion
   //default: printf("Eep: %04x\n", A); break;
@@ -370,24 +375,25 @@ static int LoadCommon(void)
  return(1);
 }
 
-static bool TestMagicCD(void)
+static bool TestMagicCD(std::vector<CDIF *> *CDInterfaces)
 {
  static const uint8 magic_test[0x20] = { 0x82, 0xB1, 0x82, 0xCC, 0x83, 0x76, 0x83, 0x8D, 0x83, 0x4F, 0x83, 0x89, 0x83, 0x80, 0x82, 0xCC,
                                          0x92, 0x98, 0x8D, 0xEC, 0x8C, 0xA0, 0x82, 0xCD, 0x8A, 0x94, 0x8E, 0xAE, 0x89, 0xEF, 0x8E, 0xD0
                                        };
  uint8 sector_buffer[2048];
- CD_TOC toc;
+ CDIF *cdiface = (*CDInterfaces)[0];
+ CDUtility::TOC toc;
  bool ret = FALSE;
 
  memset(sector_buffer, 0, sizeof(sector_buffer));
 
- CDIF_ReadTOC(&toc);
+ cdiface->ReadTOC(&toc);
 
  for(int32 track = toc.first_track; track <= toc.last_track; track++)
  {
   if(toc.tracks[track].control & 0x4)
   {
-   CDIF_ReadSector(sector_buffer, toc.tracks[track].lba, 1);
+   cdiface->ReadSector(sector_buffer, toc.tracks[track].lba, 1);
 
    if(!memcmp((char*)sector_buffer, (char *)magic_test, 0x20))
     ret = TRUE;
@@ -404,7 +410,7 @@ static bool TestMagicCD(void)
  {
   if(toc.tracks[track].control & 0x4)
   {
-   CDIF_ReadSector(sector_buffer, toc.tracks[track].lba, 1);
+   cdiface->ReadSector(sector_buffer, toc.tracks[track].lba, 1);
    if(!strncmp("PC-FX:Hu_CD-ROM", (char*)sector_buffer, strlen("PC-FX:Hu_CD-ROM")))
    {
     return(false);
@@ -417,7 +423,7 @@ static bool TestMagicCD(void)
  // data track.
  if(toc.first_track == 1 && (toc.tracks[1].control & 0x4))
  {
-  if(CDIF_ReadSector(sector_buffer, 0x10, 1))
+  if(cdiface->ReadSector(sector_buffer, 0x10, 1))
   {
    if(!memcmp((char *)sector_buffer + 0x8, "HACKER CD ROM SYSTEM", 0x14))
    {
@@ -429,7 +435,7 @@ static bool TestMagicCD(void)
  return(ret);
 }
 
-static int LoadCD(void)
+static int LoadCD(std::vector<CDIF *> *CDInterfaces)
 {
  std::string bios_path = MDFN_MakeFName(MDFNMKF_FIRMWARE, 0, MDFN_GetSettingS("pce_fast.cdbios").c_str() );
 
@@ -440,6 +446,9 @@ static int LoadCD(void)
 
  if(!HuCLoadCD(bios_path.c_str()))
   return(0);
+
+ SCSICD_SetDisc(true, NULL, true);
+ SCSICD_SetDisc(false, (*CDInterfaces)[0], true);
 
  return(LoadCommon());
 }
@@ -483,7 +492,11 @@ static void Emulate(EmulateSpecStruct *espec)
 
 
  if(PCE_IsCD)
-  PCECD_Run(HuCPU.timestamp * 3);
+ {
+  int32 dummy_ne;
+
+  dummy_ne = PCECD_Run(HuCPU.timestamp * 3);
+ }
 
  psg->EndFrame(HuCPU.timestamp / pce_overclocked);
 
@@ -557,7 +570,11 @@ void PCE_Power(void)
  HuC_Power();
 
  if(PCE_IsCD)
-  PCECD_Power(HuCPU.timestamp * 3);
+ {
+  int32 dummy_ne;
+
+  dummy_ne = PCECD_Power(HuCPU.timestamp * 3);
+ }
 }
 
 static void DoSimpleCommand(int cmd)

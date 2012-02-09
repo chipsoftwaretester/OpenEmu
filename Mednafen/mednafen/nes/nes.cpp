@@ -158,6 +158,7 @@ static void CloseGame(void)
 
  Genie_Kill();
  MDFNSND_Close();
+ MDFNPPU_Close();
 }
 
 static void InitCommon(const char *name)
@@ -587,7 +588,7 @@ MDFNGI EmulatedNES =
  256,	// Nominal width
  240,	// Nominal height
  256,	// Framebuffer width(altered if NTSC blitter is enabled)
- 256,	// Framebuffer height
+ 240,	// Framebuffer height
 
  1,     // Number of output sound channels
 };

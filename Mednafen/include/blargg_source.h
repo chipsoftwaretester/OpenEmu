@@ -30,9 +30,9 @@ inline void blargg_dprintf_( const char*, ... ) { }
 // If expr yields error string, return it from current function, otherwise continue.
 #undef RETURN_ERR
 #define RETURN_ERR( expr ) do {                         \
-		blargg_err_t blargg_return_err_ = (expr);               \
-		if ( blargg_return_err_ ) return blargg_return_err_;    \
-	} while ( 0 )
+blargg_err_t blargg_return_err_ = (expr);               \
+if ( blargg_return_err_ ) return blargg_return_err_;    \
+} while ( 0 )
 
 // If ptr is 0, return out of memory error string.
 #undef CHECK_ALLOC
@@ -72,7 +72,7 @@ typedef unsigned char byte;
 
 // BLARGG_SOURCE_BEGIN: If defined, #included, allowing redefition of dprintf and check
 #ifdef BLARGG_SOURCE_BEGIN
-	#include BLARGG_SOURCE_BEGIN
+#include BLARGG_SOURCE_BEGIN
 #endif
 
 #endif

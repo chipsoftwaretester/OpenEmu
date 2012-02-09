@@ -214,7 +214,7 @@ void Dis6502::Disassemble(uint16 &a, uint16 SpecialA, char *stringo)
      else
       strcat(stringo,"   ");
      if((info>>16)==1)   /* Relative branch */
-      arg=a+(char)arg;
+      arg=(a+(char)arg) & 0xFFFF;
     }
 
     if(borked)

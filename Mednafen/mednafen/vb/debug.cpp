@@ -50,14 +50,15 @@ static std::vector<VB_BPOINT> BreakPointsPC, BreakPointsRead, BreakPointsWrite;
 static bool FoundBPoint = 0;
 
 
+#if 0
 static int BTIndex = 0;
 static uint32 BTEntries[16];
 
-static void AddBranchTrace(uint32 PC)
+static void AddBranchTrace(uint32 old_PC, uint32 new_PC, uint32 special)
 {
- if(BTEntries[(BTIndex - 1) & 0xF] == PC) return;
+ if(BTEntries[(BTIndex - 1) & 0xF] == new_PC) return;
 
- BTEntries[BTIndex] = PC;
+ BTEntries[BTIndex] = new_PC;
  BTIndex = (BTIndex + 1) & 0xF;
 }
 
@@ -73,6 +74,119 @@ std::vector<std::string> VBDBG_GetBranchTrace(void)
  }
  return(ret);
 }
+#endif
+
+struct BTEntry
+{
+ uint32 from;
+ uint32 to;
+ uint32 branch_count;
+ uint32 ecode;
+};
+
+#define NUMBT 24
+static BTEntry BTEntries[NUMBT];
+static int BTIndex = 0;
+
+static void AddBranchTrace(uint32 from, uint32 to, uint32 ecode)
+{
+ BTEntry *prevbt = &BTEntries[(BTIndex + NUMBT - 1) % NUMBT];
+
+ //if(BTEntries[(BTIndex - 1) & 0xF] == PC) return;
+
+ if(prevbt->from == from && prevbt->to == to && prevbt->ecode == ecode && prevbt->branch_count < 0xFFFFFFFF)
+  prevbt->branch_count++;
+ else
+ {
+  BTEntries[BTIndex].from = from;
+  BTEntries[BTIndex].to = to;
+  BTEntries[BTIndex].ecode = ecode;
+  BTEntries[BTIndex].branch_count = 1;
+
+  BTIndex = (BTIndex + 1) % NUMBT;
+ }
+}
+
+
+std::vector<BranchTraceResult> VBDBG_GetBranchTrace(void)
+{
+ BranchTraceResult tmp;
+ std::vector<BranchTraceResult> ret;
+
+ for(int x = 0; x < NUMBT; x++)
+ {
+  const BTEntry *bt = &BTEntries[(x + BTIndex) % NUMBT];
+
+  tmp.count = bt->branch_count;
+  trio_snprintf(tmp.from, sizeof(tmp.from), "%08x", bt->from);
+  trio_snprintf(tmp.to, sizeof(tmp.to), "%08x", bt->to);
+
+  tmp.code[0] = 0;
+
+  switch(bt->ecode)
+  {
+   case 0: break;
+   default: trio_snprintf(tmp.code, sizeof(tmp.code), "e");
+            break;
+
+   case 0xFFF0: // Reset
+        trio_snprintf(tmp.code, sizeof(tmp.code), "R");
+        break;
+
+   case 0xFFD0: // NMI
+        trio_snprintf(tmp.code, sizeof(tmp.code), "NMI");
+        break;
+
+   case 0xFFC0: // Address trap
+        trio_snprintf(tmp.code, sizeof(tmp.code), "ADTR");
+        break;
+
+   case 0xFFA0 ... 0xFFBF:      // TRAP
+        trio_snprintf(tmp.code, sizeof(tmp.code), "TRAP");
+        break;
+
+   case 0xFF90: // Illegal/invalid instruction code
+        trio_snprintf(tmp.code, sizeof(tmp.code), "ILL");
+        break;
+
+   case 0xFF80: // Zero division
+        trio_snprintf(tmp.code, sizeof(tmp.code), "ZD");
+        break;
+
+   case 0xFF70:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "FIV");       // FIV
+        break;
+
+   case 0xFF68:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "FZD");       // FZD
+        break;
+
+   case 0xFF64:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "FOV");       // FOV
+        break;
+
+   case 0xFF62:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "FUD");       // FUD
+        break;
+
+   case 0xFF61:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "FPR");       // FPR
+        break;
+
+   case 0xFF60:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "FRO");       // FRO
+        break;
+
+   case 0xFE00 ... 0xFEFF:
+        trio_snprintf(tmp.code, sizeof(tmp.code), "INT%d", (bt->ecode >> 4) & 0xF);
+        break;
+  }
+
+  ret.push_back(tmp);
+ }
+ return(ret);
+}
+
 
 void VBDBG_CheckBP(int type, uint32 address, unsigned int len)
 {
@@ -333,7 +447,7 @@ void VBDBG_SetRegister(const std::string &name, uint32 value)
 {
  if(name == "PC")
  {
-  VB_V810->SetPC(value);
+  VB_V810->SetPC(value & ~1);
   return;
  }
 

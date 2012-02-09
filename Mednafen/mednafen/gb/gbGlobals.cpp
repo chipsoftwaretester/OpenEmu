@@ -18,6 +18,9 @@
 
 #include "../mednafen.h"
 
+namespace MDFN_IEN_GB
+{
+
 uint8 *gbMemoryMap[16];
 
 int gbRomSizeMask = 0;
@@ -44,3 +47,5 @@ int gbEmulatorType = 0;
 int gbDmaTicks = 0;
 
 uint8 (*gbSerialFunction)(uint8) = NULL;
+
+}

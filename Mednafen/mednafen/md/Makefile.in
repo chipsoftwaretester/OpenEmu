@@ -40,11 +40,12 @@ subdir = src/md
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cflags_gcc_option.m4 \
-	$(top_srcdir)/m4/codeset.m4 $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/glibc2.m4 $(top_srcdir)/m4/glibc21.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/intdiv0.m4 \
-	$(top_srcdir)/m4/intl.m4 $(top_srcdir)/m4/intlmacosx.m4 \
-	$(top_srcdir)/m4/intmax.m4 $(top_srcdir)/m4/inttypes-pri.m4 \
+	$(top_srcdir)/m4/codeset.m4 $(top_srcdir)/m4/fcntl-o.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/glibc2.m4 \
+	$(top_srcdir)/m4/glibc21.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/intdiv0.m4 $(top_srcdir)/m4/intl.m4 \
+	$(top_srcdir)/m4/intlmacosx.m4 $(top_srcdir)/m4/intmax.m4 \
+	$(top_srcdir)/m4/inttypes-pri.m4 \
 	$(top_srcdir)/m4/inttypes_h.m4 $(top_srcdir)/m4/lcmessage.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libtool.m4 \
@@ -54,10 +55,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cflags_gcc_option.m4 \
 	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
 	$(top_srcdir)/m4/printf-posix.m4 $(top_srcdir)/m4/progtest.m4 \
 	$(top_srcdir)/m4/size_max.m4 $(top_srcdir)/m4/stdint_h.m4 \
-	$(top_srcdir)/m4/uintmax_t.m4 $(top_srcdir)/m4/visibility.m4 \
-	$(top_srcdir)/m4/wchar_t.m4 $(top_srcdir)/m4/wint_t.m4 \
-	$(top_srcdir)/m4/xsize.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/threadlib.m4 $(top_srcdir)/m4/uintmax_t.m4 \
+	$(top_srcdir)/m4/visibility.m4 $(top_srcdir)/m4/wchar_t.m4 \
+	$(top_srcdir)/m4/wint_t.m4 $(top_srcdir)/m4/xsize.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -79,9 +80,9 @@ am__libmd_a_SOURCES_DIST = vdp.cpp genesis.cpp genio.cpp header.cpp \
 	system.cpp cart/cart.cpp cart/map_eeprom.cpp \
 	cart/map_realtec.cpp cart/map_ssf2.cpp cart/map_ff.cpp \
 	cart/map_rom.cpp cart/map_sbb.cpp cart/map_yase.cpp \
-	cart/map_rmx3.cpp cart/map_sram.cpp input/mouse.cpp \
-	input/gamepad.cpp cd/cd.cpp cd/timer.cpp cd/interrupt.cpp \
-	cd/pcm.cpp cd/cdc_cdd.cpp debug.cpp
+	cart/map_rmx3.cpp cart/map_sram.cpp cart/map_svp.cpp \
+	input/mouse.cpp input/gamepad.cpp cd/cd.cpp cd/timer.cpp \
+	cd/interrupt.cpp cd/pcm.cpp cd/cdc_cdd.cpp debug.cpp
 am__dirstamp = $(am__leading_dot)dirstamp
 @WANT_DEBUGGER_TRUE@am__objects_1 = debug.$(OBJEXT)
 am_libmd_a_OBJECTS = vdp.$(OBJEXT) genesis.$(OBJEXT) genio.$(OBJEXT) \
@@ -92,9 +93,10 @@ am_libmd_a_OBJECTS = vdp.$(OBJEXT) genesis.$(OBJEXT) genio.$(OBJEXT) \
 	cart/map_ff.$(OBJEXT) cart/map_rom.$(OBJEXT) \
 	cart/map_sbb.$(OBJEXT) cart/map_yase.$(OBJEXT) \
 	cart/map_rmx3.$(OBJEXT) cart/map_sram.$(OBJEXT) \
-	input/mouse.$(OBJEXT) input/gamepad.$(OBJEXT) cd/cd.$(OBJEXT) \
-	cd/timer.$(OBJEXT) cd/interrupt.$(OBJEXT) cd/pcm.$(OBJEXT) \
-	cd/cdc_cdd.$(OBJEXT) $(am__objects_1)
+	cart/map_svp.$(OBJEXT) input/mouse.$(OBJEXT) \
+	input/gamepad.$(OBJEXT) cd/cd.$(OBJEXT) cd/timer.$(OBJEXT) \
+	cd/interrupt.$(OBJEXT) cd/pcm.$(OBJEXT) cd/cdc_cdd.$(OBJEXT) \
+	$(am__objects_1)
 libmd_a_OBJECTS = $(am_libmd_a_OBJECTS)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -173,6 +175,7 @@ GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
 GREP = @GREP@
 HAVE_ASPRINTF = @HAVE_ASPRINTF@
+HAVE_NEWLOCALE = @HAVE_NEWLOCALE@
 HAVE_POSIX_PRINTF = @HAVE_POSIX_PRINTF@
 HAVE_SNPRINTF = @HAVE_SNPRINTF@
 HAVE_VISIBILITY = @HAVE_VISIBILITY@
@@ -186,6 +189,7 @@ INSTOBJEXT = @INSTOBJEXT@
 INTLBISON = @INTLBISON@
 INTLLIBS = @INTLLIBS@
 INTLOBJS = @INTLOBJS@
+INTL_DEFAULT_VERBOSITY = @INTL_DEFAULT_VERBOSITY@
 INTL_LIBTOOL_SUFFIX_PREFIX = @INTL_LIBTOOL_SUFFIX_PREFIX@
 INTL_MACOSX_LIBS = @INTL_MACOSX_LIBS@
 JACK_CFLAGS = @JACK_CFLAGS@
@@ -215,6 +219,7 @@ LTLIBTHREAD = @LTLIBTHREAD@
 MAKEINFO = @MAKEINFO@
 MATH_OPTIMIZER_FLAGS = @MATH_OPTIMIZER_FLAGS@
 MKDIR_P = @MKDIR_P@
+MMX_CFLAGS = @MMX_CFLAGS@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
@@ -233,6 +238,8 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 POSUB = @POSUB@
 PRI_MACROS_BROKEN = @PRI_MACROS_BROKEN@
 RANLIB = @RANLIB@
@@ -244,6 +251,9 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SNDFILE_CFLAGS = @SNDFILE_CFLAGS@
 SNDFILE_LIBS = @SNDFILE_LIBS@
+SSE2_CFLAGS = @SSE2_CFLAGS@
+SSE3_CFLAGS = @SSE3_CFLAGS@
+SSE_CFLAGS = @SSE_CFLAGS@
 STRIP = @STRIP@
 TRIO_CFLAGS = @TRIO_CFLAGS@
 USE_INCLUDED_LIBINTL = @USE_INCLUDED_LIBINTL@
@@ -316,14 +326,15 @@ top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
 DEFAULT_INCLUDES = -I$(top_builddir)/include -I$(top_srcdir)/intl -I$(top_srcdir)/src/hw_cpu -I$(top_srcdir)/src/hw_sound
 noinst_LIBRARIES = libmd.a
+# cart/ssp16.c
 libmd_a_SOURCES = vdp.cpp genesis.cpp genio.cpp header.cpp mem68k.cpp \
 	membnk.cpp memvdp.cpp memz80.cpp sound.cpp system.cpp \
 	cart/cart.cpp cart/map_eeprom.cpp cart/map_realtec.cpp \
 	cart/map_ssf2.cpp cart/map_ff.cpp cart/map_rom.cpp \
 	cart/map_sbb.cpp cart/map_yase.cpp cart/map_rmx3.cpp \
-	cart/map_sram.cpp input/mouse.cpp input/gamepad.cpp cd/cd.cpp \
-	cd/timer.cpp cd/interrupt.cpp cd/pcm.cpp cd/cdc_cdd.cpp \
-	$(am__append_1)
+	cart/map_sram.cpp cart/map_svp.cpp input/mouse.cpp \
+	input/gamepad.cpp cd/cd.cpp cd/timer.cpp cd/interrupt.cpp \
+	cd/pcm.cpp cd/cdc_cdd.cpp $(am__append_1)
 all: all-am
 
 .SUFFIXES:
@@ -387,6 +398,8 @@ cart/map_rmx3.$(OBJEXT): cart/$(am__dirstamp) \
 	cart/$(DEPDIR)/$(am__dirstamp)
 cart/map_sram.$(OBJEXT): cart/$(am__dirstamp) \
 	cart/$(DEPDIR)/$(am__dirstamp)
+cart/map_svp.$(OBJEXT): cart/$(am__dirstamp) \
+	cart/$(DEPDIR)/$(am__dirstamp)
 input/$(am__dirstamp):
 	@$(MKDIR_P) input
 	@: > input/$(am__dirstamp)
@@ -425,6 +438,7 @@ mostlyclean-compile:
 	-rm -f cart/map_sbb.$(OBJEXT)
 	-rm -f cart/map_sram.$(OBJEXT)
 	-rm -f cart/map_ssf2.$(OBJEXT)
+	-rm -f cart/map_svp.$(OBJEXT)
 	-rm -f cart/map_yase.$(OBJEXT)
 	-rm -f cd/cd.$(OBJEXT)
 	-rm -f cd/cdc_cdd.$(OBJEXT)
@@ -457,6 +471,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@cart/$(DEPDIR)/map_sbb.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@cart/$(DEPDIR)/map_sram.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@cart/$(DEPDIR)/map_ssf2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@cart/$(DEPDIR)/map_svp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@cart/$(DEPDIR)/map_yase.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@cd/$(DEPDIR)/cd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@cd/$(DEPDIR)/cdc_cdd.Po@am__quote@

@@ -9,17 +9,14 @@
 /* Define if we are compiling with AltiVec usage. */
 #undef ARCH_POWERPC_ALTIVEC
 
-/* Define if we are compiling for x86 architectures. */
+/* Define if we are compiling for 32-bit or 64-bit x86 architectures. */
 #undef ARCH_X86
 
-/* Blip Buffer resample ratio accuracy. */
-#undef BLIP_BUFFER_ACCURACY
+/* Define if we are compiling for 32-bit x86 architectures. */
+#undef ARCH_X86_32
 
-/* Blip Buffer maximum quality. */
-#undef BLIP_MAX_QUALITY
-
-/* Blip Buffer phase bits count. */
-#undef BLIP_PHASE_BITS
+/* Define if we are compiling for 64-bit x86 architectures. */
+#undef ARCH_X86_64
 
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
@@ -42,6 +39,9 @@
 
 /* Define if we are compiling with ALSA support. */
 #undef HAVE_ALSA
+
+/* Define if altivec.h is present and usable. */
+#undef HAVE_ALTIVEC_H
 
 /* Define if we should include from OpenGL instead of GL */
 #undef HAVE_APPLE_OPENGL_FRAMEWORK
@@ -119,6 +119,9 @@
 
 /* Define to 1 if you have the `fseeko64' function. */
 #undef HAVE_FSEEKO64
+
+/* Define to 1 if you have the `fstat64' function. */
+#undef HAVE_FSTAT64
 
 /* Define to 1 if you have the `ftello' function. */
 #undef HAVE_FTELLO
@@ -202,6 +205,9 @@
 /* Define to 1 if you have the `madvise' function. */
 #undef HAVE_MADVISE
 
+/* Define to 1 if you have the `mbrtowc' function. */
+#undef HAVE_MBRTOWC
+
 /* Define to 1 if you have the `memcmp' function. */
 #undef HAVE_MEMCMP
 
@@ -229,9 +235,8 @@
 /* Define to 1 if you have the `munmap' function. */
 #undef HAVE_MUNMAP
 
-/* Define if you have <langinfo.h> and it defines the NL_LOCALE_NAME macro if
-   _GNU_SOURCE is defined. */
-#undef HAVE_NL_LOCALE_NAME
+/* Define to 1 if you have the `newlocale' function. */
+#undef HAVE_NEWLOCALE
 
 /* Define if we are compiling with OSS support. */
 #undef HAVE_OSSDSP
@@ -250,6 +255,9 @@
 
 /* Define if we are compiling with SDL sound support. */
 #undef HAVE_SDL
+
+/* Define if we are compiling with SDL_net support. */
+#undef HAVE_SDL_NET
 
 /* Define to 1 if you have the `setenv' function. */
 #undef HAVE_SETENV
@@ -300,6 +308,9 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
+/* Define to 1 if you have the `strnlen' function. */
+#undef HAVE_STRNLEN
+
 /* Define to 1 if you have the `strtoul' function. */
 #undef HAVE_STRTOUL
 
@@ -324,6 +335,9 @@
 /* Define to 1 if the system has the type `unsigned long long int'. */
 #undef HAVE_UNSIGNED_LONG_LONG_INT
 
+/* Define to 1 if you have the `uselocale' function. */
+#undef HAVE_USELOCALE
+
 /* Define to 1 if you have the `usleep' function. */
 #undef HAVE_USLEEP
 
@@ -334,8 +348,14 @@
 /* Define if you have the 'wchar_t' type. */
 #undef HAVE_WCHAR_T
 
+/* Define to 1 if you have the `wcrtomb' function. */
+#undef HAVE_WCRTOMB
+
 /* Define to 1 if you have the `wcslen' function. */
 #undef HAVE_WCSLEN
+
+/* Define to 1 if you have the `wcsnlen' function. */
+#undef HAVE_WCSNLEN
 
 /* Define if you have the 'wint_t' type. */
 #undef HAVE_WINT_T
@@ -380,9 +400,6 @@
 /* Define on big-endian platforms. */
 #undef MSB_FIRST
 
-/* Define if we are compiling with network play code. */
-#undef NETWORK
-
 /* Define to 1 if your C compiler doesn't accept -c and -o together. */
 #undef NO_MINUS_C_MINUS_O
 
@@ -412,9 +429,6 @@
 
 /* Defines the filesystem path-separator type. */
 #undef PSS_STYLE
-
-/* Define if the pthread_in_use() detection is hard. */
-#undef PTHREAD_IN_USE_DETECTION_HARD
 
 /* The size of `double', as computed by sizeof. */
 #undef SIZEOF_DOUBLE
@@ -448,7 +462,9 @@
 
 /* Define as the maximum value of type 'size_t', if the system doesn't define
    it. */
-#undef SIZE_MAX
+#ifndef SIZE_MAX
+# undef SIZE_MAX
+#endif
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
@@ -460,27 +476,6 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
-
-/* Define if the POSIX multithreading library can be used. */
-#undef USE_POSIX_THREADS
-
-/* Define if references to the POSIX multithreading library should be made
-   weak. */
-#undef USE_POSIX_THREADS_WEAK
-
-/* Define if the GNU Pth multithreading library can be used. */
-#undef USE_PTH_THREADS
-
-/* Define if references to the GNU Pth multithreading library should be made
-   weak. */
-#undef USE_PTH_THREADS_WEAK
-
-/* Define if the old Solaris multithreading library can be used. */
-#undef USE_SOLARIS_THREADS
-
-/* Define if references to the old Solaris multithreading library should be
-   made weak. */
-#undef USE_SOLARIS_THREADS_WEAK
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
@@ -503,9 +498,6 @@
 # undef __EXTENSIONS__
 #endif
 
-
-/* Define if the Win32 multithreading API can be used. */
-#undef USE_WIN32_THREADS
 
 /* Version number of package */
 #undef VERSION
@@ -542,6 +534,9 @@
 
 /* Define if we are compiling with PC-FX emulation. */
 #undef WANT_PCFX_EMU
+
+/* Define if we are compiling with PlayStation emulation. */
+#undef WANT_PSX_EMU
 
 /* Define if we are compiling with SMS+GG emulation. */
 #undef WANT_SMS_EMU
@@ -623,20 +618,29 @@
 #define __libc_lock_lock_recursive                gl_recursive_lock_lock
 #define __libc_lock_unlock_recursive              gl_recursive_lock_unlock
 #define glthread_in_use  libintl_thread_in_use
-#define glthread_lock_init     libintl_lock_init
-#define glthread_lock_lock     libintl_lock_lock
-#define glthread_lock_unlock   libintl_lock_unlock
-#define glthread_lock_destroy  libintl_lock_destroy
-#define glthread_rwlock_init     libintl_rwlock_init
-#define glthread_rwlock_rdlock   libintl_rwlock_rdlock
-#define glthread_rwlock_wrlock   libintl_rwlock_wrlock
-#define glthread_rwlock_unlock   libintl_rwlock_unlock
-#define glthread_rwlock_destroy  libintl_rwlock_destroy
-#define glthread_recursive_lock_init     libintl_recursive_lock_init
-#define glthread_recursive_lock_lock     libintl_recursive_lock_lock
-#define glthread_recursive_lock_unlock   libintl_recursive_lock_unlock
-#define glthread_recursive_lock_destroy  libintl_recursive_lock_destroy
-#define glthread_once                 libintl_once
-#define glthread_once_call            libintl_once_call
+#define glthread_lock_init_func     libintl_lock_init_func
+#define glthread_lock_lock_func     libintl_lock_lock_func
+#define glthread_lock_unlock_func   libintl_lock_unlock_func
+#define glthread_lock_destroy_func  libintl_lock_destroy_func
+#define glthread_rwlock_init_multithreaded     libintl_rwlock_init_multithreaded
+#define glthread_rwlock_init_func              libintl_rwlock_init_func
+#define glthread_rwlock_rdlock_multithreaded   libintl_rwlock_rdlock_multithreaded
+#define glthread_rwlock_rdlock_func            libintl_rwlock_rdlock_func
+#define glthread_rwlock_wrlock_multithreaded   libintl_rwlock_wrlock_multithreaded
+#define glthread_rwlock_wrlock_func            libintl_rwlock_wrlock_func
+#define glthread_rwlock_unlock_multithreaded   libintl_rwlock_unlock_multithreaded
+#define glthread_rwlock_unlock_func            libintl_rwlock_unlock_func
+#define glthread_rwlock_destroy_multithreaded  libintl_rwlock_destroy_multithreaded
+#define glthread_rwlock_destroy_func           libintl_rwlock_destroy_func
+#define glthread_recursive_lock_init_multithreaded     libintl_recursive_lock_init_multithreaded
+#define glthread_recursive_lock_init_func              libintl_recursive_lock_init_func
+#define glthread_recursive_lock_lock_multithreaded     libintl_recursive_lock_lock_multithreaded
+#define glthread_recursive_lock_lock_func              libintl_recursive_lock_lock_func
+#define glthread_recursive_lock_unlock_multithreaded   libintl_recursive_lock_unlock_multithreaded
+#define glthread_recursive_lock_unlock_func            libintl_recursive_lock_unlock_func
+#define glthread_recursive_lock_destroy_multithreaded  libintl_recursive_lock_destroy_multithreaded
+#define glthread_recursive_lock_destroy_func           libintl_recursive_lock_destroy_func
+#define glthread_once_func            libintl_once_func
 #define glthread_once_singlethreaded  libintl_once_singlethreaded
+#define glthread_once_multithreaded   libintl_once_multithreaded
 

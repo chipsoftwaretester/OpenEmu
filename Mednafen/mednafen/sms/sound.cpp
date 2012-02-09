@@ -28,7 +28,7 @@ namespace MDFN_IEN_SMS
 
 static Sms_Apu apu;
 static Stereo_Buffer zebuf;
-typedef Blip_Synth<blip_good_quality, 8192> FMSynth_t;
+typedef Blip_Synth<blip_good_quality, 1> FMSynth_t;
 static FMSynth_t fmsynth;
 static EMU2413 *FMThing = NULL;
 static uint32 SoundClock;
@@ -71,19 +71,23 @@ static int32 fm_div;
 static void UpdateFM(void)
 {
  int32 cycles = sms.timestamp - fm_last_timestamp;
- 
+
  fm_div -= cycles;
  while(fm_div <= 0)
  {
   int32 new_value;
 
-  new_value = EMU2413_calc(FMThing) >> 1;
+  new_value = EMU2413_calc(FMThing);
 
-  if(new_value > 32767) 
-   new_value = 32767;
+  //if(new_value > 32767) { printf("MOO0: %d\n", new_value); new_value = 32767; }
+  //else if(new_value < -32768) { printf("MOO1: %d\n", new_value); new_value = -32768; }
 
-  if(new_value < -32768)
-   new_value = -32768;
+  //if(abs(new_value) > 95)
+  //{
+  // printf("new=%d, last=%d\n", new_value, fm_last_value);
+  // if(new_value < -) new_value = -95;
+  // else new_value = 95;
+  //}
 
   fmsynth.offset(sms.timestamp + fm_div, new_value - fm_last_value, zebuf.left());
   fmsynth.offset(sms.timestamp + fm_div, new_value - fm_last_value, zebuf.right());
@@ -137,7 +141,7 @@ static void RedoVolume(void)
 {
  apu.output(zebuf.center(), zebuf.left(), zebuf.right());
  apu.volume(0.50);
- fmsynth.volume(0.20);
+ fmsynth.volume(1.0 / 16384); //32768); //1.0 / 256); // / 65536); //0.15 / 8192);
 }
 
 void SMS_SoundInit(uint32 clock, bool WantFM)
@@ -151,7 +155,7 @@ void SMS_SoundInit(uint32 clock, bool WantFM)
  zebuf.bass_freq(20);
 
  if(WantFM)
-  FMThing = EMU2413_new(SoundClock);
+  FMThing = EMU2413_new(3579545);
 }
 
 void SMS_SoundClose(void)

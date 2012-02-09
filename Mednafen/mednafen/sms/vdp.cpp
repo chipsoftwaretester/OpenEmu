@@ -26,11 +26,12 @@ vdp_t vdp;
 
 
 /* Initialize VDP emulation */
-void vdp_init(void)
+void vdp_init(bool want_quirk)
 {
  memset(&vdp, 0, sizeof(vdp_t));
 
  vdp.lines_per_frame = (sms.display == DISPLAY_NTSC) ? 262 : 313;
+ vdp.quirk_disabled = !want_quirk;
 
  vdp_reset();
 }
@@ -68,10 +69,20 @@ void vdp_reset(void)
  vdp.mode = 0;
  vdp.vint_pending = 0;
  vdp.hint_pending = 0;
+ vdp.hc_latch = 0;
  vdp.cram_latch = 0;
  vdp.bd = 0;
 }
 
+void vdp_hclatch(void)
+{
+ unsigned int pixel_pos = ((sms.timestamp % CYCLES_PER_LINE) * 3) >> 1;
+
+ if(pixel_pos >= 0x128)
+  pixel_pos += 0xAA;
+
+ vdp.hc_latch = pixel_pos >> 1;
+}
 
 void viewport_check(void)
 {
@@ -289,19 +300,14 @@ uint8 vdp_read(int offset)
 
 uint8 vdp_counter_r(int offset)
 {
-    int pixel_pos;
-
     switch(offset & 1)
     {
         case 0: /* V Counter */
             return vc_table[sms.display][vdp.extended][vdp.line & 0x1FF];
 
         case 1: /* H Counter */
-            //pixel_pos = (((z80_get_elapsed_cycles() % CYCLES_PER_LINE) / 4) * 3) * 2;
-	    // FIXME
-            // FIXME
-            pixel_pos = (((sms.timestamp % CYCLES_PER_LINE) / 4) * 3) * 2;
-            return hc_table[0][(pixel_pos >> 1) & 0x01FF];
+		vdp_hclatch();	// FIXME, call from pio.cpp under right conditions instead.
+	    return vdp.hc_latch;
     }
 
     /* Just to please the compiler */
@@ -537,7 +543,7 @@ void SMS_VDPRunFrame(int skip_render)
 
     for(vdp.line = 0; vdp.line < vdp.lines_per_frame;)
     {
-        int moohack = 228;
+        int moohack = CYCLES_PER_LINE;
 
         ExecuteCycles(228 - 32);
         moohack -= 228 - 32;
@@ -619,6 +625,7 @@ int SMS_VDPStateAction(StateMem *sm, int load, int data_only)
   SFVARN(vdp.mode, "mode"),
   SFVARN(vdp.vint_pending, "vint_pending"),
   SFVARN(vdp.hint_pending, "hint_pending"),
+  SFVARN(vdp.hc_latch, "hc_latch"),
   SFVARN(vdp.cram_latch, "cram_latch"),
   SFVARN(vdp.bd, "bd"),
 

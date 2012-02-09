@@ -1,7 +1,7 @@
 typedef struct {
-	UTF8 *GameName, *Artist, *Copyright, *Ripper;
+	char *GameName, *Artist, *Copyright, *Ripper;
 
-        UTF8 **SongNames;
+        char **SongNames;
         int32 *SongLengths;
         int32 *SongFades;
 

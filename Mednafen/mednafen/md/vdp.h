@@ -66,7 +66,7 @@ class MDVDP
  void SyncColors(void);
 
  void SetPixelFormat(const MDFN_PixelFormat &format); //int rs, int gs, int bs);
- void SetSurface(MDFN_Surface *surface, MDFN_Rect *rect);
+ void SetSurface(EmulateSpecStruct *espec);	//MDFN_Surface *surface, MDFN_Rect *rect);
 
  bool ToggleLayer(int which);
 
@@ -188,6 +188,7 @@ class MDVDP
 
  MDFN_Surface *surface;
  MDFN_Rect *rect;
+ EmulateSpecStruct *espec;
 
  /* Clip data */
  clip_t clip[2];

@@ -17,6 +17,9 @@
 // along with this program; if not, write to the Free Software Foundation,
 // Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
+namespace MDFN_IEN_GB
+{
+
 extern int gbRomSizeMask;
 extern int gbRomSize;
 extern int gbRamSize;
@@ -59,3 +62,5 @@ extern void gbDrawSprites();
 
 extern uint32 gblayerSettings;
 extern uint8 (*gbSerialFunction)(uint8);
+
+}

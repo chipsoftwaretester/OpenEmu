@@ -235,7 +235,19 @@ static const uint8 zigzag[63] =
  0x3C, 0x3D, 0x36, 0x2F, 0x37, 0x3E, 0x3F
 };
 
-static HuffmanQuickLUT dc_y_qlut, dc_uv_qlut, ac_y_qlut, ac_uv_qlut;
+static HuffmanQuickLUT dc_y_qlut = { NULL }, dc_uv_qlut = { NULL}, ac_y_qlut = { NULL }, ac_uv_qlut = { NULL };
+
+static void KillHuffmanLUT(HuffmanQuickLUT *qlut)
+{
+ if(qlut->lut)
+  MDFN_free(qlut->lut);
+
+ if(qlut->lut_bits)
+  MDFN_free(qlut->lut_bits);
+
+ qlut->lut = NULL;
+ qlut->lut_bits = NULL;
+}
 
 static bool BuildHuffmanLUT(const HuffmanTable *table, HuffmanQuickLUT *qlut, const int bitmax)
 {
@@ -675,6 +687,11 @@ void RAINBOW_Close(void)
    free(DecodeBuffer[i]);
    DecodeBuffer[i] = NULL;
   }
+
+ KillHuffmanLUT(&dc_y_qlut);
+ KillHuffmanLUT(&dc_uv_qlut);
+ KillHuffmanLUT(&ac_y_qlut);
+ KillHuffmanLUT(&ac_uv_qlut);
 }
 
 // RAINBOW base I/O port address: 0x200

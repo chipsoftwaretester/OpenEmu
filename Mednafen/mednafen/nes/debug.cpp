@@ -23,28 +23,74 @@
 #include "cart.h"
 #include "../dis6502.h"
 
-static int BTIndex = 0;
-static uint32 BTEntries[32];
+#define NUMBT 64
 
-void NESDBG_AddBranchTrace(uint32 PC)
+struct BTEntry
 {
- PC &= 0xFFFF;
+ uint32 from;
+ uint32 to;
+ uint32 vector;
+ uint32 branch_count;
+};
 
- if(BTEntries[(BTIndex - 1) & 0x1F] == PC) return;
+static BTEntry BTEntries[NUMBT];
+static int BTIndex = 0;
 
- BTEntries[BTIndex] = PC;
- BTIndex = (BTIndex + 1) & 0x1F;
+void NESDBG_AddBranchTrace(uint32 from, uint32 to, uint32 vector)
+{
+ BTEntry *prevbt = &BTEntries[(BTIndex + NUMBT - 1) % NUMBT];
+
+ from &= 0xFFFF;
+ to &= 0xFFFF;
+
+ //if(BTEntries[(BTIndex - 1) & 0xF] == PC) return;
+
+ if(prevbt->from == from && prevbt->to == to && prevbt->vector == vector && prevbt->branch_count < 0xFFFFFFFF)
+  prevbt->branch_count++;
+ else
+ {
+  BTEntries[BTIndex].from = from;
+  BTEntries[BTIndex].to = to;
+  BTEntries[BTIndex].vector = vector;
+  BTEntries[BTIndex].branch_count = 1;
+
+  BTIndex = (BTIndex + 1) % NUMBT;
+ }
 }
 
-std::vector<std::string> NESDBG_GetBranchTrace(void)
+static std::vector<BranchTraceResult> GetBranchTrace(void)
 {
- std::vector<std::string> ret;
+ BranchTraceResult tmp;
+ std::vector<BranchTraceResult> ret;
 
- for(int x = 0; x < 32; x++)
+ for(int x = 0; x < NUMBT; x++)
  {
-  char *tmps = trio_aprintf("%04X", BTEntries[(x + BTIndex) & 0x1F]);
-  ret.push_back(std::string(tmps));
-  free(tmps);
+  const BTEntry *bt = &BTEntries[(x + BTIndex) % NUMBT];
+
+  tmp.count = bt->branch_count;
+  trio_snprintf(tmp.from, sizeof(tmp.from), "%04X", bt->from);
+  trio_snprintf(tmp.to, sizeof(tmp.to), "%04X", bt->to);
+
+  tmp.code[1] = 0;
+  switch(bt->vector)
+  {
+   default: tmp.code[0] = 0;
+            break;
+
+   case 0xFFFC:
+        tmp.code[0] = 'R';      // RESET
+        break;
+
+   case 0xFFFA:
+        tmp.code[0] = 'N';      // NMI
+        break;
+
+   case 0xFFFE:
+        tmp.code[0] = 'I';      // IRQ
+        break;
+  }
+
+  ret.push_back(tmp);
  }
  return(ret);
 }
@@ -256,7 +302,7 @@ static void WriteHandler(X6502 *cur_X, unsigned int A, uint8 V)
   BWrite[A](A,V);
 }
 
-void NESDBG_AddBreakPoint(int type, unsigned int A1, unsigned int A2, bool logical)
+static void AddBreakPoint(int type, unsigned int A1, unsigned int A2, bool logical)
 {
  NES_BPOINT tmp;
 
@@ -275,7 +321,7 @@ void NESDBG_AddBreakPoint(int type, unsigned int A1, unsigned int A2, bool logic
  X6502_Debug(BreakPointsPC.size() ? CPUHandler : CPUHook, BreakPointsRead.size() ? ReadHandler : NULL, BreakPointsWrite.size() ? WriteHandler : 0);
 }
 
-void NESDBG_FlushBreakPoints(int type)
+static void FlushBreakPoints(int type)
 {
  std::vector<NES_BPOINT>::iterator bpit;
 
@@ -289,13 +335,13 @@ void NESDBG_FlushBreakPoints(int type)
  X6502_Debug(BreakPointsPC.size() ? CPUHandler : CPUHook, BreakPointsRead.size() ? ReadHandler : NULL, BreakPointsWrite.size() ? WriteHandler : 0);
 }
 
-void NESDBG_SetCPUCallback(void (*callb)(uint32 PC))
+static void SetCPUCallback(void (*callb)(uint32 PC))
 {
  CPUHook = callb;
  X6502_Debug(BreakPointsPC.size() ? CPUHandler : CPUHook, BreakPointsRead.size() ? ReadHandler : NULL, BreakPointsWrite.size() ? WriteHandler : 0);
 }
 
-void NESDBG_SetBPCallback(void (*callb)(uint32 PC))
+static void SetBPCallback(void (*callb)(uint32 PC))
 {
  BPCallB = callb;
 }
@@ -451,11 +497,11 @@ DebuggerInfoStruct NESDBGInfo =
  NULL,
  NESDBG_IRQ,
  NESDBG_GetVector,
- NESDBG_FlushBreakPoints,
- NESDBG_AddBreakPoint,
- NESDBG_SetCPUCallback,
- NESDBG_SetBPCallback,
- NESDBG_GetBranchTrace,
+ FlushBreakPoints,
+ AddBreakPoint,
+ SetCPUCallback,
+ SetBPCallback,
+ GetBranchTrace,
  NESPPU_SetGraphicsDecode,
 };
 

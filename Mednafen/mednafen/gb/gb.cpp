@@ -34,6 +34,9 @@
 #include "sound.h"
 #include "z80.h"
 
+namespace MDFN_IEN_GB
+{
+
 static uint32 *gbColorFilter = NULL; //[32768];
 static uint32 gbMonoColorMap[8 + 1];	// Mono color map(+1 = LCD off color)!
 
@@ -128,30 +131,32 @@ uint8 register_SVBK  = 0;
 uint8 register_IE    = 0;
 
 // ticks definition
-int GBDIV_CLOCK_TICKS          = 64;
-int GBLCD_MODE_0_CLOCK_TICKS   = 51;
-int GBLCD_MODE_1_CLOCK_TICKS   = 1140;
-int GBLCD_MODE_2_CLOCK_TICKS   = 20;
-int GBLCD_MODE_3_CLOCK_TICKS   = 43;
-int GBLY_INCREMENT_CLOCK_TICKS = 114;
-int GBTIMER_MODE_0_CLOCK_TICKS = 256;
-int GBTIMER_MODE_1_CLOCK_TICKS = 4;
-int GBTIMER_MODE_2_CLOCK_TICKS = 16;
-int GBTIMER_MODE_3_CLOCK_TICKS = 64;
-int GBSERIAL_CLOCK_TICKS       = 128;
-int GBSYNCHRONIZE_CLOCK_TICKS  = 52920;
+static int GBDIV_CLOCK_TICKS          = 64;
+static int GBLCD_MODE_0_CLOCK_TICKS   = 51;
+static int GBLCD_MODE_1_CLOCK_TICKS   = 1140;
+static int GBLCD_MODE_2_CLOCK_TICKS   = 20;
+static int GBLCD_MODE_3_CLOCK_TICKS   = 43;
+static int GBLY_INCREMENT_CLOCK_TICKS = 114;
+static int GBTIMER_MODE_0_CLOCK_TICKS = 256;
+static int GBTIMER_MODE_1_CLOCK_TICKS = 4;
+static int GBTIMER_MODE_2_CLOCK_TICKS = 16;
+static int GBTIMER_MODE_3_CLOCK_TICKS = 64;
+static int GBSERIAL_CLOCK_TICKS       = 128;
+static int GBSYNCHRONIZE_CLOCK_TICKS  = 52920;
 
 // state variables
+static int32 snooze;
+static int32 PadInterruptDelay;
 
 // serial
-int gbSerialOn = 0;
-int gbSerialTicks = 0;
-int gbSerialBits = 0;
+static int gbSerialOn;
+static int gbSerialTicks;
+static int gbSerialBits;
 // timer
-int gbTimerOn = 0;
-int gbTimerTicks = GBTIMER_MODE_0_CLOCK_TICKS;
-int gbTimerClockTicks = GBTIMER_MODE_0_CLOCK_TICKS;
-int gbTimerMode = 0;
+static int gbTimerOn;
+static int gbTimerTicks;
+static int gbTimerClockTicks;
+static int gbTimerMode;
 
 
 enum
@@ -223,6 +228,9 @@ static const int gbRamSizesMasks[6] = { 0x00000000,
                            0x0000ffff
 };
 
+static uint8 *Custom_GB_ColorMap = NULL;
+static uint8 *Custom_GBC_ColorMap = NULL;
+
 static void gbGenFilter(const MDFN_PixelFormat &format) //int rs, int gs, int bs)
 {
  for(int r = 0; r < 32; r++)
@@ -237,6 +245,13 @@ static void gbGenFilter(const MDFN_PixelFormat &format) //int rs, int gs, int bs
     ng /= 31;
     nb /= 31;
 
+    if(Custom_GBC_ColorMap)
+    {
+     nr = Custom_GBC_ColorMap[((b << 10) | (g << 5) | r) * 3 + 0];
+     ng = Custom_GBC_ColorMap[((b << 10) | (g << 5) | r) * 3 + 1];
+     nb = Custom_GBC_ColorMap[((b << 10) | (g << 5) | r) * 3 + 2];
+    }
+
     gbColorFilter[(b << 10) | (g << 5) | r] = format.MakeColor(nr, ng, nb);
    }
 
@@ -248,11 +263,78 @@ static void gbGenFilter(const MDFN_PixelFormat &format) //int rs, int gs, int bs
   g = (3 - (i & 3)) * 48 + 32;
   b = (3 - (i & 3)) * 48 + 32;
 
+  if(Custom_GB_ColorMap)
+  {
+   r = Custom_GB_ColorMap[i * 3 + 0];
+   g = Custom_GB_ColorMap[i * 3 + 1];
+   b = Custom_GB_ColorMap[i * 3 + 2];
+  }
+
   gbMonoColorMap[i] = gbMonoColorMap[i + 4] = format.MakeColor(r, g, b);
  }
 
  gbMonoColorMap[8] = gbMonoColorMap[0];
 }
+
+static bool LoadCPalette(const char *syspalname, uint8 **ptr, uint32 num_entries)
+{
+ std::string colormap_fn = MDFN_MakeFName(MDFNMKF_PALETTE, 0, syspalname).c_str();
+ FILE *fp;
+
+ MDFN_printf(_("Loading custom palette from \"%s\"...\n"),  colormap_fn.c_str());
+ MDFN_indent(1);
+
+ if(!(fp = fopen(colormap_fn.c_str(), "rb")))
+ {
+  ErrnoHolder ene(errno);
+
+  MDFN_printf(_("Error opening file: %s\n"), ene.StrError());
+
+  MDFN_indent(-1);
+
+  return(ene.Errno() == ENOENT);	// Return fatal error if it's an error other than the file not being found.
+ }
+
+ if(!(*ptr = (uint8 *)MDFN_malloc(num_entries * 3, _("custom color map"))))
+ {
+  MDFN_indent(-1);
+
+  fclose(fp);
+  return(false);
+ }
+
+ if(fread(*ptr, 1, num_entries * 3, fp) != (num_entries * 3))
+ {
+  ErrnoHolder ene(errno);
+
+  MDFN_printf(_("Error reading file: %s\n"), feof(fp) ? "EOF" : ene.StrError());
+  MDFN_indent(-1);
+
+  MDFN_free(*ptr);
+  *ptr = NULL;
+  fclose(fp);
+
+  return(false);
+ }
+
+ // Print a warning message about unused trailing data
+ {
+  int64 rs;
+
+  fseek(fp, 0, SEEK_END);
+  if((rs = ftell(fp)) > (num_entries * 3))
+  {
+   MDFN_printf(_("Warning: %lld byte(s) of trailing unused data.\n"), (long long)(rs - (num_entries * 3)));
+  }
+ }
+
+ fclose(fp);
+
+ MDFN_indent(-1);
+
+ return(true);
+}
+
 
 void gbCopyMemory(uint16 d, uint16 s, int count)
 {
@@ -781,7 +863,7 @@ void gbWriteMemory(uint16 address, uint8 value)
 
       if(bank == gbWramBank)
         return;
-      
+
       int wramAddress = bank * 0x1000;
       gbMemoryMap[0x0d] = &gbWram[wramAddress];
 
@@ -1191,6 +1273,9 @@ void gbReset()
 
 static void gbPower(void)
 {
+ snooze = 0;
+ PadInterruptDelay = 0;
+
   if(gbCgbMode)
   {
    memset(gbWram,0,0x8000);
@@ -1657,6 +1742,10 @@ static SFORMAT gbSaveGameStruct[] =
   SFVAR(GBTIMER_MODE_3_CLOCK_TICKS),
   SFVAR(GBSERIAL_CLOCK_TICKS),
   SFVAR(GBSYNCHRONIZE_CLOCK_TICKS),
+
+  SFVAR(snooze),
+  SFVAR(PadInterruptDelay),
+
   SFVAR(gbDivTicks),
   SFVAR(gbLcdMode),
   SFVAR(gbLcdTicks),
@@ -1756,10 +1845,24 @@ static void CloseGame(void)
   gbColorFilter = NULL;
  }
 
+ if(Custom_GB_ColorMap)
+ {
+  MDFN_free(Custom_GB_ColorMap);
+  Custom_GB_ColorMap = NULL;
+ }
+
+ if(Custom_GBC_ColorMap)
+ {
+  MDFN_free(Custom_GBC_ColorMap);
+  Custom_GBC_ColorMap = NULL;
+ }
 }
 
 static void StateRest(int version)
 {
+ register_SVBK &= 7;
+ register_VBK &= 1;
+
   gbMemoryMap[0x00] = &gbRom[0x0000];
   gbMemoryMap[0x01] = &gbRom[0x1000];
   gbMemoryMap[0x02] = &gbRom[0x2000];
@@ -1975,6 +2078,8 @@ static int Load(const char *name, MDFNFILE *fp)
   return(0);
  }
 
+ gbEmulatorType = MDFN_GetSettingI("gb.system_type");
+
  gbRom = (uint8 *)malloc(fp->size);
  memcpy(gbRom, fp->data, fp->size);
  gbRomSize = fp->size;
@@ -2004,6 +2109,19 @@ static int Load(const char *name, MDFNFILE *fp)
 
  gbReadBatteryFile(MDFN_MakeFName(MDFNMKF_SAV, 0, "sav").c_str());
  gblayerSettings = 0xFF;
+
+ // Custom palettes
+ if(gbCgbMode)
+ {
+  if(!LoadCPalette("gbc", &Custom_GBC_ColorMap, 32768))
+  return(0);
+ }
+ else
+ {
+  if(!LoadCPalette("gb", &Custom_GB_ColorMap, 4))
+   return(0);
+ }
+
  return(1);
 }
 
@@ -2177,9 +2295,6 @@ static void MDFNGB_SetInput(int port, const char *type, void *ptr)
 {
  paddie = (uint8*)ptr;
 }
-
-static int32 snooze = 0;
-static int32 PadInterruptDelay = 0;
 
 static void Emulate(EmulateSpecStruct *espec)
 {
@@ -2546,8 +2661,18 @@ static void DoSimpleCommand(int cmd)
  }
 }
 
+static const MDFNSetting_EnumList SystemType_List[] =
+{
+ { "auto", 0, gettext_noop("Auto"), gettext_noop("Automatic detection based on headers.") },
+ { "dmg", 3, gettext_noop("DMG"), gettext_noop("Original GameBoy Monochrome.") },
+ { "cgb", 1, gettext_noop("CGB"), gettext_noop("GameBoy Color.\n\nThis option is not fully implemented in regards to handling of DMG games.") },
+ { "agb", 4, gettext_noop("AGB"), gettext_noop("GameBoy Advance.\n\nThis option is not fully implemented in regards to handling of DMG games.") },
+ { NULL, 0 },
+};
+
 static MDFNSetting GBSettings[] =
 {
+ { "gb.system_type", MDFNSF_EMU_STATE | MDFNSF_UNTRUSTED_SAFE, gettext_noop("Emulated GB type."), NULL, MDFNST_ENUM, "auto", NULL, NULL, NULL, NULL, SystemType_List },
  { NULL }
 };
 
@@ -2599,6 +2724,10 @@ static const FileExtensionSpecStruct KnownExtensions[] =
  { ".cgb", gettext_noop("GameBoy Color ROM Image") },
  { NULL, NULL }
 };
+
+}
+
+using namespace MDFN_IEN_GB;
 
 MDFNGI EmulatedGB =
 {

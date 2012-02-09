@@ -36,6 +36,8 @@ class RTC
  void Write(uint32 address, uint16 value);
  void Reset(void);
 
+ void AddTime(int32 amount);
+
  int StateAction(StateMem *sm, int load, int data_only);
 
  private:
@@ -57,5 +59,4 @@ class RTC
 
 }
 
-using namespace MDFN_IEN_GBA;
 #endif

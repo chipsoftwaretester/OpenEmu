@@ -23,6 +23,9 @@
 
 #include <memory.h>
 
+namespace MDFN_IEN_GBA
+{
+
 #define FLASH_READ_ARRAY         0
 #define FLASH_CMD_1              1
 #define FLASH_CMD_2              2
@@ -221,4 +224,6 @@ void flashWrite(uint32 address, uint8 byte)
     flashReadState = FLASH_READ_ARRAY;
     break;
   }
+}
+
 }

@@ -34,9 +34,8 @@ class MegaMouse : public MD_Input_Device
         public:
 	MegaMouse();
 	virtual ~MegaMouse();
-        virtual void Write(uint8 data);
-        virtual uint8 Read();
-        virtual void Update(const void *data);
+        virtual void UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted);
+        virtual void UpdatePhysicalState(const void *data);
 
 	private:
 	int32 mouse_x;
@@ -83,8 +82,11 @@ MegaMouse::~MegaMouse()
 
 }
 
-void MegaMouse::Write(uint8 data)
+void MegaMouse::UpdateBus(const int32 master_timestamp, uint8 &bus, const uint8 genesis_asserted)
 {
+ const uint8 data = bus;
+ uint8 temp;
+
  //printf("Write: %02x\n", data);
  #if 0
  if((data & 0x60) == 0x60 && counter == 9)
@@ -180,16 +182,15 @@ void MegaMouse::Write(uint8 data)
 
  last_th = data & MASK_TH;
  last_tr = data & MASK_TR;
-}
 
-uint8 MegaMouse::Read(void)
-{
- uint8 ret = 0;
+ //
+ //
+ //
 
- ret |= data_buffer[counter];
+ temp = data_buffer[counter];
 
  if(tl_ret)
-  ret |= MASK_TL;
+  temp |= MASK_TL;
 
  if(busy_meow > 0)
  {
@@ -197,11 +198,12 @@ uint8 MegaMouse::Read(void)
   if(!busy_meow)
    tl_ret = 0;
  }
+
+ bus = (bus & ~0x60) | (temp & 0x1F);
  //printf("Read: %02x, %d\n", ret, counter);
- return(ret);
 }
 
-void MegaMouse::Update(const void *data)
+void MegaMouse::UpdatePhysicalState(const void *data)
 {
  mouse_x += (int32)MDFN_de32lsb((uint8 *)data + 0);
  mouse_y += (int32)MDFN_de32lsb((uint8 *)data + 4);

@@ -101,7 +101,7 @@ typedef struct {
 	int32 modes[11];
 } OPS;
 
-#define NUMOPS 116
+#define NUMOPS 117
 static OPS optable[NUMOPS]=
 {
  {"TST",1,{IMDZP(0x83),IMDZPX(0xA3),IMDABS(0x93),IMDABX(0xb3),-1}},
@@ -159,6 +159,7 @@ static OPS optable[NUMOPS]=
  {"SED",0,{IMP(0xF8),-1}},
  {"SEI",0,{IMP(0x78),-1}},
  {"NOP",0,{IMP(0xEA),-1}},
+ {"SET",0,{IMP(0xF4),-1}},
 
 
  {"ASL",1,{IMP(0x0a),ZP(0x06),ZPX(0x16),ABS(0x0E),ABX(0x1E),-1}},
@@ -336,7 +337,7 @@ void Dis6280::Disassemble(uint16 &a, uint16 SpecialA, char *stringo)
     }
     arg_orig = arg;
     if((info>>16)==1)   /* Relative branch */
-     arg = a + (char)arg;
+     arg = (a + (char)arg) & 0xFFFF;
 
     if(borked)
      strcat(stringo, "--------");

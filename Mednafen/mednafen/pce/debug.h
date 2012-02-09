@@ -21,8 +21,6 @@ void PCEDBG_Disassemble(uint32 &a, uint32 SpecialA, char *);
 uint32 PCEDBG_GetRegister(const std::string &name, std::string *special);
 void PCEDBG_SetRegister(const std::string &name, uint32 value);
 
-std::vector<std::string> PCEDBG_GetBranchTrace(void);
-
 void PCEDBG_CheckBP(int type, uint32 address, unsigned int len);
 
 void PCEDBG_GetAddressSpaceBytes(const char *name, uint32 Address, uint32 Length, uint8 *Buffer);

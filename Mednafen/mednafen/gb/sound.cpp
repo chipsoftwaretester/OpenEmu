@@ -18,18 +18,37 @@
 #include "../mednafen.h"
 #include "../state.h"
 #include "gb.h"
+#include "gbGlobals.h"
 #include "sound.h"
 #include "gb_apu/Gb_Apu.h"
 #include <blip/Stereo_Buffer.h>
+
+namespace MDFN_IEN_GB
+{
 
 static Gb_Apu gb_apu;
 static Stereo_Buffer *gb_buf = NULL;
 
 void MDFNGBSOUND_Reset(void)
 {
-	// TODO: set hardware mode to mode_dmg, mode_cgb, or mode_agb
-	// (latter if you're running classic GB game on Game Boy Advance)
-	gb_apu.reset();
+	Gb_Apu::mode_t gbmode = Gb_Apu::mode_cgb;
+
+	if(gbEmulatorType == 4)
+	 gbmode = Gb_Apu::mode_agb;
+	else if(gbEmulatorType == 3)
+	 gbmode = Gb_Apu::mode_dmg;
+	else if(gbEmulatorType == 1)
+	 gbmode = Gb_Apu::mode_cgb;
+	else if(gbEmulatorType == 0)
+	{
+	 if(gbCgbMode)
+	  gbmode = Gb_Apu::mode_cgb;
+	 else
+	  gbmode = Gb_Apu::mode_dmg;
+	}
+
+	//printf("%d -- %d\n", (int)gbmode, (int)Gb_Apu::mode_cgb);
+	gb_apu.reset(gbmode);
 }
 
 uint32 MDFNGBSOUND_Read(int ts, uint32 addr)
@@ -128,4 +147,6 @@ int32 MDFNGBSOUND_Flush(int ts, int16 *SoundBuf, const int32 MaxSoundFrames)
 	 exit(1);
 
 	return(SoundFrames);
+}
+
 }

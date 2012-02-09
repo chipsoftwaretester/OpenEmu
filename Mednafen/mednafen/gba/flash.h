@@ -20,6 +20,9 @@
 #ifndef VBA_FLASH_H
 #define VBA_FLASH_H
 
+namespace MDFN_IEN_GBA
+{
+
 bool GBA_Flash_Init(void);
 void GBA_Flash_Kill(void);
 void GBA_Flash_Reset(void);
@@ -34,5 +37,7 @@ extern void flashSetSize(int size);
 extern int flashSize;
 
 int GBA_Flash_StateAction(StateMem *sm, int load, int data_only);
+
+}
 
 #endif // VBA_FLASH_H

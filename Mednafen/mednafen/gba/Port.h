@@ -20,6 +20,9 @@
 #ifndef VBA_PORT_H
 #define VBA_PORT_H
 
+namespace MDFN_IEN_GBA
+{
+
 // swaps a 16-bit value
 static inline uint16 swap16(uint16 v)
 {
@@ -71,5 +74,7 @@ static inline uint32 swap32(uint32 v)
 #define WRITE32LE(x,v) \
   *((uint32 *)x) = (v)
 #endif
+
+}
 
 #endif

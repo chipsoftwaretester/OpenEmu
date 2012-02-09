@@ -1,3 +1,6 @@
+#ifndef __MDFN_PCE_HUC_H
+#define __MDFN_PCE_HUC_H
+
 namespace MDFN_IEN_PCE
 {
 
@@ -12,6 +15,8 @@ typedef enum
 
 int HuCLoad(const uint8 *data, uint32 len, uint32 crc32, bool DisableBRAM = false, SysCardType syscard = SYSCARD_NONE);
 
+void HuC_EndFrame(int32 timestamp);
+
 void HuCClose(void);
 int HuC_StateAction(StateMem *sm, int load, int data_only);
 
@@ -24,3 +29,5 @@ extern bool PCE_IsCD;
 extern bool IsTsushin;
 
 };
+
+#endif

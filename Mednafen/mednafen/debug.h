@@ -88,6 +88,39 @@ typedef struct
 	uint64 UsageWriteMemUsed;
 } AddressSpaceType;
 
+// TODO: newer branch trace interface not implemented yet.
+struct BranchTraceResult
+{
+#if 0
+ // Segment stuff is only to be hackishly implemented, for WonderSwan debugger support.
+ uint32 from;
+ uint32 to;
+ uint16 from_segment;
+ uint16 to_segment;
+
+ bool from_valid;
+ bool segment_valid;
+#endif
+ char from[32];
+ char to[32];
+ char code[16];
+
+ uint32 count;
+};
+
+#if 0
+struct DGD_Source
+{
+ int id;
+ const char *name;
+
+ unsigned width;
+ unsigned height;
+
+ unsigned pb_bpp;	// Palette bank bits-per-pixel
+};
+#endif
+
 typedef struct
 {
  const char *DefaultCharEnc;	// Default(or most common) internal character encoding for text for the system.
@@ -130,7 +163,7 @@ typedef struct
 
  void (*SetBPCallback)(void (*callb)(uint32 PC));
 
- std::vector<std::string> (*GetBranchTrace)(void);
+ std::vector<BranchTraceResult> (*GetBranchTrace)(void);
 
  // If surface is NULL, disable decoding.
  // If line is -1, do decoding instantaneously, before this function returns.

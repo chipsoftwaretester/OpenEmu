@@ -115,7 +115,7 @@ void BlitNonGL(SDL_Surface *src_surface, const SDL_Rect *src_rect, const SDL_Rec
 
    src_x = sr.x << 16;
 
-   if(!(sl_y & 0x10000))
+   if((sl_y & 0x10000))
    {
     for(unsigned int x = 0; x < dr.w; x++)
     {

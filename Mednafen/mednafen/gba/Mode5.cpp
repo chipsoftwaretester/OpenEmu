@@ -21,6 +21,9 @@
 #include "Gfx.h"
 #include "gfx-draw.h"
 
+namespace MDFN_IEN_GBA
+{
+
 void mode5RenderLine()
 {
   if(DISPCNT & 0x0080) {
@@ -403,4 +406,6 @@ void mode5RenderLineAll()
   }
   gfxBG2Changed = 0;
   gfxLastVCOUNT = VCOUNT;  
+}
+
 }

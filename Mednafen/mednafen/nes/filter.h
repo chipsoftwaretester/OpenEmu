@@ -1,5 +1,7 @@
-#ifndef FILTER_H
-#define FILTER_H
+#ifndef __NES_FILTER_H
+#define __NES_FILTER_H
+
+#include <vector>
 
 class NES_Resampler
 {
@@ -74,7 +76,7 @@ class NES_Resampler
 	uint32 *FIR_CoCounts;
 
 	int32 SoundVolume;
-	int32 boobuf[8192];
+	std::vector<int32> IntermediateBuffer; //int32 boobuf[8192];
 
 	uint32 cpuext;
 

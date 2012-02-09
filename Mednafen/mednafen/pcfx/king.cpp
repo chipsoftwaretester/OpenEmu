@@ -97,22 +97,6 @@ typedef struct
 
  bool frame_interlaced;
 
- /*						   */
- /* Begin emulation-specific interlaced variables. */
- /* 	Don't bother saving these in save states?  */
- /*	Or if we do, they need lots of sanity checks. */
- /*	TODO: handle emulator(output) pixel format changes.	   */
- uint32 interlaced_count;                /* Number of contiguous(set to 0 if interlacing is disabled) frame starts that happened
-					    with interlacing mode enabled.
-					 */
- uint32 *LastField;	//[1024 * 256];
- MDFN_Rect LastLineWidths[256];
- //bool LastFieldValid = 0;
-
- /* 						 */
- /* End emulation-specific interlaced variables. */
- /*						 */
-
  uint16 picture_mode;
 
  bool dot_clock;	 // Cached from picture_mode in hblank
@@ -311,7 +295,7 @@ static INLINE void RebuildLayerPrioCache(void)
  int RemapPriority = 1;
  bool Done[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
- for(int i = 1; i < (1 + 8); i++)
+ for(unsigned int i = 1; i < (1 + 8); i++)
  {
   for(int n = 0; n < 4; n++)
   {
@@ -1764,34 +1748,24 @@ bool KING_Init(void)
 
  SCSICD_Init(SCSICD_PCFX, 3, &FXsbuf[0], &FXsbuf[1], 153600 * MDFN_GetSettingUI("pcfx.cdspeed"), 21477273, KING_CDIRQ, KING_StuffSubchannels);
 
-
- if(!(fx_vce.LastField = (uint32 *)MDFN_calloc(1024 * 256, sizeof(uint32), _("Interlaced mode last field buffer"))))
-  return(0);
-
  return(1);
 }
 
 void KING_Close(void)
 {
- if(fx_vce.LastField)
-  MDFN_free(fx_vce.LastField);
-
  if(king)
  {
   free(king);
   king = NULL;
  }
+ SCSICD_Close();
 }
 
 
 void KING_Reset(void)
 {
- uint32 *lf_save = fx_vce.LastField;
-
  memset(&fx_vce, 0, sizeof(fx_vce));
  memset(king, 0, sizeof(king_t));
-
- fx_vce.LastField = lf_save;
 
  king->Reg00 = 0;
  king->Reg01 = 0;
@@ -1922,7 +1896,7 @@ static void DrawBG(uint32 *target, int n, bool sub)
   { 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1 },
  };
 
-
+#if 0
  const uint32 cg_per_mode[0x8] = 
  {
   0, // Invalid mode
@@ -1934,7 +1908,7 @@ static void DrawBG(uint32 *target, int n, bool sub)
   8, // 16-bit mode
   8, // 16-bit mode
  };
-
+#endif
  const uint32 layer_or = (LAYER_BG0 + n) << 28;
 
  const uint32 palette_offset = ((fx_vce.palette_offset[1 + (n >> 1)] >> ((n & 1) ? 8 : 0)) << 1) & 0x1FF;
@@ -2407,13 +2381,13 @@ static MDFN_Rect *DisplayRect;
 static MDFN_Rect *LineWidths;
 static int skip;
 
-void KING_StartFrame(VDC **arg_vdc_chips, MDFN_Surface *arg_surface, MDFN_Rect *arg_DisplayRect, MDFN_Rect *arg_LineWidths, int arg_skip)
+void KING_StartFrame(VDC **arg_vdc_chips, EmulateSpecStruct *espec)	//MDFN_Surface *arg_surface, MDFN_Rect *arg_DisplayRect, MDFN_Rect *arg_LineWidths, int arg_skip)
 {
  ::vdc_chips = arg_vdc_chips;
- ::surface = arg_surface;
- ::DisplayRect = arg_DisplayRect;
- ::LineWidths = arg_LineWidths;
- ::skip = arg_skip;
+ ::surface = espec->surface;
+ ::DisplayRect = &espec->DisplayRect;
+ ::LineWidths = espec->LineWidths;
+ ::skip = espec->skip;
 
  //MDFN_DispMessage("P0:%06x P1:%06x; I0: %06x I1: %06x", king->ADPCMPlayAddress[0], king->ADPCMPlayAddress[1], king->ADPCMIntermediateAddress[0] << 6, king->ADPCMIntermediateAddress[1] << 6);
  //MDFN_DispMessage("%d %d\n", SCSICD_GetACK(), SCSICD_GetREQ());
@@ -2425,15 +2399,14 @@ void KING_StartFrame(VDC **arg_vdc_chips, MDFN_Surface *arg_surface, MDFN_Rect *
  DisplayRect->y = MDFN_GetSettingUI("pcfx.slstart");
  DisplayRect->h = MDFN_GetSettingUI("pcfx.slend") - DisplayRect->y + 1;
 
-
- if(fx_vce.interlaced_count >= 1)
+ if(fx_vce.frame_interlaced)
  {
-  skip = FALSE;
-  if(fx_vce.interlaced_count == 2)
-  {
-   DisplayRect->y *= 2;
-   DisplayRect->h *= 2;
-  }
+  skip = false;
+
+  espec->InterlaceOn = true;
+  espec->InterlaceField = fx_vce.odd_field;
+  DisplayRect->y *= 2;
+  DisplayRect->h *= 2;
  }
 }
 
@@ -2445,7 +2418,7 @@ static void DrawActive(void)
  rb_type = -1;
 
  #ifdef WANT_DEBUGGER
- if(GfxDecode_Buf && GfxDecode_Line == fx_vce.raster_counter)
+ if(GfxDecode_Buf && GfxDecode_Line == (int32)fx_vce.raster_counter)
   DoGfxDecode();
  #endif
 
@@ -2716,7 +2689,7 @@ static void MixLayers(void)
     uint32 *target;
     uint32 BPC_Cache = (LAYER_NONE << 28); // Backmost pixel color(cache)
 
-    if(fx_vce.interlaced_count == 2)
+    if(fx_vce.frame_interlaced)
      target = pXBuf + surface->pitch32 * ((fx_vce.raster_counter - 22) * 2 + fx_vce.odd_field);
     else
      target = pXBuf + surface->pitch32 * (fx_vce.raster_counter - 22);
@@ -2896,24 +2869,11 @@ static void MixLayers(void)
     DisplayRect->w = fx_vce.dot_clock ? HighDotClockWidth : 256;
     DisplayRect->x = 0;
 
-    if(fx_vce.interlaced_count == 2)
-    {
-     uint32 *target2 = pXBuf + surface->pitch32 * ((fx_vce.raster_counter - 22) * 2 + (fx_vce.odd_field ^ 1));
-
+	// FIXME
+    if(fx_vce.frame_interlaced)
      LineWidths[(fx_vce.raster_counter - 22) * 2 + fx_vce.odd_field] = *DisplayRect;
-     LineWidths[(fx_vce.raster_counter - 22) * 2 + (fx_vce.odd_field ^ 1)] = fx_vce.LastLineWidths[fx_vce.raster_counter - 22];
-
-     memcpy(target2, &fx_vce.LastField[(fx_vce.raster_counter - 22) * 1024], 1024 * sizeof(uint32));
-    }
     else
      LineWidths[fx_vce.raster_counter - 22] = *DisplayRect;
-
-    if(fx_vce.interlaced_count)
-    {
-     memcpy(&fx_vce.LastField[(fx_vce.raster_counter - 22) * 1024], target, 1024 * sizeof(uint32));
-     fx_vce.LastLineWidths[fx_vce.raster_counter - 22] = *DisplayRect;
-    }
-
 }
 
 static INLINE void RunVDCs(const int master_cycles, uint16 *pixels0, uint16 *pixels1)
@@ -3013,19 +2973,17 @@ static void MDFN_FASTCALL KING_RunGfx(int32 clocks)
 
 			if(!fx_vce.raster_counter)
 			{
+			 bool previous_interlaced = fx_vce.frame_interlaced;
+
 			 fx_vce.frame_interlaced = fx_vce.picture_mode & 2;
 
-			 if(fx_vce.frame_interlaced)
-			 {
+			 if(fx_vce.frame_interlaced && previous_interlaced)
 			  fx_vce.odd_field ^= 1;
-			  if(fx_vce.interlaced_count < 2)
-			   fx_vce.interlaced_count++;
-			 }
-			 else
-			 {
+
+			 if(!fx_vce.frame_interlaced)
 			  fx_vce.odd_field = 0;
-			  fx_vce.interlaced_count = 0;
-			 }
+
+			 PCFX_V810.Exit();
 			}
 
 			if(fx_vce.raster_counter == king->RasterIRQLine && (king->RAINBOWTransferControl & 0x2))
@@ -3042,9 +3000,6 @@ static void MDFN_FASTCALL KING_RunGfx(int32 clocks)
 			  RedoKINGIRQCheck();
 			 }
 			}
-
-			if(!fx_vce.raster_counter)
-			 PCFX_V810.Exit();
 
 			// This -18(and +18) may or may not be correct in regards to how a real PC-FX adjusts the VDC layer horizontal position
 			// versus the KING and RAINBOW layers.
@@ -3379,6 +3334,7 @@ void KING_SetRegister(const std::string &name, uint32 value)
  else if(name == "ADPCMCTRL")
  {
   king->ADPCMControl = value;
+  SoundBox_SetKINGADPCMControl(king->ADPCMControl);
  }
  else if(name == "ADPCMBM0" || name == "ADPCMBM1")
  {
@@ -3863,9 +3819,9 @@ uint32 FXVDCVCE_GetRegister(const std::string &name, std::string *special)
  return(value);
 }
 
-void KING_SetGraphicsDecode(MDFN_Surface *surface, int line, int which, int xscroll, int yscroll, int pbn)
+void KING_SetGraphicsDecode(MDFN_Surface *decode_surface, int line, int which, int xscroll, int yscroll, int pbn)
 {
- GfxDecode_Buf = surface;
+ GfxDecode_Buf = decode_surface;
  GfxDecode_Line = line;
  GfxDecode_Layer = which;
  GfxDecode_Scroll = yscroll;
@@ -4063,7 +4019,7 @@ static void DoGfxDecode(void)
   }
  }
  else
-  memset(GfxDecode_Buf, 0, GfxDecode_Buf->w * GfxDecode_Buf->h * sizeof(uint32) * 3);
+  memset(GfxDecode_Buf->pixels, 0, GfxDecode_Buf->w * GfxDecode_Buf->h * sizeof(uint32) * 3);
 }
 
 #endif

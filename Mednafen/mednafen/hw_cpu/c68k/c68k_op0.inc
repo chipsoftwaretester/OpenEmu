@@ -8076,7 +8076,7 @@ case 0x0108:
 	PRE_IO
 	READ_BYTE_F(adr + 0, res)
 	READ_BYTE_F(adr + 2, src)
-	*(u16*)(&CPU->D[(Opcode >> 9) & 7]) = (res << 8) | src;
+	*(WORD_OFF + (u16*)(&CPU->D[(Opcode >> 9) & 7])) = (res << 8) | src;
 	POST_IO
 }
 RET(24)

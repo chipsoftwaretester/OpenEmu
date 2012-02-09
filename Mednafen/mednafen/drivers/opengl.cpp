@@ -20,6 +20,7 @@
 #include <string.h>
 #include <trio/trio.h>
 
+#include "video.h"
 #include "opengl.h"
 #include "shader.h"
 
@@ -58,6 +59,9 @@ glPixelZoom_Func p_glPixelZoom;
 glGetTexLevelParameteriv_Func p_glGetTexLevelParameteriv;
 glAccum_Func p_glAccum;
 glClearAccum_Func p_glClearAccum;
+glPushMatrix_Func p_glPushMatrix;
+glPopMatrix_Func p_glPopMatrix;
+glRotated_Func p_glRotated;
 
 #if MDFN_WANT_OPENGL_SHADERS
 glCreateShaderObjectARB_Func p_glCreateShaderObjectARB;
@@ -92,12 +96,11 @@ static GLuint rgb_mask = 0; // TODO:  RGB mask texture for LCD RGB triad simulat
 
 static bool using_scanlines = 0;
 static unsigned int last_w, last_h;
-static float twitchy;
 
 static uint32 OSDLastWidth, OSDLastHeight;
 
 static bool UsingShader = FALSE; // TRUE if we're using a pixel shader.
-static bool UsingIP;	// True if bilinear interpolation is enabled.
+static int UsingIP;	// See VIDEOIP_* enums defined in video.h
 
 static uint32 *DummyBlack = NULL; // Black/Zeroed image data for cleaning textures
 static uint32 DummyBlackSize;
@@ -177,26 +180,162 @@ void BlitOpenGLRaw(SDL_Surface *surface, const SDL_Rect *rect, const SDL_Rect *d
  }
 }
 
+static INLINE void MakeSourceCoords(const SDL_Rect *src_rect, float sc[4][2], const int32 tmpwidth, const int32 tmpheight)
+{
+ // Upper left
+ sc[0][0] = (float)src_rect->x / tmpwidth;		// X
+ sc[0][1] = (float)src_rect->y / tmpheight;		// Y
+
+ // Upper right
+ sc[1][0] = (float)(src_rect->x + src_rect->w) / tmpwidth;	// X
+ sc[1][1] = (float)(src_rect->y) / tmpheight;			// Y
+
+ // Lower right
+ sc[2][0] = (float)(src_rect->x + src_rect->w) / tmpwidth;	// X
+ sc[2][1] = (float)(src_rect->y + src_rect->h) / tmpheight;	// Y
+
+ // Lower left
+ sc[3][0] = (float)src_rect->x / tmpwidth;			// X
+ sc[3][1] = (float)(src_rect->y + src_rect->h) / tmpheight;	// Y
+}
+
+static INLINE void MakeDestCoords(const SDL_Rect *dest_rect, int dest_coords[4][2])
+{
+  signed dco = 0;
+
+  if(CurGame->rotated == MDFN_ROTATE90)
+   dco = 1;
+  else if(CurGame->rotated == MDFN_ROTATE270)
+   dco = 3;
+  else if(CurGame->rotated == MDFN_ROTATE180)
+   dco = 2;
+
+  // Upper left
+  dest_coords[dco][0] = dest_rect->x;
+  dest_coords[dco][1] = dest_rect->y;
+  dco = (dco + 1) & 3;
+
+  // Upper Right
+  dest_coords[dco][0] = dest_rect->x + dest_rect->w;
+  dest_coords[dco][1] = dest_rect->y;
+  dco = (dco + 1) & 3;
+
+  // Lower right
+  dest_coords[dco][0] = dest_rect->x + dest_rect->w;
+  dest_coords[dco][1] = dest_rect->y + dest_rect->h;
+  dco = (dco + 1) & 3;
+
+  // Lower left
+  dest_coords[dco][0] = dest_rect->x;
+  dest_coords[dco][1] = dest_rect->y + dest_rect->h;
+  dco = (dco + 1) & 3;
+
+  //printf("%f:%f %f:%f %f:%f %f:%f\n", dest_coords[0][0], dest_coords[0][1], dest_coords[1][0], dest_coords[1][1], dest_coords[2][0], 
+  //	dest_coords[2][1], dest_coords[3][0], dest_coords[3][1]);
+}
+
+static INLINE void DrawQuad(float src_coords[4][2], int dest_coords[4][2])
+{
+  // Lower left
+  p_glTexCoord2f(src_coords[3][0], src_coords[3][1]);
+   p_glVertex2f(dest_coords[3][0], dest_coords[3][1]);
+
+  // Lower right
+  p_glTexCoord2f(src_coords[2][0], src_coords[2][1]);
+   p_glVertex2f(dest_coords[2][0], dest_coords[2][1]);
+
+  // Upper right
+  p_glTexCoord2f(src_coords[1][0], src_coords[1][1]);
+   p_glVertex2f(dest_coords[1][0], dest_coords[1][1]);
+
+  // Upper left
+  p_glTexCoord2f(src_coords[0][0], src_coords[0][1]);
+   p_glVertex2f(dest_coords[0][0], dest_coords[0][1]);
+}
+
+void DrawLinearIP(const unsigned UsingIP, const unsigned rotated, const SDL_Rect *tex_src_rect, const SDL_Rect *dest_rect, const uint32 tmpwidth, const uint32 tmpheight)
+{
+ SDL_Rect tmp_sr = *tex_src_rect;
+ SDL_Rect tmp_dr = *dest_rect;
+ float tmp_sc[4][2];
+ int tmp_dc[4][2];
+
+ int32 start_pos;
+ int32 bound_pos;
+ bool rotate_side = (rotated == MDFN_ROTATE90 || rotated == MDFN_ROTATE270);
+ bool reversi;
+ bool dr_y;
+ bool sr_y;
+
+ if((UsingIP == VIDEOIP_LINEAR_Y) ^ rotate_side)
+ {
+  start_pos = dest_rect->x;
+  bound_pos = dest_rect->x + dest_rect->w;
+  dr_y = false;
+  sr_y = rotate_side;
+ }
+ else
+ {
+  start_pos = dest_rect->y;
+  bound_pos = dest_rect->y + dest_rect->h;
+  dr_y = true;
+  sr_y = !rotate_side;
+ }
+
+ reversi = (rotated == MDFN_ROTATE270 && UsingIP == VIDEOIP_LINEAR_X) || (rotated == MDFN_ROTATE90 && UsingIP == VIDEOIP_LINEAR_Y);
+
+ for(int i = start_pos; i < bound_pos; i++)
+ {
+  int sr_goon = i - start_pos;
+
+  if(dr_y)
+  {
+   tmp_dr.y = i;
+   tmp_dr.h = 1;
+  }
+  else
+  {
+   tmp_dr.x = i;
+   tmp_dr.w = 1;
+  }
+
+  if(reversi)
+   sr_goon = (bound_pos - start_pos) - 1 - sr_goon;
+
+  if(sr_y)
+  {
+   tmp_sr.y = sr_goon * (rotate_side ? tex_src_rect->w : tex_src_rect->h) / dest_rect->h;
+   tmp_sr.h = 1;
+  }
+  else
+  {
+   tmp_sr.x = sr_goon * (rotate_side ? tex_src_rect->h : tex_src_rect->w) / dest_rect->w;
+   tmp_sr.w = 1;
+  }
+
+  MakeSourceCoords(&tmp_sr, tmp_sc, tmpwidth, tmpheight);
+  MakeDestCoords(&tmp_dr, tmp_dc);
+
+  DrawQuad(tmp_sc, tmp_dc);
+ }
+}
+
 void BlitOpenGL(SDL_Surface *src_surface, const SDL_Rect *src_rect, const SDL_Rect *dest_rect, const SDL_Rect *original_src_rect, bool alpha_blend)
 {
- int left = src_rect->x;
- int right = src_rect->x + src_rect->w;	// First nonincluded pixel
- int top = src_rect->y;
- int bottom = src_rect->y + src_rect->h; // ditto
-
- int sl_bottom = /*original_src_rect->y + */ original_src_rect->h; // ditto
-
- p_glBindTexture(GL_TEXTURE_2D, textures[0]);
-
+ SDL_Rect tex_src_rect = *src_rect;
+ float src_coords[4][2];
+ int dest_coords[4][2];
  unsigned int tmpwidth;
  unsigned int tmpheight;
- uint32 *src_pixies = (uint32 *)src_surface->pixels;
+ uint32 *src_pixies;
 
- src_pixies += left + top * (src_surface->pitch >> 2);
- right -= left;
- left = 0;
- bottom -= top;
- top = 0;
+ src_pixies = (uint32 *)src_surface->pixels + tex_src_rect.x + tex_src_rect.y * (src_surface->pitch >> 2);
+ tex_src_rect.x = 0;
+ tex_src_rect.y = 0;
+
+ MakeDestCoords(dest_rect, dest_coords);
+
+ p_glBindTexture(GL_TEXTURE_2D, textures[0]);
 
  if(SupportNPOT)
  {
@@ -275,9 +414,11 @@ void BlitOpenGL(SDL_Surface *src_surface, const SDL_Rect *src_rect, const SDL_Re
   last_h = src_rect->h;
  }
 
+ MakeSourceCoords(&tex_src_rect, src_coords, tmpwidth, tmpheight);
+
  #if MDFN_WANT_OPENGL_SHADERS
  if(UsingShader)
-  ShaderBegin(src_surface, src_rect, tmpwidth, tmpheight);
+  ShaderBegin(src_surface, src_rect, dest_rect, tmpwidth, tmpheight);
  #endif
 
  if(alpha_blend)
@@ -288,55 +429,24 @@ void BlitOpenGL(SDL_Surface *src_surface, const SDL_Rect *src_rect, const SDL_Re
 
  p_glPixelStorei(GL_UNPACK_ROW_LENGTH, src_surface->pitch >> 2);
 
- p_glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, right, bottom, PixelFormat, PixelType, src_pixies);
+ p_glTexSubImage2D(GL_TEXTURE_2D, 0, tex_src_rect.x, tex_src_rect.y, tex_src_rect.w, tex_src_rect.h, PixelFormat, PixelType, src_pixies);
 
  bool DoneAgain = 0;
 
  DoAgain:
+
+ //
+ // Draw texture
+ //
  p_glBegin(GL_QUADS);
- if(CurGame->rotated != MDFN_ROTATE0)
+
+ if(UsingIP == VIDEOIP_LINEAR_X || UsingIP == VIDEOIP_LINEAR_Y)	// Linear interpolation, on one axis
  {
-  if(CurGame->rotated == MDFN_ROTATE90)
-  {
-   p_glTexCoord2f(0, 0);
-    p_glVertex2f(dest_rect->x, dest_rect->y + dest_rect->h);
-
-   p_glTexCoord2f(0, (float)src_rect->h / tmpheight);
-    p_glVertex2f(dest_rect->x + dest_rect->w, dest_rect->y + dest_rect->h);
-
-   p_glTexCoord2f(1.0f * right / tmpwidth, (float)src_rect->h / tmpheight);
-    p_glVertex2f(dest_rect->x + dest_rect->w,  dest_rect->y);
-
-   p_glTexCoord2f(1.0f * right / tmpwidth, 0);
-    p_glVertex2f(dest_rect->x,  dest_rect->y);
-  }
-  else if(CurGame->rotated == MDFN_ROTATE270)
-  {
-   p_glTexCoord2f(1.0f * right / tmpwidth, (float)src_rect->h / tmpheight);
-    p_glVertex2f(dest_rect->x, dest_rect->y + dest_rect->h);
-   p_glTexCoord2f(1.0f * right / tmpwidth, 0);
-    p_glVertex2f(dest_rect->x + dest_rect->w, dest_rect->y + dest_rect->h);
-   p_glTexCoord2f(0, 0);
-    p_glVertex2f(dest_rect->x + dest_rect->w,  dest_rect->y);
-   p_glTexCoord2f(0, (float)src_rect->h / tmpheight);
-    p_glVertex2f(dest_rect->x,  dest_rect->y);
-  }
-  else
-  {
-   puts("MOO, TODO");
-  }
+  DrawLinearIP(UsingIP, CurGame->rotated, &tex_src_rect, dest_rect, tmpwidth, tmpheight);
  }
- else
+ else	// Regular bilinear or no interpolation.
  {
-  p_glTexCoord2f(0, (1.0f * src_rect->h) / tmpheight);
-   p_glVertex2f(dest_rect->x, twitchy + dest_rect->y + dest_rect->h);
-   p_glTexCoord2f(1.0f * right / tmpwidth, (1.0f * src_rect->h) / tmpheight);
-  p_glVertex2f(dest_rect->x + dest_rect->w, twitchy + dest_rect->y + dest_rect->h);
-  p_glTexCoord2f(1.0f * right / tmpwidth, 0);
-   p_glVertex2f(dest_rect->x + dest_rect->w, twitchy + dest_rect->y);
-
-  p_glTexCoord2f(0, 0);
-   p_glVertex2f(dest_rect->x, twitchy + dest_rect->y);
+  DrawQuad(src_coords, dest_coords);
  }
 
  p_glEnd();
@@ -370,17 +480,17 @@ void BlitOpenGL(SDL_Surface *src_surface, const SDL_Rect *src_rect, const SDL_Re
 
   p_glBegin(GL_QUADS);
 
-  p_glTexCoord2f(0.0f, 1.0f * sl_bottom / 256);  // Bottom left of our picture.
-  p_glVertex2f(dest_rect->x, dest_rect->y + dest_rect->h);
+  p_glTexCoord2f(0.0f, 1.0f * original_src_rect->h / 256);  // Bottom left of our picture.
+  p_glVertex2f((signed)dest_coords[3][0], (signed)dest_coords[3][1]);
 
-  p_glTexCoord2f(1.0f, 1.0f * sl_bottom / 256); // Bottom right of our picture.
-  p_glVertex2f(dest_rect->x + dest_rect->w, dest_rect->y + dest_rect->h);
+  p_glTexCoord2f(1.0f, 1.0f * original_src_rect->h / 256); // Bottom right of our picture.
+  p_glVertex2f((signed)dest_coords[2][0], (signed)dest_coords[2][1]);
 
   p_glTexCoord2f(1.0f, 0.0f);    // Top right of our picture.
-  p_glVertex2f(dest_rect->x + dest_rect->w,  dest_rect->y);
+  p_glVertex2f((signed)dest_coords[1][0], (signed)dest_coords[1][1]);
 
   p_glTexCoord2f(0.0f, 0.0f);     // Top left of our picture.
-  p_glVertex2f(dest_rect->x,  dest_rect->y);
+  p_glVertex2f((signed)dest_coords[0][0], (signed)dest_coords[0][1]);
 
   p_glEnd();
   p_glDisable(GL_BLEND);
@@ -460,7 +570,7 @@ static bool CheckAlternateFormat(const uint32 version_h)
 }
 
 /* Rectangle, left, right(not inclusive), top, bottom(not inclusive). */
-int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *screen, int *rs, int *gs, int *bs, int *as)
+int InitOpenGL(int ipolate, int scanlines, ShaderType pixshader, SDL_Surface *screen, int *rs, int *gs, int *bs, int *as)
 {
  const char *extensions;
  const char *vendor;
@@ -506,6 +616,9 @@ int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *s
  LFG(glAccum);
  LFG(glClearAccum);
  LFG(glGetTexLevelParameteriv);
+ LFG(glPushMatrix);
+ LFG(glPopMatrix);
+ LFG(glRotated);
 
  gl_screen = screen;
 
@@ -548,29 +661,8 @@ int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *s
  UsingShader = FALSE;
 
  #if MDFN_WANT_OPENGL_SHADERS
- if(strcasecmp(pixshader.c_str(), "none"))
+ if(pixshader != SHADER_NONE)
  {
-  ShaderType pixshadertype;
-
-  if(!strcasecmp(pixshader.c_str(), "hqxx"))
-   pixshadertype = SHADER_HQXX;
-  else if(!strcasecmp(pixshader.c_str(), "scale2x"))
-   pixshadertype = SHADER_SCALE2X;
-  else if(!strcasecmp(pixshader.c_str(), "ipsharper"))
-   pixshadertype = SHADER_IPSHARPER;
-  else if(!strcasecmp(pixshader.c_str(), "ipxnoty"))
-   pixshadertype = SHADER_IPXNOTY;
-  else if(!strcasecmp(pixshader.c_str(), "ipxnotysharper"))
-   pixshadertype = SHADER_IPXNOTYSHARPER;
-  else if(!strcasecmp(pixshader.c_str(), "ipynotx"))
-   pixshadertype = SHADER_IPYNOTX;
-  else if(!strcasecmp(pixshader.c_str(), "ipynotxsharper"))
-   pixshadertype = SHADER_IPYNOTXSHARPER;
-  else
-  {
-   MDFN_PrintError(_("Invalid pixel shader type: %s\n"), pixshader.c_str());
-   return(0);
-  }
   LFG(glCreateShaderObjectARB);
   LFG(glShaderSourceARB);
   LFG(glCompileShaderARB);
@@ -592,13 +684,13 @@ int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *s
 
   LFG(glGetObjectParameterivARB);
 
-  if(!InitShader(pixshadertype))
+  if(!InitShader(pixshader))
   {
    return(0);
   }
   UsingShader = TRUE;
-  ipolate = FALSE; // Disable texture interpolation, otherwise our pixel shaders will be extremely blurry.  
-  SupportNPOT = 0; // Our pixel shaders don't work right with NPOT textures:  FIXME
+  ipolate = VIDEOIP_OFF; // Disable texture interpolation, otherwise our pixel shaders won't work right.
+  SupportNPOT = 0; 	 // Our pixel shaders don't work right with NPOT textures:  FIXME
   p_glActiveTextureARB(GL_TEXTURE0_ARB);
  }
  #endif
@@ -630,9 +722,9 @@ int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *s
     int sl_alpha;
 
     if(slcount)
-     sl_alpha = 0xFF;
-    else
      sl_alpha = 0xFF - (0xFF * scanlines / 100);
+    else
+     sl_alpha = 0xFF;
 
     buf[y*64*4+x*4]=0;
     buf[y*64*4+x*4+1]=0;
@@ -657,10 +749,10 @@ int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *s
      
  UsingIP = ipolate;
 
- p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,ipolate?GL_LINEAR:GL_NEAREST);
- p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,ipolate?GL_LINEAR:GL_NEAREST);
  p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
  p_glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP);
+ p_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, UsingIP ? GL_LINEAR : GL_NEAREST);
+ p_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, UsingIP ? GL_LINEAR : GL_NEAREST);
 
  p_glBindTexture(GL_TEXTURE_2D, textures[2]);
 
@@ -699,11 +791,6 @@ int InitOpenGL(int ipolate, int scanlines, std::string pixshader, SDL_Surface *s
  p_glPixelTransferf(GL_MAP_COLOR, GL_FALSE);
 
  p_glOrtho(0.0, screen->w, screen->h, 0, -1.0, 1.0);
-
- if(scanlines && ipolate)
-  twitchy = 0.5f;
- else
-  twitchy = 0;
 
  last_w = 0;
  last_h = 0;

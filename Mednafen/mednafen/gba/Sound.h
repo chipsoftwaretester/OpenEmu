@@ -20,6 +20,9 @@
 #ifndef VBA_SOUND_H
 #define VBA_SOUND_H
 
+namespace MDFN_IEN_GBA
+{
+
 #define NR10 0x60
 #define NR11 0x62
 #define NR12 0x63
@@ -61,5 +64,6 @@ void MDFNGBA_SetSoundVolume(uint32 volume);
 bool MDFNGBA_SetSoundRate(uint32 rate);
 int MDFNGBASOUND_StateAction(StateMem *sm, int load, int data_only);
 
+}
 
 #endif // VBA_SOUND_H
