@@ -64,22 +64,22 @@ char biosFilePath[2048];
 static bool NST_CALLBACK VideoLock(void* userData, Nes::Api::Video::Output& video)
 {
     DLog(@"Locking: %@", userData);
-    return [(NESGameEmu*)userData lockVideo:&video];
+    return [(__bridge NESGameEmu*)userData lockVideo:&video];
 }
 
 static void NST_CALLBACK VideoUnlock(void* userData, Nes::Api::Video::Output& video)
 {
-    [(NESGameEmu*)userData unlockVideo:&video];
+    [(__bridge NESGameEmu*)userData unlockVideo:&video];
 }
 
 static bool NST_CALLBACK SoundLock(void* userData,Nes::Api::Sound::Output& sound)
 {
-    return [(NESGameEmu*)userData lockSound];
+    return [(__bridge NESGameEmu*)userData lockSound];
 }
 
 static void NST_CALLBACK SoundUnlock(void* userData,Nes::Api::Sound::Output& sound)
 {
-    [(NESGameEmu *)userData unlockSound];
+    [(__bridge NESGameEmu *)userData unlockSound];
 }
 
 - (id)init;
@@ -100,7 +100,7 @@ static void NST_CALLBACK SoundUnlock(void* userData,Nes::Api::Sound::Output& sou
 // for various file operations, usually called during image file load, power on/off and reset
 void NST_CALLBACK doFileIO(void *userData, Nes::Api::User::File& file)
 {
-    NESGameEmu *self = (NESGameEmu *)userData;
+    NESGameEmu *self = (__bridge NESGameEmu *)userData;
     
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSString *path = self->romPath;
@@ -370,10 +370,11 @@ void NST_CALLBACK doEvent(void* userData, Nes::Api::Machine::Event event,Nes::Re
     
     [self setRomPath:path];
     
-    Nes::Api::User::fileIoCallback.Set(doFileIO, self);
-    Nes::Api::User::logCallback.Set(doLog, self);
-    Nes::Api::Machine::eventCallback.Set(doEvent, self);
-    Nes::Api::User::questionCallback.Set(doQuestion, self);
+    void *userData = (__bridge void*)self;
+    Nes::Api::User::fileIoCallback.Set(doFileIO, userData);
+    Nes::Api::User::logCallback.Set(doLog, userData);
+    Nes::Api::Machine::eventCallback.Set(doEvent, userData);
+    Nes::Api::User::questionCallback.Set(doQuestion, userData);
     
     Nes::Api::Fds fds(*emu);
     NSString *appSupportPath = [[[[NSHomeDirectory() stringByAppendingPathComponent:@"Library"] 
@@ -673,10 +674,6 @@ static int Heights[2] =
     delete nesSound;
     delete nesVideo;
     delete controls;
-    [romPath release];
-    [videoLock release];
-    [soundLock release];
-    [super dealloc];
 }
 
 - (void)didPushNESButton:(OENESButton)button forPlayer:(NSUInteger)player;
@@ -720,6 +717,8 @@ static int Heights[2] =
     
     if (stateFile.is_open())
         result = machine.SaveState(stateFile, Nes::Api::Machine::NO_COMPRESSION );
+    else
+        return NO;
     
     if(NES_FAILED(result)) {
         NSString *errorDescription = nil;
@@ -753,6 +752,8 @@ static int Heights[2] =
     
     if (stateFile.is_open())
         result = machine.LoadState(stateFile);
+    else
+        return NO;
     
     if(NES_FAILED(result)) {
         NSString *errorDescription = nil;
