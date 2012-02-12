@@ -65,7 +65,7 @@ NSString *const OEHelperProcessErrorDomain = @"OEHelperProcessErrorDomain";
     gameFBO = 0;
     gameTexture = 0;
     
-    parentApplication = [[NSRunningApplication runningApplicationWithProcessIdentifier:getppid()] retain];
+    parentApplication = [NSRunningApplication runningApplicationWithProcessIdentifier:getppid()];
     NSLog(@"parent application is: %@", [parentApplication localizedName]);
         
     if([self launchConnectionWithIdentifierSuffix:doUUID error:NULL])
@@ -93,14 +93,6 @@ NSString *const OEHelperProcessErrorDomain = @"OEHelperProcessErrorDomain";
     return ret;
 }
 
-- (void)dealloc
-{
-    [theConnection release];
-    [gameCore  release];
-    [gameAudio release];
-    [delegate release];
-    [super dealloc];
-}
 
 - (void)setupGameCore
 {
@@ -189,8 +181,7 @@ NSString *const OEHelperProcessErrorDomain = @"OEHelperProcessErrorDomain";
     [surfaceAttributes setObject:[NSNumber numberWithUnsignedInteger:(NSUInteger)4] forKey:(NSString*)kIOSurfaceBytesPerElement];
     
     // TODO: do we need to ensure openGL Compatibility and CALayer compatibility?
-    surfaceRef = IOSurfaceCreate((CFDictionaryRef) surfaceAttributes);
-    [surfaceAttributes release];
+    surfaceRef = IOSurfaceCreate((__bridge CFDictionaryRef) surfaceAttributes);
         
     // make a new texture.
     CGLContextObj cgl_ctx = glContext;
@@ -281,8 +272,8 @@ static int PixelFormatToBPP(GLenum pixelFormat)
     int pixelBPP        = (pixelFormat == GL_RGB8) ? 4 : 2;
     glTextureRangeAPPLE(GL_TEXTURE_RECTANGLE_EXT, bufferWidth * bufferHeight * pixelBPP, videoBuffer);
 #endif
-    glTexParameteri(GL_TEXTURE_RECTANGLE_EXT,GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
-    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
+//    glTexParameteri(GL_TEXTURE_RECTANGLE_EXT,GL_TEXTURE_STORAGE_HINT_APPLE, GL_STORAGE_CACHED_APPLE);
+//    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
     
     // proper tex params.
     glTexParameteri(GL_TEXTURE_RECTANGLE_EXT, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -305,8 +296,8 @@ static int PixelFormatToBPP(GLenum pixelFormat)
         gameTexture = 0;
     }
     
-    glTexParameteri(GL_TEXTURE_RECTANGLE_EXT, GL_TEXTURE_STORAGE_HINT_APPLE , GL_STORAGE_PRIVATE_APPLE);
-    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_FALSE);
+//    glTexParameteri(GL_TEXTURE_RECTANGLE_EXT, GL_TEXTURE_STORAGE_HINT_APPLE , GL_STORAGE_PRIVATE_APPLE);
+//    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_FALSE);
         
     DLog(@"Finished Setting up gameTexture");
 }
@@ -321,7 +312,7 @@ static int PixelFormatToBPP(GLenum pixelFormat)
     
     glBindTexture(GL_TEXTURE_RECTANGLE_ARB, gameTexture);
         
-    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
+//    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexSubImage2D(GL_TEXTURE_RECTANGLE_EXT, 0, 0, 0, bufferSize.width, bufferSize.height, [gameCore pixelFormat], [gameCore pixelType], [gameCore videoBuffer]);
     
@@ -535,7 +526,6 @@ static int PixelFormatToBPP(GLenum pixelFormat)
         else
         {
             NSLog(@"ROM did not load.");
-            [gameCore release];
             gameCore = nil;
         }
     }
@@ -571,8 +561,8 @@ static int PixelFormatToBPP(GLenum pixelFormat)
     [gameCore stopEmulation];
     [gameAudio stopAudio];
     [gameCore setRenderDelegate:nil];
-    [gameCore release],  gameCore = nil;
-    [gameAudio release], gameAudio = nil;
+    gameCore = nil;
+    gameAudio = nil;
     
     [self setRunning:NO];
 }

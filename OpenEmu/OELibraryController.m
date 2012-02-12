@@ -57,6 +57,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 #endif
 
 @interface OELibraryController ()
+
 // spotlight search results.
 @property(readwrite, retain) NSMutableArray *searchResults;
 
@@ -69,7 +70,9 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 @implementation OELibraryController
 @synthesize romImporter, sidebarChangesWindowSize;
 @synthesize database;
-@synthesize sidebarController, collectionViewController, mainSplitView;
+@synthesize sidebarController, collectionViewController, mainSplitView, mainContentPlaceholderView;
+@synthesize toolbarFlowViewButton, toolbarGridViewButton, toolbarListViewButton;
+@synthesize toolbarSearchField, toolbarSidebarButton, toolbarAddToSidebarButton, toolbarSlider;
 
 @synthesize searchResults;
 
@@ -89,13 +92,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     
     [[NSNotificationCenter defaultCenter] removeObject:self];
     
-    [self setCollectionViewController:nil];
-    [self setMainSplitView:nil];
-    [self setSidebarController:nil];
-    [self setDatabase:nil];
-    [self setRomImporter:nil];
     
-    [super dealloc];
 }
 
 #pragma mark -
@@ -114,9 +111,8 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     
     [[self sidebarController] view];
     
-    [self setRomImporter:[[[OEROMImporter alloc] initWithDatabase:[self database]] autorelease]];
-    
-    [self setSearchResults:[[[NSMutableArray alloc] initWithCapacity:1] autorelease]];
+    self.romImporter = [[OEROMImporter alloc] initWithDatabase:[self database]];
+    self.searchResults = [[NSMutableArray alloc] initWithCapacity:1];
     
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     
@@ -141,11 +137,21 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     [splitView setSidebarMaxWidth:[defaults doubleForKey:UDSidebarMaxWidth]];
     
     // add collection controller's view to splitview
-    NSView *rightContentView = [splitView rightContentView];
-    [rightContentView addSubview:[collectionVC view]];
-    [[collectionVC view] setFrame:[rightContentView bounds]];
+    NSView *mainContentView = [self mainContentPlaceholderView];
+    [mainContentView addSubview:[collectionVC view]];
+    [[collectionVC view] setFrame:[mainContentView bounds]];
     
     [splitView adjustSubviews];
+    
+    
+    [[self toolbarSidebarButton] setImage:[NSImage imageNamed:@"toolbar_sidebar_button_close"]];
+    
+    // Setup Toolbar Buttons
+    [[self toolbarGridViewButton] setImage:[NSImage imageNamed:@"toolbar_view_button_grid"]];
+    [[self toolbarFlowViewButton] setImage:[NSImage imageNamed:@"toolbar_view_button_flow"]];
+    [[self toolbarListViewButton] setImage:[NSImage imageNamed:@"toolbar_view_button_list"]];
+    
+    [[self toolbarAddToSidebarButton] setImage:[NSImage imageNamed:@"toolbar_add_button"]];
 }
 
 - (void)awakeFromNib
@@ -190,8 +196,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     [[self sidebarController] outlineViewSelectionDidChange:nil];
     
     CGFloat splitterPos = 0;
-    if([standardUserDefaults boolForKey:UDSidebarVisibleKey])
-        splitterPos = [standardUserDefaults doubleForKey:UDSidebarWidthKey];
+    if([self isSidebarVisible]) splitterPos = [standardUserDefaults doubleForKey:UDSidebarWidthKey];
     
     OELibrarySplitView *splitView = [self mainSplitView];
     [splitView setResizesLeftView:YES];
@@ -203,8 +208,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 {
     [super viewWillDisappear];
     
-    OEMainWindowController *windowController = [self windowController];
-    NSView *toolbarItemContainer = [[windowController toolbarSearchField] superview];
+    NSView *toolbarItemContainer = [[self toolbarSearchField] superview];
     
     [toolbarItemContainer setAutoresizingMask:NSViewWidthSizable];
 }
@@ -217,7 +221,8 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     NSUserDefaults *standardDefaults = [NSUserDefaults standardUserDefaults];
     OELibrarySplitView *mainSplit = [self mainSplitView];
     
-    BOOL opening = [mainSplit splitterPosition] == 0;
+    BOOL opening = ![self isSidebarVisible];
+    
     CGFloat widthCorrection = 0;
     if(opening)
     {
@@ -227,7 +232,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     {
         CGFloat lastWidth = [mainSplit splitterPosition];
         [standardDefaults setDouble:lastWidth forKey:UDSidebarWidthKey];
-        widthCorrection = -1 * lastWidth;
+        widthCorrection = -lastWidth;
     }
     
     if([self sidebarChangesWindowSize])
@@ -257,9 +262,9 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
                        ? @"toolbar_sidebar_button_close"
                        : @"toolbar_sidebar_button_open")];
     
-    [[[self windowController] toolbarSidebarButton] setImage:image];
+    [[self toolbarSidebarButton] setImage:image];
     
-    [standardDefaults setBool:opening forKey:UDSidebarVisibleKey];
+    [self setSidebarVisible:opening];
 }
 
 - (IBAction)switchToGridView:(id)sender
@@ -285,6 +290,11 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 - (IBAction)changeGridSize:(id)sender
 {
     [[self collectionViewController] changeGridSize:sender];
+}
+
+- (IBAction)addCollectionAction:(id)sender
+{
+    [[self sidebarController] addCollectionAction:sender];
 }
 
 #pragma mark FileMenu Actions
@@ -376,7 +386,6 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     
     if(document == nil) return;
     [docController addDocument:document];
-    [document release];
 }
 
 #pragma mark -
@@ -400,13 +409,12 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
         searchString = [searchString stringByAppendingString:@" || "];
     }
     
-    [supportedFileExtensions release];
     
     searchString = [searchString substringWithRange:NSMakeRange(0, [searchString length] - 4)];
     
     NSLog(@"SearchString: %@", searchString);
     
-    MDQueryRef searchQuery = MDQueryCreate(kCFAllocatorDefault, (CFStringRef)searchString, NULL, NULL);
+    MDQueryRef searchQuery = MDQueryCreate(kCFAllocatorDefault, (__bridge CFStringRef)searchString, NULL, NULL);
     
     if(searchQuery)
     {
@@ -415,18 +423,18 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
         [[self searchResults] removeAllObjects];
         
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(finalizeSearchResults:)
-                                                     name:(NSString *)kMDQueryDidFinishNotification
-                                                   object:(id)searchQuery];
+                                                     name:(NSString*)kMDQueryDidFinishNotification
+                                                   object:(__bridge id)searchQuery];
         
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateSearchResults:)
-                                                     name:(NSString *)kMDQueryProgressNotification
-                                                   object:(id)searchQuery];
+                                                     name:(NSString*)kMDQueryProgressNotification
+                                                   object:(__bridge id)searchQuery];
         
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateSearchResults:)
-                                                     name:(NSString *)kMDQueryDidUpdateNotification
-                                                   object:(id)searchQuery];
+                                                     name:(NSString*)kMDQueryDidUpdateNotification
+                                                   object:(__bridge id)searchQuery];
         
-        MDQuerySetSearchScope(searchQuery, (CFArrayRef) [NSArray arrayWithObject:(NSString *) kMDQueryScopeComputer /*kMDQueryScopeComputer */], 0);
+        MDQuerySetSearchScope(searchQuery, (__bridge CFArrayRef) [NSArray arrayWithObject:(NSString*) kMDQueryScopeComputer /*kMDQueryScopeComputer */], 0);
         
         if(MDQueryExecute(searchQuery, kMDQueryWantsUpdates))
             NSLog(@"Searching for importable roms");
@@ -447,7 +455,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 {
     NSLog(@"updateSearchResults:");
     
-    MDQueryRef searchQuery = (MDQueryRef)[notification object];
+    MDQueryRef searchQuery = (__bridge MDQueryRef)[notification object];
     
     // If you're going to have the same array for every iteration,
     // don't allocate it inside the loop !
@@ -474,7 +482,7 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
     for(CFIndex index = 0, limit = MDQueryGetResultCount(searchQuery); index < limit; index++)
     {
         MDItemRef resultItem = (MDItemRef)MDQueryGetResultAtIndex(searchQuery, index);
-        NSString *resultPath = (NSString *)MDItemCopyAttribute(resultItem, kMDItemPath);
+        NSString *resultPath = (__bridge_transfer NSString *)MDItemCopyAttribute(resultItem, kMDItemPath);
         
         // Nothing in common
         if([[resultPath pathComponents] firstObjectCommonWithArray:excludedPaths] == nil)
@@ -490,18 +498,13 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
                 
                 NSLog(@"Result Path: %@", resultPath);
             }
-            
-            [resultDict release];
         }
-        
-        [resultPath release];
     }
 }
 
 - (void)finalizeSearchResults:(NSNotification *)notification
 {
-    MDQueryRef searchQuery = (MDQueryRef)[notification object];
-    
+    MDQueryRef searchQuery = (__bridge MDQueryRef)[notification object];    
     NSLog(@"Finished searching, found: %lu items", MDQueryGetResultCount(searchQuery));
     
     if(MDQueryGetResultCount(searchQuery))
@@ -548,8 +551,8 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
                            ? @"toolbar_sidebar_button_open"
                            : @"toolbar_sidebar_button_close")];
         
-        [[[self windowController] toolbarSidebarButton] setImage:image];
-        [[[self windowController] toolbarSidebarButton] display];
+        [[self toolbarSidebarButton] setImage:image];
+        [[self toolbarSidebarButton] display];
     }
 }
 
@@ -557,6 +560,9 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 {
     return sidebarChangesWindowSize;
 }
+
+- (BOOL)isSidebarVisible              { return [[NSUserDefaults standardUserDefaults] boolForKey:UDSidebarVisibleKey];    }
+- (void)setSidebarVisible:(BOOL)value { [[NSUserDefaults standardUserDefaults] setBool:value forKey:UDSidebarVisibleKey]; }
 
 #pragma mark -
 #pragma mark Private
@@ -577,41 +583,19 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 
 - (void)OE_setupToolbarItems
 {
-    OEMainWindowController *windowController = [self windowController];
-    
-    [[windowController toolbarFlowViewButton] setEnabled:YES];
-    [[windowController toolbarFlowViewButton] setTarget:self andAction:@selector(switchToFlowView:)];
-    
-    [[windowController toolbarGridViewButton] setEnabled:YES];
-    [[windowController toolbarGridViewButton] setTarget:self andAction:@selector(switchToGridView:)];
-    
-    [[windowController toolbarListViewButton] setEnabled:YES];
-    [[windowController toolbarListViewButton] setTarget:self andAction:@selector(switchToListView:)];
-    
-    [[windowController toolbarSearchField] setEnabled:YES];
-    [[windowController toolbarSearchField] setTarget:self andAction:@selector(search:)];
-    
-    [[windowController toolbarSlider] setEnabled:[[windowController toolbarGridViewButton] state]];
-    [[windowController toolbarSlider] setTarget:self andAction:@selector(changeGridSize:)];
-    
-    [[windowController toolbarSidebarButton] setEnabled:YES];
-    [[windowController toolbarSidebarButton] setTarget:self andAction:@selector(toggleSidebar:)];
-    
-    [[windowController toolbarAddToSidebarButton] setEnabled:YES];
-    [[windowController toolbarAddToSidebarButton] setTarget:[self sidebarController] andAction:@selector(addCollectionAction:)];
+    [[self toolbarSlider] setEnabled:[[self toolbarGridViewButton] state]];
 }
 
 - (void)layoutToolbarItems
 {
-    OEMainWindowController *windowController = [self windowController];
     OELibrarySplitView *splitView = [self mainSplitView];
-    NSView *toolbarItemContainer = [[windowController toolbarSearchField] superview];
+    NSView *toolbarItemContainer = [[self toolbarSearchField] superview];
     
     CGFloat splitterPosition = [splitView splitterPosition];
     
     if(splitterPosition != 0) [[NSUserDefaults standardUserDefaults] setDouble:splitterPosition forKey:UDSidebarWidthKey];
     
-    [toolbarItemContainer setFrame:NSMakeRect(splitterPosition, 0.0, NSWidth([[splitView rightContentView] frame]), 44.0)];
+    [toolbarItemContainer setFrame:NSMakeRect(splitterPosition, 0.0, NSWidth([[toolbarItemContainer superview] bounds]) - splitterPosition, 44.0)];
 }
 
 - (void)windowFullscreenExit:(NSWindow *)window
@@ -622,6 +606,42 @@ NSString *const NSWindowWillExitFullScreenNotification = @"OEWindowWillExitFullS
 - (void)windowFullscreenEnter:(NSWindow *)window
 {
     [self setSidebarChangesWindowSize:NO];
+}
+
+@end
+
+@implementation OELibraryToolbarView
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+    [[NSColor blackColor] setFill];
+    NSRectFill(dirtyRect);
+    
+    if(NSMinY(dirtyRect) > 44) return;
+    
+    NSRect viewRect = [self bounds];
+    viewRect.origin.y = NSMinY(viewRect);
+    viewRect.size.height = 44.0;
+    
+    NSColor *topLineColor   = [NSColor colorWithDeviceWhite:0.32 alpha:1];
+    NSColor *gradientTop    = [NSColor colorWithDeviceWhite:0.20 alpha:1];
+    NSColor *gradientBottom = [NSColor colorWithDeviceWhite:0.15 alpha:1];
+    
+    // Draw top line
+    NSRect lineRect = NSMakeRect(0, 43, viewRect.size.width, 1);
+    [topLineColor setFill];
+    NSRectFill(lineRect);
+    
+    // Draw Gradient
+    viewRect.origin.y = 0;
+    viewRect.size.height -= 1;
+    NSGradient *backgroundGradient = [[NSGradient alloc] initWithStartingColor:gradientTop endingColor:gradientBottom];
+    [backgroundGradient drawInRect:viewRect angle:-90.0];
+}
+
+- (BOOL)isOpaque
+{
+    return NO;
 }
 
 @end

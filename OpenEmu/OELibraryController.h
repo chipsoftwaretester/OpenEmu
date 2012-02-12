@@ -40,6 +40,9 @@
 @class OEROMImporter;
 @class FullscreenWindow;
 
+@interface OELibraryToolbarView : NSView
+@end
+
 @interface OELibraryController : OEMainWindowContentController
 
 - (void)layoutToolbarItems;
@@ -53,6 +56,8 @@
 - (IBAction)switchToListView:(id)sender;
 - (IBAction)switchToFlowView:(id)sender;
 - (IBAction)search:(id)sender;
+- (IBAction)changeGridSize:(id)sender;
+- (IBAction)addCollectionAction:(id)sender;
 
 #pragma mark -
 #pragma mark Menu Item Actions
@@ -74,20 +79,31 @@
 #pragma mark -
 #pragma Handle Spotlight importing
 
-- (void) discoverRoms;
-- (void) updateSearchResults:(NSNotification*)notification;
-- (void) finalizeSearchResults:(NSNotification*)notification;
-- (void) importInBackground;
+- (void)discoverRoms;
+- (void)updateSearchResults:(NSNotification*)notification;
+- (void)finalizeSearchResults:(NSNotification*)notification;
+- (void)importInBackground;
 
 #pragma mark -
 #pragma mark Properties
 
+@property(nonatomic, getter=isSidebarVisible) BOOL sidebarVisible;
 @property(nonatomic) BOOL sidebarChangesWindowSize;
-@property(retain)    OEROMImporter     *romImporter;
-@property(retain)    OELibraryDatabase *database;
+@property(strong)    OEROMImporter     *romImporter;
+@property(strong)    OELibraryDatabase *database;
 
-@property(retain) IBOutlet OESidebarController        *sidebarController;
-@property(retain) IBOutlet OECollectionViewController *collectionViewController;
-@property(retain) IBOutlet OELibrarySplitView         *mainSplitView;
+@property(strong) IBOutlet OESidebarController        *sidebarController;
+@property(strong) IBOutlet OECollectionViewController *collectionViewController;
+@property(strong) IBOutlet OELibrarySplitView         *mainSplitView;
+@property(strong) IBOutlet NSView                     *mainContentPlaceholderView;
+
+@property(strong) IBOutlet NSButton      *toolbarSidebarButton;
+@property(strong) IBOutlet NSButton      *toolbarGridViewButton;
+@property(strong) IBOutlet NSButton      *toolbarFlowViewButton;
+@property(strong) IBOutlet NSButton      *toolbarListViewButton;
+
+@property(strong) IBOutlet NSButton      *toolbarAddToSidebarButton;
+@property(strong) IBOutlet NSSearchField *toolbarSearchField;
+@property(strong) IBOutlet NSSlider      *toolbarSlider;
 
 @end

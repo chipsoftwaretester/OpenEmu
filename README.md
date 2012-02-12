@@ -4,10 +4,16 @@ Currently Open Emu can load the following game engines as plugins:
 
 * CrabEmu  - adds support for Sega Master System, Game Gear, SG - 1000
 * Gambatte  - adds support for Game Boy and Game Boy Color
-* Genesis Plus - adds support for Sega Genesis, Sega CD and Sega 32x
+* Genesis Plus - adds support for Sega Genesis/Mega Drive
+* NeoPop - adds support for Neo Geo Pocket and Neo Geo Pocket Color
 * Nestopia - adds support for NES/Famicom
 * SNES9x - adds support for SNES and Super Famicom
 * BSNES - adds support for SNES and Super Famicom
 * Visualboy Advance - adds support for Game Boy Advance
 
 Open Emu also supports high quality scaling with Open GL, multi-threaded video and audio playback as well as individual features and preferences per game engine, such as NTSC video signal emulation for the Nestopia core.
+
+Minimum system requirements:
+* OS X 10.7
+* Core 2 Duo Processor
+* GMA X3100 Graphics

@@ -41,6 +41,7 @@
 #include <NstApiRam.h>
 #include <NstApiMovie.hpp>
 #include <NstApiFds.hpp>
+#include <NstMachine.hpp>
 #include <iostream>
 #include <fstream>
 #include <map>

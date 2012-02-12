@@ -30,71 +30,16 @@
 
 @implementation OESMSPreferenceView
 
-- (id)init
-{
-    self = [super init];
-    if (self) {
-        // Initialization code here.
-    }
-    
-    return self;
-}
-
-- (void)dealloc
-{
-    [super dealloc];
-}
-
-
-- (void)awakeFromNib
-{
-    [super awakeFromNib];
-
-    OEControlsSetupView *view = (OEControlsSetupView *)[self view];
-    
-	[view addButtonWithName:@"OESMSButtonUp[@]" label:@"Up:" target:self highlightPoint:NSMakePoint(195, 176)];
-	[view addButtonWithName:@"OESMSButtonDown[@]" label:@"Down:" target:self highlightPoint:NSMakePoint(195, 93)];
-	[view addButtonWithName:@"OESMSButtonLeft[@]" label:@"Left:" target:self highlightPoint:NSMakePoint(157, 138)];
-	[view addButtonWithName:@"OESMSButtonRight[@]" label:@"Right:" target:self highlightPoint:NSMakePoint(234, 138)];
-    [view nextColumn];
-    
-	[view addButtonWithName:@"OESMSButtonA[@]" label:@"Button 1 /Start:" target:self highlightPoint:NSMakePoint(383, 114)];
-	[view addButtonWithName:@"OESMSButtonB[@]" label:@"Button 2:" target:self highlightPoint:NSMakePoint(453, 114)];
-	[view addRowSeperator];
-
-	[view addButtonWithName:@"OESMSButtonStart" label:@"Console Pause" target:self];
-    //	[view addButtonWithName:@"OESMSButtonReset" label:@"Console Reset" target:self];
-
-	[view nextPage];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"1:" target:self];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"2:" target:self];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"3:" target:self];
-	[view nextColumn];
-    
-	[view addButtonWithName:@"OESMSButtonReset" label:@"4:" target:self];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"5:" target:self];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"6:" target:self];
-	[view nextColumn];
-    
-	[view addButtonWithName:@"OESMSButtonReset" label:@"7:" target:self];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"8:" target:self];
-	[view addButtonWithName:@"OESMSButtonReset" label:@"9:" target:self];
-    
-    [view updateButtons];
-	
-    return;
-}
-
 - (NSImage*)controllerImage
 {
 	NSString *path = [[NSBundle bundleForClass:[self class]] pathForImageResource:@"controller_sms.png"];
-	return [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
+	return [[NSImage alloc] initWithContentsOfFile:path];
 }
 
 - (NSImage*)controllerImageMask
 {
 	NSString *path = [[NSBundle bundleForClass:[self class]] pathForImageResource:@"controller_sms_mask.png"];
-	return [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
+	return [[NSImage alloc] initWithContentsOfFile:path];
     
 }
 @end

@@ -33,6 +33,8 @@
 {
     [super awakeFromNib];
     
+    // TODO: Add the localization the plist
+    /*
     BOOL famicom = [[OELocalizationHelper sharedHelper] isRegionJAP];
 	
     OEControlsSetupView *view = (OEControlsSetupView *)[self view];
@@ -52,6 +54,7 @@
     [view addButtonWithName:@"OENESButtonFDSChangeSide[@]" label:@"Change Side:" target:self];
 	
 	[view updateButtons];
+     */
 }
 
 - (NSImage*)controllerImage
@@ -59,7 +62,7 @@
 	NSString *controllerImageName = [[OELocalizationHelper sharedHelper] isRegionJAP]?@"controller_fc.png":@"controller_nes.png";
 	
 	NSString *path = [[NSBundle bundleForClass:[self class]] pathForImageResource:controllerImageName];
-	return [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
+	return [[NSImage alloc] initWithContentsOfFile:path];
 }
 
 - (NSImage*)controllerImageMask
@@ -67,6 +70,6 @@
     NSString *controllerImageName = [[OELocalizationHelper sharedHelper] isRegionJAP]?@"controller_fc_mask.png":@"controller_nes_mask.png";
 	
 	NSString *path = [[NSBundle bundleForClass:[self class]] pathForImageResource:controllerImageName];
-	return [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
+	return [[NSImage alloc] initWithContentsOfFile:path];
 }
 @end

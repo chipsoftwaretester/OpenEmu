@@ -62,8 +62,6 @@
 - (void)dealloc
 {
     [self removeObserver:self forKeyPath:@"frameSize"];
-    [elementPages release];
-    [super dealloc];
 }
 
 - (void)addButtonWithName:(NSString *)aName target:(id)aTarget startPosition:(NSPoint)start endPosition:(NSPoint)end
@@ -94,15 +92,12 @@
     [button setAction:@selector(selectInputControl:)];
     [button bind:@"title" toObject:aTarget withKeyPath:aName options:nil];
     [currentColumn addObject:button];
-    [button release];
     
     NSTextField *labelField = [[NSTextField alloc] initWithFrame:labelRect];
     NSTextFieldCell *labelFieldCell = [[OEControlsKeyLabelCell alloc] init];
     [labelField setCell:labelFieldCell];
     [labelField setStringValue:label];
     [currentColumn addObject:labelField];
-    [labelFieldCell release];
-    [labelField release];
 }
 
 - (void)nextColumn
@@ -116,7 +111,6 @@
     NSMutableArray *newPage = [[NSMutableArray alloc] init];
     [newPage addObject:[NSMutableArray array]];
     [elementPages addObject:newPage];
-    [newPage release];
 }
 
 - (void)addColumnLabel:(NSString*)label
@@ -130,8 +124,6 @@
     [labelField setCell:labelFieldCell];
     [labelField setStringValue:label];
     [currentColumn addObject:labelField];
-    [labelFieldCell release];
-    [labelField release];
 }
 
 - (void)addRowSeperator
@@ -141,7 +133,6 @@
     
     OEControlsKeySeparatorView *view = [[OEControlsKeySeparatorView alloc] init];
     [currentColumn addObject:view];
-    [view release];
 }
 
 - (void)updateButtons
@@ -293,56 +284,59 @@
 {
     if(!currentButton) return;
     
-    __block BOOL _selectNext = NO;
-    __block BOOL _nextButtonIsOnDifferentPage = NO;
+    __block BOOL selectNext = NO;
+    __block BOOL nextButtonIsOnDifferentPage = NO;
     [elementPages enumerateObjectsUsingBlock:
-     ^(id page, NSUInteger pidx, BOOL *stop)
+     ^(NSArray *page, NSUInteger pageIdx, BOOL *stop)
      {
          [page enumerateObjectsUsingBlock:
-          ^(id column, NSUInteger idx, BOOL *stop)
+          ^(NSArray *column, NSUInteger columnIdx, BOOL *stop)
           {
               [column enumerateObjectsUsingBlock:
-               ^(id item, NSUInteger idx, BOOL *stop)
+               ^(OEControlsKeyButton *item, NSUInteger controlIdx, BOOL *stop)
                {
                    if(item == currentButton)
                    {
                        
-                       _nextButtonIsOnDifferentPage = NO;
-                       _selectNext = YES;
+                       nextButtonIsOnDifferentPage = NO;
+                       selectNext = YES;
                    }
-                   else if(_selectNext && [item isKindOfClass:[OEControlsKeyButton class]])
+                   else if(selectNext && [item isKindOfClass:[OEControlsKeyButton class]])
                    {
+                       // FIXME: You should not need to test whether a target is set
                        if(item && [item target] && [item action] && [[item target] respondsToSelector:[item action]])
                        {
-                           if(_nextButtonIsOnDifferentPage)
-                           {
-                               [self scrollToPage:pidx];
-                           }
+                           if(nextButtonIsOnDifferentPage)
+                               [self scrollToPage:pageIdx];
+                           
                            [item setState:NSOnState];
-                           [[item target] performSelector:[item action] withObject:item];
+                           
+                           if([item action] != NULL) [NSApp sendAction:[item action] to:[item target] from:item];
+                           
                            *stop = YES;
-                           _selectNext = NO;
+                           selectNext = NO;
                        }
                    }
                }];
-              _nextButtonIsOnDifferentPage = YES;
+              nextButtonIsOnDifferentPage = YES;
           }];
      }];
     
-    if(_selectNext && [[NSUserDefaults standardUserDefaults] boolForKey:UDControlsButtonHighlightRollsOver])
+    if(selectNext && [[NSUserDefaults standardUserDefaults] boolForKey:UDControlsButtonHighlightRollsOver])
     {
         NSMutableArray *firstPage = [elementPages objectAtIndex:0];
-        if([firstPage count])
+        if([firstPage count] > 0)
         {
             NSMutableArray *firstColumn = [firstPage objectAtIndex:0];
-            for(id aElement in firstColumn)
+            for(id anElement in firstColumn)
             {
-                if([aElement isKindOfClass:[OEControlsKeyButton class]] && [aElement target] && [aElement action] && [[aElement target] respondsToSelector:[aElement action]])
+                // FIXME: You should not need to test whether a target is set
+                if([anElement isKindOfClass:[OEControlsKeyButton class]] && [anElement target] != nil && [anElement action] != NULL && [[anElement target] respondsToSelector:[anElement action]])
                 {
                     [self scrollToPage:0];
                     
-                    [aElement setState:NSOnState];
-                    [[aElement target] performSelector:[aElement action] withObject:aElement];
+                    [anElement setState:NSOnState];
+                    if([anElement action] != NULL) [NSApp sendAction:[anElement action] to:[anElement target] from:anElement];
                     
                     break;
                 }
@@ -381,11 +375,11 @@
     id item = nil;
     float distance = 0;
     
-    for(NSView *aSubview in [self subviews])
+    for(OEControlsKeyButton *aSubview in [self subviews])
     {
         if([aSubview respondsToSelector:@selector(highlightPoint)])
         {
-            NSPoint highlightPoint = [(OEControlsKeyButton *)aSubview highlightPoint];
+            NSPoint highlightPoint = [aSubview highlightPoint];
             float currentDistance = NSDistanceBetweenPoints(point, highlightPoint);
             if(item == nil || currentDistance < distance)
             {
